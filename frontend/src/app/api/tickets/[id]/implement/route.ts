@@ -195,11 +195,23 @@ export async function POST(
   }
 
   if (action === "complete" && taskId) {
+    const [ticketRow] = await db
+      .select()
+      .from(tickets)
+      .where(eq(tickets.id, ticketId));
+
+    const slug = (ticketRow?.title ?? "task")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    const prefix = ticketRow?.jiraKey ?? `TASK-${ticketId}`;
+    const branchName = `${prefix}-${slug}`.slice(0, 30).replace(/-$/, "");
+
     await db
       .update(tasks)
       .set({
         status: "done",
-        branchName: `feat/${ticketId}-task-${taskId}`,
+        branchName,
         updatedAt: Date.now(),
       })
       .where(eq(tasks.id, taskId));

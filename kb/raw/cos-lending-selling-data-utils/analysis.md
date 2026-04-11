@@ -1,65 +1,65 @@
 # cos-lending-selling-data-utils
 
 ## Purpose
-COS.Lending.Selling.DataTools.AccountsResolver is a utility that resolves and manages accounts for loans in the CRB Lending Selling platform. It retrieves account information from multiple sources including the Lending Accounting API and LS database, then updates the Selling database with the correct account mappings for various financial operations.
+This repository provides a data utility tool for the COS Lending and Selling system that resolves and maps various account numbers for loans from different banking systems, primarily fetching account information from the Lending Accounting API and updating the Selling database with the appropriate account mappings.
 
 ## Business Features
-- Account resolution for loans with missing account information
-- Fee sweep account management
+- Loan accounts resolution and mapping
+- Fee sweep account resolution
 - Custom purchase account mapping
-- Loan source account resolution
-- Account validation and cleanup
+- Loan source (LS) account resolution
+- Account data cleanup and validation
 
 ## APIs
-- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Retrieve account information for loans from the CRB.CosLending.Accounting.Api
+- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Fetches loan account information from the Lending Accounting API
 
 ## Dependencies
-- **CRB.CosLending.Accounting.Api** (http)
+- **Crb.CosLending.Accounting.Api** (http)
+- **CRB.Framework.Logging** (shared-lib)
+- **CRB.Authorization** (shared-lib)
+- **CRB.Cos.Lending.Selling.DbContext** (shared-lib)
 - **SellingDB** (database)
 - **MPLConsumerLoansOperationsProd** (database)
-- **CRB.Authorization** (shared-lib)
-- **CRB.Framework.Logging** (shared-lib)
 
 ## Data Entities
-- **Loan** — Represents loan data with identifiers, investor information, and loan status
-- **LoanAccount** — Maps loans to their associated accounts with different objective types
-- **ObjectiveAccount** — Account with a specific purpose (purchase, interest income, fee income, etc.)
-- **FeeSweep** — Represents fee sweep transactions that require account resolution
-- **CustomPurchaseAccountMapping** — Configuration for mapping specific loan attributes to custom purchase accounts
+- **Loan** — Represents a loan with essential information like ID, MPL ID, issuing bank, loan type, and origination status
+- **LoanAccount** — Associates a loan with various account numbers for different purposes (purchase, income, etc.)
+- **ObjectiveAccount** — An account with a specific business purpose like purchase, return, or interest income
+- **FeeSweep** — Represents fee sweep information with source and destination accounts
 
 ## External Integrations
-- **Lending Accounting Service** — upstream via REST
-- **OAuth Token Provider** — upstream via REST
-- **MPL Consumer Loan Operations** — upstream via database
+- **Lending Accounting API** — downstream via REST
+- **MPL Consumer Loans Operations DB** — downstream via database
+- **SellingDB** — bidirectional via database
+- **OAuth Token Provider** — downstream via REST
 
 ## Architecture Patterns
-- Microservice
-- Command-line utility
+- Batch processing
 - Repository pattern
-- Service pattern
 - Dependency injection
+- Microservice
+- Command line application
 
 ## Tech Stack
-- .NET 7
+- .NET Core 7.0
 - Entity Framework Core
 - PostgreSQL
 - SQL Server
-- Docker
-- Azure DevOps pipelines
-- CommandLine parser
 - Npgsql.Bulk
-- JSON
+- Docker
+- Azure DevOps
+- OAuth
 
 ## Findings
-### [HIGH] Hardcoded Database Connection Strings
+### [HIGH] Credentials in Configuration Files
 
 **Category:** security  
 **Files:** accounts-resolver/appsettings.json
 
-The application contains hardcoded database connection strings in appsettings.json with empty password fields, which suggests passwords may be added at runtime. This poses a security risk as connection strings could be accidentally committed with credentials or leaked through logs.
-### [HIGH] Missing error handling for OAuth token failures
+The appsettings.json file contains database connection string information including username fields. Although the password fields appear to be empty in the checked-in files, this pattern suggests that actual passwords might be supplied in environment-specific configuration files. Credentials should be stored in a secure vault and accessed via a secret management service.
+### [HIGH] Inefficient Batch Processing
 
 **Category:** architecture  
-**Files:** accounts-resolver/Infrastructure/Accounting/LendingAccountingClient.cs
+**Files:** accounts-resolver/AccountsResolver/AccountsProcessor.cs, accounts-resolver/Handlers/LoansAccountsService.cs
 
-The LendingAccountingClient depends on token-based authentication but lacks robust error handling for token acquisition failures, which could lead to unhandled exceptions and service outages in production.
+The application loads all loans with missing accounts into memory before processing, which could cause memory issues with large datasets. Consider implementing a streaming approach with a cursor-based pagination to process loans in smaller batches while maintaining performance.

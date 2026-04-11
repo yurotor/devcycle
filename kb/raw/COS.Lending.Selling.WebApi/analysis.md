@@ -1,101 +1,95 @@
 # COS.Lending.Selling.WebApi
 
 ## Purpose
-COS.Lending.Selling.WebApi is a .NET-based service that manages the selling and purchase of loans between marketplace lenders (MPLs) and investors. It handles loan lifecycle management including funding, purchasing, interest accrual, and fee collections, serving as a core component in Cross River Bank's lending platform.
+The COS.Lending.Selling.WebApi repository provides functionality for managing loan selling operations between Marketplace Lenders (MPLs) and investors. It handles the purchase of loans, fee collections, interest calculations, and reconciliation processes within Cross River Bank's lending ecosystem.
 
 ## Business Features
-- Loan purchasing and sales processing
-- Interest accrual and collection
-- Fee calculation and collection (Volume fees, DMV fees, Florida stamp tax, etc.)
-- Grooming (changing loan attributes/investors)
-- Loan reconciliation and discrepancy detection
-- Loan reporting (pre-sale and post-sale reports)
-- Monthly minimum fees processing
-- Auto-purchase of eligible loans
+- Loan purchase processing
+- Fee collection and management
+- Daily interest accrual and calculation
 - Transfer management between accounts
-- Batch processing for loan operations
+- Loan grooming and preparation for sale
+- Volume fee collection and monthly minimum requirements
+- Reporting for pre-sale and post-sale loans
+- Loan discrepancy detection and reconciliation
+- Batch processing of loan transactions
+- Auto-purchase of eligible loans
 
 ## APIs
-- **GET /api/loans** — Retrieve loans with optional filtering
-- **GET /api/loans/{id}** — Get details for a specific loan
-- **POST /api/loans/purchase** — Purchase loans for an investor
-- **POST /api/grooming** — Initiate grooming process for loans
-- **POST /api/reports** — Generate pre-sale or post-sale loan reports
+- **POST /api/loan/purchase** — Initiates the purchase of loans from MPLs
+- **GET /api/report/presale** — Generates pre-sale loan reports for MPLs and investors
+- **GET /api/report/postsale** — Generates post-sale loan reports for processed batches
+- **POST /api/batch/complete** — Completes a batch of loan purchases
+- **POST /api/grooming** — Prepares loans for sale by grooming them to meet requirements
 
 ## Dependencies
-- **AWS SQS** (messaging)
+- **COS.Lending.Contracts** (http)
+- **COS.Lending.Accounting** (http)
+- **COS.Storage** (http)
+- **Hooks** (http)
 - **Postgres** (database)
-- **COS** (http)
-- **CRB.CosWrapper** (shared-lib)
-- **Lending.Contracts** (http)
-- **HooksService** (http)
-- **Storage Service** (http)
-- **Lending.Accounting** (http)
+- **AWS SQS** (messaging)
 
 ## Data Entities
-- **Loan** — Represents a loan with its sale status, type and associated details
-- **LoanAccount** — Account information associated with a loan for different purposes
-- **Contract** — Agreement between MPL and issuing bank containing fee calculation methods
-- **Transfer** — Money transfer between accounts with status tracking
-- **LoanAction** — Records actions performed on loans like daily interest accrual
-- **Batch** — Group of loans being processed together
-- **VolumeFeeCalculationMethod** — Defines how fees are calculated for loans
+- **Loan** — Represents a loan to be purchased from an MPL
+- **LoanAction** — Represents an action performed on a loan (purchase, fee collection, interest accrual)
+- **Transfer** — Represents a money transfer between accounts for various operations
+- **Contract** — Defines the agreement terms between MPL and bank, including fee structures
+- **Account** — Represents various accounting accounts involved in loan transactions
+- **Batch** — Represents a batch of loans processed together
+- **VolumeFee** — Represents fees collected based on loan volume
 
 ## Messaging Patterns
-- **DailyInterestOutbox** (outbox) — Ensures reliable processing of daily interest accruals
-- **TransferOutbox** (outbox) — Handles asynchronous money transfers between accounts
-- **BatchInitOutbox** (outbox) — Initiates loan batch purchases
-- **FeeOutbox** (outbox) — Manages fee collections (DMV, Florida Stamp Tax, etc.)
-- **NotificationOutbox** (outbox) — Sends notifications about events via hooks service
-- **ReportingOutbox** (outbox) — Handles generation of pre-sale and post-sale reports
-- **VolumeFeeOutbox** (outbox) — Manages volume fee collection processing
-- **MaturedLoanOutbox** (outbox) — Processes matured loans for purchase
+- **TransferOutbox** (outbox) — Ensures reliable processing of transfers by storing them before execution
+- **DailyInterestOutbox** (outbox) — Manages accrual of daily interest on loans
+- **FeeOutbox** (outbox) — Manages the collection of various fees
+- **NotificationOutbox** (outbox) — Manages sending notifications to external systems
+- **ReportingOutbox** (outbox) — Manages the generation and storage of reports
+- **SQS Message Queue** (queue) — Handles asynchronous processing of messages between system components
 
 ## External Integrations
 - **COS (Core Operating System)** — bidirectional via REST
+- **AWS S3 Storage** — upstream via REST
+- **Hooks Notification System** — downstream via REST
 - **AWS SQS** — bidirectional via messaging
-- **Storage Service** — downstream via REST
-- **Hooks Service** — downstream via REST
-- **Lending Contracts Service** — downstream via REST
-- **Lending Accounting Service** — downstream via REST
 
 ## Architecture Patterns
-- Microservice
 - Outbox Pattern
-- CQRS
-- Event-driven architecture
 - Repository Pattern
-- Background Service Workers
-- Multi-tenancy
+- Background Processing
+- Microservices
+- Event-Driven Architecture
+- Domain-Driven Design
+- CQRS (Command Query Responsibility Segregation)
 
 ## Tech Stack
 - .NET 8
-- PostgreSQL
 - F#
 - C#
-- AWS SQS
+- Postgres
 - Entity Framework Core
+- AWS SQS
+- AWS S3
 - Docker
-- Jenkins
-- Azure DevOps
 - Quartz.NET
+- CsvHelper
 
 ## Findings
-### [HIGH] Multi-tenancy enforcement issues
+### [HIGH] Embedded SQS credentials in code
 
 **Category:** security  
-**Files:** CRB.Cos.Lending.Selling.Middlewares/PolicyTenantService.cs
+**Files:** CRB.COS.Lending.Selling.OutboxProcessors/Services/MessageDispatcherService.cs
 
-The PolicyTenantService doesn't validate if the tenant has proper access to resources in some paths. Some tenant validation might be bypassed, particularly in the CRB tenant identification logic which relies only on string matching of policy names rather than proper role-based checks.
-### [HIGH] Manual transaction management
+The application appears to have AWS SQS access credentials in environment variables or configuration. This creates security risk if these credentials are ever exposed. Recommended to use IAM roles or secure credential management.
+### [HIGH] Missing error handling in outbox processors
 
 **Category:** architecture  
-**Files:** CRB.COS.Lending.Selling.OutboxProcessors/OutboxProcessorBase.cs, CRB.COS.Lending.Selling.OutboxProcessors/Services/MessageDispatcherService.cs
+**Files:** CRB.COS.Lending.Selling.OutboxProcessors/OutboxProcessorBase.cs
 
-Various processors manage database transactions manually, which could lead to inconsistent state if errors occur during processing. Consider implementing a more robust transaction management approach with proper rollback mechanisms.
-### [HIGH] Hardcoded credentials in docker-compose
+Several outbox processors lack comprehensive error handling which could lead to message loss or processing failures. Implement proper retry mechanisms and dead letter queues for all processors.
+### [HIGH] Inefficient batch processing patterns
 
-**Category:** security  
-**Files:** .devcontainer/docker-compose.yml
+**Category:** optimization  
+**Files:** CRB.Cos.Lending.Selling.BusinessLogic/PurchaseLoans.fs
 
-The docker-compose.yml file contains hardcoded database credentials. These should be externalized using environment variables or a secrets management solution.
+Current implementation processes loans in batches but does not optimize database operations for large batches, which could lead to performance issues with large loan volumes. Implement chunked processing with optimized database access.

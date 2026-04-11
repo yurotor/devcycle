@@ -128,12 +128,14 @@ export function TicketDetail({
           <PlanPhase
             ticket={ticket}
             onComplete={() => onPhaseChange("design")}
+            onBack={() => onPhaseChange("analyze")}
           />
         )}
         {ticket.phase === "design" && (
           <DesignPhase
             ticket={ticket}
             onComplete={() => onPhaseChange("implement")}
+            onBack={() => onPhaseChange("plan")}
           />
         )}
         {ticket.phase === "implement" && (

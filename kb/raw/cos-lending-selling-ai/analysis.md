@@ -1,90 +1,82 @@
 # cos-lending-selling-ai
 
 ## Purpose
-This repository implements an AI-powered assistant for loan data analysis in the COS Lending/Selling platform. It uses Amazon Bedrock to provide natural language interactions with structured loan data, enabling users to query loan history, interest calculations, transfers, and other financial details via conversational prompts.
+The COS Lending Selling AI service provides a conversational AI assistant for loan analysis, allowing users to query loan history, interest calculations, transfers, and other details through natural language. It connects to PostgreSQL databases to execute SQL queries based on user questions and returns summarized responses.
 
 ## Business Features
-- Loan history timeline visualization and querying
-- Interest calculation breakdown and analysis
-- Financial transfer history tracking
-- Loan details and status reporting
-- Fee structure analysis and calculation
-- Conversational interface to loan data
+- Loan history timeline analysis
+- Interest calculation and breakdown
+- Transfer history tracking
+- Loan details retrieval
+- Fee configuration analysis
+- Natural language query processing
+- Conversational AI chat interface
+- SQL generation from natural language
 
 ## APIs
-- **POST /crb/ai/loan** — Submit a natural language question about loan data
+- **POST /crb/ai/loan** — Submit a natural language question about a loan
 - **POST /chat/** — Create or resume a chat session for a user+loan pair
-- **POST /chat/{session_id}/message** — Submit a user message to an existing chat session
-- **GET /chat/{session_id}/history** — Get all messages for a specific chat session
-- **GET /chat/{session_id}/stream** — Stream chat responses using Server-Sent Events (SSE)
+- **GET /chat/{session_id}/history** — Get message history for a chat session
+- **POST /chat/{session_id}/message** — Submit a user message to a chat session
+- **GET /chat/{session_id}/stream** — Stream AI-generated responses as server-sent events
 
 ## Dependencies
-- **identity-server** (http)
 - **aws-bedrock** (http)
+- **lending-selling-database** (database)
 - **dynamodb** (database)
-- **postgres-db** (database)
-- **aws-secrets-manager** (http)
+- **identity-server** (http)
 
 ## Data Entities
-- **Loan** — Core loan information including ID, amounts, dates, and status
-- **LoanAction** — Record of actions performed on a loan
-- **LoanEvent** — Events in a loan's lifecycle including status changes and purchases
-- **Transfer** — Financial transfers related to loans like interest payments and fees
-- **InterestCalculationMethod** — Method used to calculate interest for a loan
-- **Session** — User conversation session with message history
-- **FedDay** — Calendar of federal banking days for interest calculations
+- **Loan** — Core loan information including ID, amount, rates, and status
+- **LoanAction** — Actions taken on loans like funding or status changes
+- **Transfer** — Money movements related to loans including interest payments and fees
+- **InterestCalculationMethod** — Methods used to calculate interest for different loan types
+- **Session** — Chat conversation session between user and AI about a specific loan
 
 ## Messaging Patterns
-- **SSE Streaming** (event) — Server-sent events for streaming AI responses to clients
+- **SSE streaming** (event) — Server-Sent Events for streaming AI responses to clients
 
 ## External Integrations
-- **Amazon Bedrock** — downstream via REST
+- **AWS Bedrock** — downstream via REST
 - **AWS DynamoDB** — downstream via AWS SDK
 - **AWS Secrets Manager** — downstream via AWS SDK
-- **Identity Server** — downstream via REST
+- **Identity Server** — upstream via OAuth2
 
 ## Architecture Patterns
 - Microservice
+- Event-driven
 - API Gateway
-- Event-Driven Architecture
-- Natural Language Processing Pipeline
-- Serverless (AWS managed services)
+- OAuth2 Authentication
+- LLM-based Query Understanding
+- Session Management
 
 ## Tech Stack
-- Python 3.11
+- Python
 - FastAPI
-- Amazon Bedrock
-- DynamoDB
+- SQLAlchemy
 - PostgreSQL
-- Anthropic Claude LLM
+- AWS Bedrock
+- AWS DynamoDB
+- AWS Secrets Manager
+- Claude 3 Sonnet (Anthropic)
 - Docker
-- Server-Sent Events
-- Poetry
-- Pytest
-- AWS SDK
 
 ## Findings
-### [HIGH] SQL Injection Vulnerability
+### [HIGH] Insecure token validation in streaming endpoint
 
 **Category:** security  
-**Files:** app/ai/sql_executor.py, app/ai/ai_service.py
+**Files:** app/api/routes/chat_stream.py
 
-Although there is SQL validation logic in sql_executor.py that checks for forbidden keywords and only allows SELECT statements, the application generates SQL from LLM output which could potentially be manipulated. The system should use parameterized queries consistently and add additional validation layers.
-### [HIGH] Connection Pool Management Issues
+The chat streaming endpoint validates session ownership but doesn't appear to verify token expiration. An expired token could potentially continue accessing streams if the session ID is known.
+### [HIGH] Lack of rate limiting for AI service
 
 **Category:** architecture  
+**Files:** app/ai/ai_service.py
+
+The application doesn't implement rate limiting for AI calls, which could lead to excessive costs and potential abuse. Consider adding a rate limiter for API calls to Bedrock.
+### [HIGH] Potential SQL injection vulnerability
+
+**Category:** security  
 **Files:** app/ai/sql_executor.py
 
-The SQL executor creates a new connection pool without proper lifecycle management, which could lead to connection leaks. The fallback _SimplePool implementation is particularly problematic as it doesn't properly handle connection closing in all error cases.
-### [HIGH] Hardcoded AWS Resource ARNs
-
-**Category:** security  
-**Files:** app/ai/sql_executor_old.py
-
-There appear to be hardcoded AWS resource ARNs in the code that should be moved to configuration. This is evident in the sql_executor code where it references DB_CLUSTER_ARN and DB_SECRET_ARN.
-### [HIGH] Token Validation Without Proper JWK Verification
-
-**Category:** security  
-**Files:** app/core/security/authentication_code_bearer.py
-
-The authentication code doesn't show proper JWT verification against a JWK set from the identity server, which could allow forged tokens if implemented incorrectly. The authentication_code_bearer.py file needs review.
+While the application attempts to validate SQL safety with regex patterns, the _apply_required_predicates function in sql_executor.py may be vulnerable to SQL injection as it directly interpolates values into queries.

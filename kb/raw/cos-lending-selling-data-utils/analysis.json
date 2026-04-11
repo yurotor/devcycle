@@ -1,23 +1,35 @@
 {
-  "purpose": "COS.Lending.Selling.DataTools.AccountsResolver is a utility that resolves and manages accounts for loans in the CRB Lending Selling platform. It retrieves account information from multiple sources including the Lending Accounting API and LS database, then updates the Selling database with the correct account mappings for various financial operations.",
+  "purpose": "This repository provides a data utility tool for the COS Lending and Selling system that resolves and maps various account numbers for loans from different banking systems, primarily fetching account information from the Lending Accounting API and updating the Selling database with the appropriate account mappings.",
   "businessFeatures": [
-    "Account resolution for loans with missing account information",
-    "Fee sweep account management",
+    "Loan accounts resolution and mapping",
+    "Fee sweep account resolution",
     "Custom purchase account mapping",
-    "Loan source account resolution",
-    "Account validation and cleanup"
+    "Loan source (LS) account resolution",
+    "Account data cleanup and validation"
   ],
   "apis": [
     {
       "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
       "method": "POST",
-      "purpose": "Retrieve account information for loans from the CRB.CosLending.Accounting.Api"
+      "purpose": "Fetches loan account information from the Lending Accounting API"
     }
   ],
   "dependencies": [
     {
-      "target": "CRB.CosLending.Accounting.Api",
+      "target": "Crb.CosLending.Accounting.Api",
       "type": "http"
+    },
+    {
+      "target": "CRB.Framework.Logging",
+      "type": "shared-lib"
+    },
+    {
+      "target": "CRB.Authorization",
+      "type": "shared-lib"
+    },
+    {
+      "target": "CRB.Cos.Lending.Selling.DbContext",
+      "type": "shared-lib"
     },
     {
       "target": "SellingDB",
@@ -26,80 +38,72 @@
     {
       "target": "MPLConsumerLoansOperationsProd",
       "type": "database"
-    },
-    {
-      "target": "CRB.Authorization",
-      "type": "shared-lib"
-    },
-    {
-      "target": "CRB.Framework.Logging",
-      "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Represents loan data with identifiers, investor information, and loan status"
+      "description": "Represents a loan with essential information like ID, MPL ID, issuing bank, loan type, and origination status"
     },
     {
       "name": "LoanAccount",
-      "description": "Maps loans to their associated accounts with different objective types"
+      "description": "Associates a loan with various account numbers for different purposes (purchase, income, etc.)"
     },
     {
       "name": "ObjectiveAccount",
-      "description": "Account with a specific purpose (purchase, interest income, fee income, etc.)"
+      "description": "An account with a specific business purpose like purchase, return, or interest income"
     },
     {
       "name": "FeeSweep",
-      "description": "Represents fee sweep transactions that require account resolution"
-    },
-    {
-      "name": "CustomPurchaseAccountMapping",
-      "description": "Configuration for mapping specific loan attributes to custom purchase accounts"
+      "description": "Represents fee sweep information with source and destination accounts"
     }
   ],
   "messagingPatterns": [],
   "integrations": [
     {
-      "system": "Lending Accounting Service",
-      "direction": "upstream",
+      "system": "Lending Accounting API",
+      "direction": "downstream",
       "protocol": "REST"
+    },
+    {
+      "system": "MPL Consumer Loans Operations DB",
+      "direction": "downstream",
+      "protocol": "database"
+    },
+    {
+      "system": "SellingDB",
+      "direction": "bidirectional",
+      "protocol": "database"
     },
     {
       "system": "OAuth Token Provider",
-      "direction": "upstream",
+      "direction": "downstream",
       "protocol": "REST"
-    },
-    {
-      "system": "MPL Consumer Loan Operations",
-      "direction": "upstream",
-      "protocol": "database"
     }
   ],
   "architecturePatterns": [
-    "Microservice",
-    "Command-line utility",
+    "Batch processing",
     "Repository pattern",
-    "Service pattern",
-    "Dependency injection"
+    "Dependency injection",
+    "Microservice",
+    "Command line application"
   ],
   "techStack": [
-    ".NET 7",
+    ".NET Core 7.0",
     "Entity Framework Core",
     "PostgreSQL",
     "SQL Server",
-    "Docker",
-    "Azure DevOps pipelines",
-    "CommandLine parser",
     "Npgsql.Bulk",
-    "JSON"
+    "Docker",
+    "Azure DevOps",
+    "OAuth"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded Database Connection Strings",
-      "description": "The application contains hardcoded database connection strings in appsettings.json with empty password fields, which suggests passwords may be added at runtime. This poses a security risk as connection strings could be accidentally committed with credentials or leaked through logs.",
+      "title": "Credentials in Configuration Files",
+      "description": "The appsettings.json file contains database connection string information including username fields. Although the password fields appear to be empty in the checked-in files, this pattern suggests that actual passwords might be supplied in environment-specific configuration files. Credentials should be stored in a secure vault and accessed via a secret management service.",
       "files": [
         "accounts-resolver/appsettings.json"
       ]
@@ -107,10 +111,11 @@
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Missing error handling for OAuth token failures",
-      "description": "The LendingAccountingClient depends on token-based authentication but lacks robust error handling for token acquisition failures, which could lead to unhandled exceptions and service outages in production.",
+      "title": "Inefficient Batch Processing",
+      "description": "The application loads all loans with missing accounts into memory before processing, which could cause memory issues with large datasets. Consider implementing a streaming approach with a cursor-based pagination to process loans in smaller batches while maintaining performance.",
       "files": [
-        "accounts-resolver/Infrastructure/Accounting/LendingAccountingClient.cs"
+        "accounts-resolver/AccountsResolver/AccountsProcessor.cs",
+        "accounts-resolver/Handlers/LoansAccountsService.cs"
       ]
     }
   ]

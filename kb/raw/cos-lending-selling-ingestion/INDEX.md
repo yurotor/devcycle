@@ -1,6 +1,6 @@
 # cos-lending-selling-ingestion — Raw Analysis
 
-Generated: 2026-04-11T15:16:29.944Z
+Generated: 2026-04-11T18:57:38.112Z
 
 ## Files
 - [analysis.json](./analysis.json) — structured analysis data

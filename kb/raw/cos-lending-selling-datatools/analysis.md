@@ -1,67 +1,82 @@
 # cos-lending-selling-datatools
 
 ## Purpose
-COS Lending Selling Datatools is a data pipeline repository that extracts, transforms, and loads data from the Cross River Bank lending and selling systems. It serves as the analytical data layer for the lending business, providing curated data models for reporting and analysis.
+This repository contains data transformation tools for CrossRiver Bank's lending and selling operations. It uses DBT (Data Build Tool) to transform data from source systems into a data warehouse, with Apache Airflow orchestrating the ETL pipelines in both local development and cloud (AWS) environments.
 
 ## Business Features
-- Loan data extraction and transformation
-- Contract and fee parameter data ingestion
-- Seasoning period calculations
-- Volume-based fee processing
-- Data exports to warehouse
+- Loan data processing and transformation
+- Contract data ingestion and management
+- Seasoning period tracking and calculations
+- Volume fee calculations and reporting
+- Reference data management for loan types, statuses, and entities
 
 ## APIs
-- **GET /airflow/api** — Interface for Airflow DAG execution and monitoring
+- **POST /api/ingestion** — Ingests data from source systems into the data warehouse
 
 ## Dependencies
-- **selling-web-api** (database)
-- **cos-lending-selling-database** (database)
-- **aws-s3** (storage)
-- **aws-ssm** (configuration)
+- **cos-lending-selling-web-api** (database)
+- **aws-ssm** (http)
+- **aws-s3** (http)
+- **aws-secretsmanager** (http)
+- **aws-ecs** (http)
 
 ## Data Entities
-- **Loan** — Representation of a loan with origination and sale status
-- **Contract** — Terms and conditions for loan agreements
-- **Fee** — Fee parameters and calculations for loans
-- **Seasoning** — Loan seasoning periods and rules
-- **Volume** — Loan volume data used for fee calculations
+- **Loan** — Core entity representing loans being processed in the system
+- **Contract** — Represents loan contracts with associated terms and conditions
+- **Account** — Entity representing customer accounts
+- **LoanTypeEntity** — Reference data for loan types
+- **LoanSaleStatusEntity** — Reference data for loan sale statuses
+- **SeasoningPeriodEntity** — Reference data for loan seasoning periods
+- **Fee** — Fee structures and parameters applied to loans
+- **VolumeFee** — Volume-based fee calculations for loan portfolios
 
 ## Messaging Patterns
-- **LoanDataIngestion** (event) — Triggers extraction of loan data from source system
-- **ContractIngestion** (event) — Triggers extraction of contract data from source system
+- **ECSTaskExecution** (event) — Orchestrates ETL tasks execution via AWS ECS Fargate
 
 ## External Integrations
-- **Cross River Bank Selling Web API** — upstream via database
 - **AWS S3** — bidirectional via REST
-- **AWS SSM** — upstream via REST
+- **AWS SSM Parameter Store** — upstream via REST
+- **AWS ECS** — upstream via REST
+- **PostgreSQL** — bidirectional via database
+- **AWS Secrets Manager** — upstream via REST
 
 ## Architecture Patterns
 - ETL Pipeline
 - Data Warehouse
-- ECS Task Execution
-- Container-based Processing
+- Containerization
+- Infrastructure as Code
+- DevOps Automation
 
 ## Tech Stack
-- Python 3.11
-- dbt
-- Airflow
-- PostgreSQL
+- Python
+- DBT (Data Build Tool)
+- Apache Airflow
 - Docker
+- PostgreSQL
 - AWS ECS
 - AWS S3
-- AWS SSM
-- AWS Fargate
+- AWS SSM Parameter Store
+- AWS Secrets Manager
+- Flyway
+- Jenkins
+- Azure DevOps
 
 ## Findings
-### [HIGH] Hardcoded S3 credentials in aws_utils.py
+### [HIGH] Hardcoded credentials in aws_utils.py
 
 **Category:** security  
 **Files:** dags/projects/utils/aws_utils.py
 
-The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username and password) for local development. These should be moved to environment variables or a secure configuration to prevent credential exposure.
-### [HIGH] Incomplete ingestion task implementation
+The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username and password) for local development. While these appear to be for local development only, hardcoded credentials are a security risk and should be moved to environment variables or a dedicated configuration file that is not tracked in source control.
+### [HIGH] Incomplete bootstrapping DAG implementation
 
 **Category:** architecture  
 **Files:** dags/projects/cos_lending_selling/bootstrapping_dag.py
 
-The bootstrapping_dag.py contains TODO comments indicating incomplete implementation of ingestion tasks. The ingestion functionality is critical for the data pipeline but appears to be unfinished, which could cause data availability issues.
+The bootstrapping DAG file (dags/projects/cos_lending_selling/bootstrapping_dag.py) contains TODO comments indicating unfinished implementation. This could cause problems when deploying to production as the ETL pipeline may not function correctly or may be missing critical components.
+### [HIGH] Duplicate source definitions across DBT projects
+
+**Category:** optimization  
+**Files:** modules/dbt/projects/export/models/source/loan_type_entity.yml, modules/dbt/projects/loans_curation/models/source/loan_type_entity.yml, modules/dbt/projects/seasoning/models/source/loan_type_entity.yml
+
+Multiple DBT projects (export, loans_curation, seasoning) define the same source tables independently. This creates maintenance overhead and risk of inconsistency when source schemas change. Consider centralizing source definitions in a shared package.

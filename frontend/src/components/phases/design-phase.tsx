@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Layers, Loader2, Circle, ArrowRight, RefreshCw } from "lucide-react";
+import { Layers, Loader2, Circle, ArrowRight, RefreshCw, ChevronLeft } from "lucide-react";
 import { type Ticket } from "@/lib/fake-data";
 
 interface TaskRow {
@@ -24,9 +24,10 @@ interface WaveRow {
 interface DesignPhaseProps {
   ticket: Ticket;
   onComplete: () => void;
+  onBack?: () => void;
 }
 
-export function DesignPhase({ ticket, onComplete }: DesignPhaseProps) {
+export function DesignPhase({ ticket, onComplete, onBack }: DesignPhaseProps) {
   const [waves, setWaves] = useState<WaveRow[]>([]);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -132,9 +133,24 @@ export function DesignPhase({ ticket, onComplete }: DesignPhaseProps) {
       </ScrollArea>
 
       <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Review the breakdown, then advance to Implement.
-        </p>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-sm gap-1 text-muted-foreground"
+              onClick={onBack}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              Back to Plan
+            </Button>
+          )}
+          {!onBack && (
+            <p className="text-sm text-muted-foreground">
+              Review the breakdown, then advance to Implement.
+            </p>
+          )}
+        </div>
         <Button
           size="sm"
           className="h-8 text-sm bg-amber text-background hover:bg-amber/90 gap-1"

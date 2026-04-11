@@ -1,103 +1,100 @@
 # cos-lending-selling-e2e-tests
 
 ## Purpose
-This repository contains end-to-end testing framework for Cross River Bank's lending and selling platform, simulating the entire environment including loan origination, servicing, purchasing, and accounting operations to validate the platform's functionality through comprehensive test scenarios.
+This repository contains end-to-end tests for Cross River Bank's loan selling system, simulating the entire lending-selling environment to test loan origination, seasoning, interest calculation, fee collection, and loan purchase workflows in a controlled environment.
 
 ## Business Features
-- Loan ingestion and curation
-- Loan purchasing automation
-- Contract management and enforcement
+- Loan ingestion from source systems
+- Loan curation and status management
 - Interest calculation and accrual
-- Volume fee calculation and true-ups
-- Loan servicing
+- Volume fee calculation
+- Loan purchase processing
+- Fee collection and sweeping
 - Loan type changes (grooming)
-- Investor reassignment
-- Fee collection and management
-- Accounting integration
-- Batch processing
+- Investor changes
+- Servicing data ingestion
+- True-up volume fee processing
+- Pass-through interest calculations
+- Auto-purchase functionality
+- Merchant fee processing
+- Purchase date adjustment
 
 ## APIs
-- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Returns account configurations for loans
-- **POST /Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts** — Gets account configurations for loan type changes
-- **GET /core/v1/dda/accounts/{account_number}** — Returns account balance information
-- **GET /core/v1/dda/subaccounts/{account_number}** — Returns subaccount balance information
-- **POST /payment** — Simulates payment processing
+- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Get account information for loan actions
+- **POST /Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts** — Get accounts for loan type changes
+- **GET /core/v1/dda/accounts/{account_number}** — Get account balance
+- **GET /core/v1/dda/subaccounts/{account_number}** — Get subaccount balance
+- **GET /init/{mpl_id}/{issuing_bank_id}/{loan_type}/{objective}/{account_number}/{is_subaccount}** — Initialize account configuration
+- **POST /set_delay_transfers** — Control transfer delays in the COS mock service
+- **POST /payment** — Process payment transfers
 
 ## Dependencies
 - **selling-db** (database)
-- **source-db** (database)
-- **cos-sim** (http)
-- **accounts-resolver** (http)
-- **rabbitmq** (messaging)
-- **hooks-e2e** (http)
+- **arix-db** (database)
 - **web-api** (http)
-- **AWS SQS** (messaging)
-- **AWS S3** (file)
+- **dbt** (shared-lib)
+- **cos-simulator** (http)
+- **accounts-resolver** (http)
+- **hooks** (messaging)
+- **rabbitmq** (messaging)
+- **aws-s3** (file)
+- **aws-sqs** (messaging)
 
 ## Data Entities
-- **Loan** — Core loan data with loan status, amounts, and investor information
-- **Contract** — Terms and fee structures between MPL (marketplace lender) and bank
-- **Batch** — Group of loans for purchase processing
-- **LoanAction** — Operations performed on loans (purchase, interest accrual, etc.)
-- **Transfer** — Money movement between accounts
-- **AccountConfig** — Account configuration based on MPL, issuing bank, loan type, and objective
-- **TrueUpVolumeFee** — Minimum fee true-up calculations for contracts
-- **GroomingProcess** — Workflow for changing loan type with retroactive interest calculation
+- **Loan** — Core loan entity with funding details, status, and purchase information
+- **Contract** — Defines relationship between MPL, bank, and investor with fee structures
+- **LoanAction** — Represents actions performed on loans like purchase or interest accrual
+- **Transfer** — Financial transfer between accounts for loan operations
+- **Batch** — Group of loans processed together for purchase
+- **AccountConfig** — Configuration for different account types used in loan transactions
+- **TrueUpVolumeFee** — Volume fee adjustments based on contract terms
 
 ## Messaging Patterns
-- **TransferOutbox** (outbox) — Ensures transfer messages are reliably sent to payment systems
-- **DailyInterestOutbox** (outbox) — Ensures interest accrual messages are reliably processed
-- **VolumeFeeOutbox** (outbox) — Ensures volume fee messages are reliably processed
-- **SellingWebApiMessagesQueue** (queue) — Handles payment status updates from COS
-- **LoanSaleStatusChanged** (event) — Publishes loan status change events to hooks service
-- **BatchPurchaseCompleted** (event) — Publishes batch completion events to hooks service
+- **SQS Payment Processing** (queue) — Processes payment messages for transfers
+- **Loan Sale Status Changed** (event) — Publishes events when loan sale status changes
+- **Batch Purchase Completed** (event) — Publishes events when batch purchase is completed
+- **True Up Volume Fee Charged** (event) — Publishes events when true-up volume fees are charged
+- **Investor Changed** (event) — Publishes events when loan investor changes
+- **Loan Type Changed** (event) — Publishes events when loan type changes
+- **Transfer Outbox** (outbox) — Ensures reliable delivery of transfer messages
 
 ## External Integrations
-- **COS (Core Operating System)** — bidirectional via REST
-- **Lending Accounting** — downstream via REST
-- **Arix DB** — upstream via database
-- **Hooks Service** — downstream via messaging
-- **S3 Servicing** — upstream via file
+- **COS (Core Operating System)** — downstream via REST
+- **Arix** — upstream via database
+- **LendingAccounting** — downstream via REST
+- **AWS S3** — bidirectional via file
+- **AWS SQS** — bidirectional via messaging
+- **RabbitMQ** — bidirectional via messaging
 
 ## Architecture Patterns
 - Microservices
-- Event-driven
-- Outbox Pattern
-- Database-per-service
-- API Gateway
-- Message Queue
-- Docker Containerization
+- Event-driven architecture
+- Outbox pattern
+- Mock services
+- Orchestration
+- Time travel testing
+- Message-based communication
+- Transactional outbox
+- Container-based testing
 
 ## Tech Stack
 - Python
-- FastAPI
-- PostgreSQL
-- MSSQL
 - Docker
+- PostgreSQL
+- MS SQL Server
+- FastAPI
+- SQLAlchemy
 - RabbitMQ
 - AWS SQS
 - AWS S3
-- DBT
-- Pytest
-- Pydantic
-- SQLAlchemy
+- pytest
+- DBT (Data Build Tool)
+- Docker Compose
 
 ## Findings
-### [HIGH] Insufficient error handling in payment processing
+### [HIGH] Excessive use of sleep() for synchronization
 
 **Category:** architecture  
-**Files:** modules/cos/src/main.py, modules/e2e/src/assertions/batch_assertions.py
+**Files:** modules/e2e/src/assertions/batch_assertions.py, modules/e2e/src/assertions/grooming_assertions.py
 
-The payment simulation in modules/cos/src/main.py lacks proper error handling for failed transactions, which could lead to inconsistent state. Implement robust error handling and retries for payment failures.
-### [HIGH] AWS credentials passed as environment variables
-
-**Category:** security  
-**Files:** docker-compose.yml, scripts/prepare.sh
-
-AWS credentials are passed as environment variables in docker-compose.yml which is a security risk. Use AWS IAM roles or a secure credentials manager instead of hardcoded credentials.
-### [HIGH] Tight coupling to simulated services
-
-**Category:** architecture  
-**Files:** modules/e2e/src/accounting.py, modules/e2e/src/airflow.py, modules/e2e/src/dbt.py
-
-The test framework is tightly coupled to specific implementations of simulated services, making it brittle when service interfaces change. Consider using interface-based testing or contract testing approaches.
+The codebase uses numerous sleep() calls to wait for asynchronous operations to complete. This creates brittle tests that may fail intermittently or take longer than necessary to run. Replace with proper synchronization mechanisms like polling with timeouts or event listeners.

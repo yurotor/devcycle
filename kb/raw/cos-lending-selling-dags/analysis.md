@@ -1,74 +1,83 @@
 # cos-lending-selling-dags
 
 ## Purpose
-This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) for automating and orchestrating data workflows in a lending and selling system. It schedules and manages various ETL processes, data synchronization tasks, fee calculations, and integration points between different services in the lending platform.
+This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) for orchestrating data workflows in a loan lending and selling system. It manages the end-to-end process of loan data ingestion, transformation, interest calculation, fee collection, and data exports for financial reporting.
 
 ## Business Features
-- Loan data ingestion and curation from external sources
-- Interest accrual calculation and processing
+- Loan data ingestion and synchronization from external sources
+- Interest accrual calculations and processing
 - Fee collection and management
-- Data export to third-party systems
-- Presale reporting
-- Servicing data synchronization
-- MPL (Marketplace Lender) management
+- Loan curation and servicing
+- Data export to external systems
 - SOFR (Secured Overnight Financing Rate) ingestion
-- True-up volume fee processing
-- Organization data management
+- Presale reporting generation
+- Volume fee calculation and true-up processing
+- MPL (Marketplace Lender) management
+- Organizations and investor data management
 
 ## Dependencies
-- **loans-db** (database)
+- **dbt** (shared-lib)
+- **flyway** (shared-lib)
+- **aws-ecs** (http)
+- **postgres-rds** (database)
+- **aws-athena** (http)
+- **aws-ssm** (http)
+- **aws-secrets-manager** (http)
+- **aws-cloudwatch** (http)
 - **volume-db** (database)
+- **loans-db** (database)
 - **contracts-db** (database)
 - **vampire-db** (database)
-- **selling-db** (database)
-- **dbt-runner** (shared-lib)
-- **athena** (database)
-- **lending-accounting-api** (http)
 
 ## Data Entities
-- **Loan** — Core entity representing loan information including loan terms, status and related financial details
-- **Account** — Entity that tracks financial accounts associated with loans
-- **Fee** — Entity representing various fees applied to loans and accounts
-- **MPL** — Marketplace Lender entity representing organizations that originate loans
-- **Organization** — Entity representing issuing banks and investors
-- **SOFR** — Secured Overnight Financing Rate data used for interest rate calculations
-- **LoanAction** — Entity that tracks various actions performed on loans
-- **Batch** — Entity that manages groups of loans processed together
+- **Loan** — Core loan data entity representing a financial loan with associated attributes
+- **Account** — Financial account associated with loans
+- **Organization** — Represents issuing banks and investors with organization IDs
+- **Fee** — Various fees associated with loans and transactions
+- **MPL** — Marketplace Lender entity with associated configuration
+- **Batch** — Grouping of loans for processing or sale
+- **SOFR** — Secured Overnight Financing Rate data used for interest calculations
+- **LoanAction** — Record of actions performed on loans
+- **Contract** — Legal agreements related to loans
+- **Volume** — Volume data used for fee calculations and reporting
 
 ## External Integrations
 - **VAMPIRE** — downstream via database
-- **AWS Athena** — bidirectional via database
+- **Athena** — bidirectional via REST
+- **New Relic** — upstream via REST
+- **Servicing System** — bidirectional via file
 
 ## Architecture Patterns
 - Extract-Load-Transform (ELT)
-- Task orchestration
-- Container-based task execution
-- Parameter-driven workflows
-- Database migration automation
+- Task Orchestration
+- Infrastructure as Code
+- Event-driven Processing
+- Parameterized Workflows
 
 ## Tech Stack
 - Apache Airflow
 - Python
+- dbt
+- Docker
 - AWS ECS
 - AWS MWAA
-- DBT (Data Build Tool)
 - PostgreSQL
-- Docker
 - Flyway
 - AWS Secrets Manager
-- AWS SSM Parameter Store
+- AWS SSM
 - AWS CloudWatch
+- AWS Athena
 
 ## Findings
-### [HIGH] Hardcoded credentials in configuration
+### [HIGH] Hard-coded credentials in development environment
 
 **Category:** security  
 **Files:** .devcontainer/docker-compose.yml
 
-The Docker configuration files contain hardcoded database credentials (postgres:airflow) which could pose a security risk if exposed. These should be replaced with environment variables or secrets management.
-### [HIGH] Tight coupling to AWS infrastructure
+The Docker Compose configuration contains hard-coded credentials for the Airflow database and MinIO S3 emulator. While these might be for local development only, they should be replaced with environment variables from a secure source to prevent accidental promotion to higher environments.
+### [HIGH] Missing error handling in DAG dependencies
 
 **Category:** architecture  
-**Files:** dags/projects/utils/dbt_task_factory.py, dags/projects/utils/ingestion_task_factory.py
+**Files:** dags/projects/loans_curation/loans_curation_dag.py, dags/projects/loans_ingestion/loans_ingestion_dag.py
 
-The DAG implementations are tightly coupled to AWS services like ECS, SSM, and Secrets Manager, making it difficult to migrate to another cloud provider or run in a non-AWS environment. Consider abstracting cloud-specific implementations behind interfaces.
+The DAGs are chained together with simple operators without proper error handling or retry logic. This can lead to failed pipeline executions without clear visibility into the failure point. Implement robust error handling strategies with appropriate retry mechanisms and alerting.

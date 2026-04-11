@@ -1,114 +1,111 @@
 {
-  "purpose": "This repository provides contract definitions for a loan selling system within a financial institution. It defines data structures and types for managing loan purchases, transfers, discrepancies, and related financial processes between different entities in a lending ecosystem.",
+  "purpose": "This repository defines contract models for a lending and loan selling system, serving as a shared library of data structures used for communication between different services in the CRB (Credit Review Board) ecosystem. It defines the domain entities, request/response objects, and data transfer objects for the loan selling lifecycle.",
   "businessFeatures": [
-    "Loan purchase management",
-    "Interest and fee calculation",
-    "Batch processing of loans",
-    "Discrepancy identification and reporting",
-    "Invoice and receipt generation",
-    "Reverse interest processing",
+    "Loan account management",
+    "Batch loan purchasing and processing",
     "Purchase date updates",
-    "Interest suspension management",
-    "Transfer management"
+    "Loan discrepancy detection",
+    "Loan grooming and transfer operations",
+    "Invoice generation and receipt processing",
+    "Interest suspension and reversal",
+    "SOFR rate handling"
   ],
   "apis": [],
   "dependencies": [
     {
-      "target": "CRB.Cos.Lending.Origination",
+      "target": "Cos.Lending.Origination",
       "type": "shared-lib"
     },
     {
-      "target": "CRB.Cos.Lending.Accounting",
+      "target": "Cos.Lending.Core",
       "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Represents a loan in the selling system with details about origination, sale status, amounts, and investor information"
-    },
-    {
-      "name": "PagedLoanItem",
-      "description": "Simplified representation of a loan for listing and pagination purposes"
-    },
-    {
-      "name": "Invoice",
-      "description": "Represents a purchase invoice containing loans to be purchased and associated fees"
-    },
-    {
-      "name": "Receipt",
-      "description": "Records the results of a loan purchase process including successful and failed purchases"
-    },
-    {
-      "name": "Investor",
-      "description": "Entity that purchases loans from the originator"
-    },
-    {
-      "name": "Bank",
-      "description": "Financial institution involved in the loan process as issuer or servicer"
-    },
-    {
-      "name": "Mpl",
-      "description": "Marketplace lender entity in the loan ecosystem"
-    },
-    {
-      "name": "Discrepancy",
-      "description": "Represents differences between expected and actual loan data"
-    },
-    {
-      "name": "BatchInfo",
-      "description": "Tracking information for batch processes with status counts and timing"
+      "description": "Core entity representing a loan with its associated properties, statuses, and financial data"
     },
     {
       "name": "PurchaseAccount",
-      "description": "Account used for loan purchase transactions"
+      "description": "Account used for loan purchasing operations"
+    },
+    {
+      "name": "Invoice",
+      "description": "Request to purchase loans with associated details and fee structures"
+    },
+    {
+      "name": "Receipt",
+      "description": "Record of completed loan purchase transactions including success and failure details"
+    },
+    {
+      "name": "Batch",
+      "description": "Collection of loans processed together with metadata and processing status"
+    },
+    {
+      "name": "Discrepancy",
+      "description": "Differences found between loan data in different systems"
     },
     {
       "name": "SofrRate",
-      "description": "Secured Overnight Financing Rate data used for interest calculations"
+      "description": "Secured Overnight Financing Rate used for interest calculations"
+    },
+    {
+      "name": "PendingApproval",
+      "description": "Loan changes awaiting approval in the system"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "LoanBatchPurchaseRequest",
-      "description": "Request to process a batch of loans for purchase with specified parameters"
+      "name": "LoanPurchased",
+      "description": "Event raised when a loan is successfully purchased"
     },
     {
       "type": "event",
-      "name": "PurchaseDateUpdateBatchRequest",
-      "description": "Request to update purchase dates for a batch of loans"
+      "name": "BatchProcessCompleted",
+      "description": "Event raised when a batch of loans completes processing"
+    },
+    {
+      "type": "event",
+      "name": "PurchaseDateUpdated",
+      "description": "Event raised when loan purchase dates are modified"
     }
   ],
   "integrations": [
     {
       "system": "Loan Origination System",
       "direction": "upstream",
-      "protocol": "shared contract"
+      "protocol": "messaging"
     },
     {
-      "system": "Accounting System",
-      "direction": "downstream",
-      "protocol": "shared contract"
+      "system": "Account Management System",
+      "direction": "bidirectional",
+      "protocol": "messaging"
+    },
+    {
+      "system": "COS Transfer System",
+      "direction": "bidirectional",
+      "protocol": "messaging"
     }
   ],
   "architecturePatterns": [
-    "Domain-Driven Design",
     "Contract-first design",
-    "Batch processing",
-    "Event-driven architecture"
+    "Shared domain model",
+    "Event-driven architecture",
+    "Batch processing"
   ],
   "techStack": [
     "F#",
-    ".NET",
-    "Azure DevOps"
+    ".NET Core",
+    "NuGet"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "PII data marked but not secured",
-      "description": "PIIDataAttribute is defined but there's no evidence of encryption or special handling of PII-marked properties. The borrower's SSN, address, DOB, and other personal information should have additional protection mechanisms.",
+      "title": "PII data marked but not protected",
+      "description": "The code uses a PIIDataAttribute to mark PII data but there's no evidence of encryption or protection mechanisms for this data. Sensitive borrower information like SSNs and addresses should be properly protected with encryption.",
       "files": [
         "CRB.Cos.Lending.Selling.Contracts/Attributes/PIIDataAttribute.fs",
         "CRB.Cos.Lending.Selling.Contracts/Loan.fs"
@@ -117,8 +114,8 @@
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Missing validation attributes on critical financial fields",
-      "description": "Financial values like loan amounts, interest rates, and fees lack validation attributes to ensure they're within acceptable ranges. This could allow invalid data to be processed, potentially causing financial discrepancies.",
+      "title": "Missing validation in contract models",
+      "description": "The contract models don't implement validation logic which could lead to invalid data being processed. Consider adding data validation attributes or validation methods to ensure data integrity.",
       "files": [
         "CRB.Cos.Lending.Selling.Contracts/Loan.fs",
         "CRB.Cos.Lending.Selling.Contracts/InvoiceAndReceipt.fs"

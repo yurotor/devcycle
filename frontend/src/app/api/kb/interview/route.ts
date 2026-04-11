@@ -74,15 +74,8 @@ export async function POST(request: Request) {
     content: m.content,
   }));
 
-  // Load system synthesis for context
-  let systemContext = "";
-  const synthPath = path.join(RAW_DIR, "system-synthesis.json");
-  if (fs.existsSync(synthPath)) {
-    try {
-      const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));
-      systemContext = `System overview: ${synth.systemOverview || "N/A"}\n\nFeatures identified: ${(synth.features || []).map((f: { name: string }) => f.name).join(", ") || "none"}\n\nRepos: ${(synth.serviceMap || []).map((s: { repo: string }) => s.repo).join(", ") || "none"}`;
-    } catch { /* skip */ }
-  }
+  // Load KB context from per-repo analysis files
+  const systemContext = loadKBContext();
 
   const systemPrompt = `You are an expert system analyst conducting a deep-dive interview about a software system. Your goal is to extract knowledge that cannot be learned from code alone.
 
@@ -103,7 +96,7 @@ export async function POST(request: Request) {
 4. **Be concise.** 2-3 sentences per question plus choices.
 5. **When you have enough context** (after 5-8 exchanges), say "I have a good understanding of the system now." followed by a summary. Do NOT include choices in the final message.
 
-${systemContext ? `\nSystem context from code analysis:\n${systemContext}` : ""}
+${systemContext ? `\n## Context from automated code analysis\n\nUse this context to ask informed, specific questions. Reference repos, APIs, entities, and features you see below. Do NOT ask generic questions that can be answered from this context — instead, ask about what the context does NOT reveal (business rules, team ownership, deployment details, compliance).\n\n${systemContext}` : ""}
 
 IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block.`;
 
@@ -167,6 +160,71 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
   }
 
   return Response.json({ response: cleanText, choices, ready: done, done });
+}
+
+// ─── KB context loader ──────────────────────────────────────────
+
+function loadKBContext(): string {
+  const sections: string[] = [];
+
+  // Try system synthesis first
+  const synthPath = path.join(RAW_DIR, "system-synthesis.json");
+  if (fs.existsSync(synthPath)) {
+    try {
+      const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));
+      if (synth.systemOverview) {
+        sections.push(`## System Overview\n${synth.systemOverview}`);
+      }
+      if (synth.features?.length) {
+        sections.push(`## Known Features\n${synth.features.map((f: { name: string; description: string; repos: string[] }) =>
+          `- **${f.name}**: ${f.description || "no description"} (repos: ${f.repos.join(", ")})`
+        ).join("\n")}`);
+      }
+      if (synth.serviceMap?.length) {
+        sections.push(`## Service Map\n${synth.serviceMap.map((s: { repo: string; role: string }) =>
+          `- **${s.repo}**: ${s.role}`
+        ).join("\n")}`);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Load per-repo analysis files
+  if (fs.existsSync(RAW_DIR)) {
+    const repoDetails: string[] = [];
+    for (const entry of fs.readdirSync(RAW_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const analysisPath = path.join(RAW_DIR, entry.name, "analysis.json");
+      if (fs.existsSync(analysisPath)) {
+        try {
+          const analysis = JSON.parse(fs.readFileSync(analysisPath, "utf8"));
+          const parts: string[] = [];
+          parts.push(`### ${entry.name}`);
+          if (analysis.purpose) parts.push(`Purpose: ${analysis.purpose}`);
+          if (analysis.apis?.length) {
+            parts.push(`APIs: ${analysis.apis.map((a: { method: string; path: string }) => `${a.method} ${a.path}`).join(", ")}`);
+          }
+          if (analysis.entities?.length) {
+            parts.push(`Entities: ${analysis.entities.map((e: { name: string }) => e.name).join(", ")}`);
+          }
+          if (analysis.features?.length) {
+            parts.push(`Features: ${analysis.features.map((f: { name: string }) => f.name).join(", ")}`);
+          }
+          if (analysis.dependencies?.length) {
+            parts.push(`Dependencies: ${analysis.dependencies.join(", ")}`);
+          }
+          if (analysis.techStack?.length) {
+            parts.push(`Tech stack: ${analysis.techStack.join(", ")}`);
+          }
+          repoDetails.push(parts.join("\n"));
+        } catch { /* skip */ }
+      }
+    }
+    if (repoDetails.length) {
+      sections.push(`## Repository Analysis\n\n${repoDetails.join("\n\n")}`);
+    }
+  }
+
+  return sections.length > 0 ? sections.join("\n\n") : "";
 }
 
 // ─── Extract choices from AI response ───────────────────────────

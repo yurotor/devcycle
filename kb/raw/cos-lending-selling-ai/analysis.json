@@ -1,18 +1,20 @@
 {
-  "purpose": "This repository implements an AI-powered assistant for loan data analysis in the COS Lending/Selling platform. It uses Amazon Bedrock to provide natural language interactions with structured loan data, enabling users to query loan history, interest calculations, transfers, and other financial details via conversational prompts.",
+  "purpose": "The COS Lending Selling AI service provides a conversational AI assistant for loan analysis, allowing users to query loan history, interest calculations, transfers, and other details through natural language. It connects to PostgreSQL databases to execute SQL queries based on user questions and returns summarized responses.",
   "businessFeatures": [
-    "Loan history timeline visualization and querying",
-    "Interest calculation breakdown and analysis",
-    "Financial transfer history tracking",
-    "Loan details and status reporting",
-    "Fee structure analysis and calculation",
-    "Conversational interface to loan data"
+    "Loan history timeline analysis",
+    "Interest calculation and breakdown",
+    "Transfer history tracking",
+    "Loan details retrieval",
+    "Fee configuration analysis",
+    "Natural language query processing",
+    "Conversational AI chat interface",
+    "SQL generation from natural language"
   ],
   "apis": [
     {
       "endpoint": "/crb/ai/loan",
       "method": "POST",
-      "purpose": "Submit a natural language question about loan data"
+      "purpose": "Submit a natural language question about a loan"
     },
     {
       "endpoint": "/chat/",
@@ -20,83 +22,71 @@
       "purpose": "Create or resume a chat session for a user+loan pair"
     },
     {
-      "endpoint": "/chat/{session_id}/message",
-      "method": "POST",
-      "purpose": "Submit a user message to an existing chat session"
-    },
-    {
       "endpoint": "/chat/{session_id}/history",
       "method": "GET",
-      "purpose": "Get all messages for a specific chat session"
+      "purpose": "Get message history for a chat session"
+    },
+    {
+      "endpoint": "/chat/{session_id}/message",
+      "method": "POST",
+      "purpose": "Submit a user message to a chat session"
     },
     {
       "endpoint": "/chat/{session_id}/stream",
       "method": "GET",
-      "purpose": "Stream chat responses using Server-Sent Events (SSE)"
+      "purpose": "Stream AI-generated responses as server-sent events"
     }
   ],
   "dependencies": [
     {
-      "target": "identity-server",
+      "target": "aws-bedrock",
       "type": "http"
     },
     {
-      "target": "aws-bedrock",
-      "type": "http"
+      "target": "lending-selling-database",
+      "type": "database"
     },
     {
       "target": "dynamodb",
       "type": "database"
     },
     {
-      "target": "postgres-db",
-      "type": "database"
-    },
-    {
-      "target": "aws-secrets-manager",
+      "target": "identity-server",
       "type": "http"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan information including ID, amounts, dates, and status"
+      "description": "Core loan information including ID, amount, rates, and status"
     },
     {
       "name": "LoanAction",
-      "description": "Record of actions performed on a loan"
-    },
-    {
-      "name": "LoanEvent",
-      "description": "Events in a loan's lifecycle including status changes and purchases"
+      "description": "Actions taken on loans like funding or status changes"
     },
     {
       "name": "Transfer",
-      "description": "Financial transfers related to loans like interest payments and fees"
+      "description": "Money movements related to loans including interest payments and fees"
     },
     {
       "name": "InterestCalculationMethod",
-      "description": "Method used to calculate interest for a loan"
+      "description": "Methods used to calculate interest for different loan types"
     },
     {
       "name": "Session",
-      "description": "User conversation session with message history"
-    },
-    {
-      "name": "FedDay",
-      "description": "Calendar of federal banking days for interest calculations"
+      "description": "Chat conversation session between user and AI about a specific loan"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "SSE Streaming",
-      "description": "Server-sent events for streaming AI responses to clients"
+      "name": "SSE streaming",
+      "description": "Server-Sent Events for streaming AI responses to clients"
     }
   ],
   "integrations": [
     {
-      "system": "Amazon Bedrock",
+      "system": "AWS Bedrock",
       "direction": "downstream",
       "protocol": "REST"
     },
@@ -112,66 +102,55 @@
     },
     {
       "system": "Identity Server",
-      "direction": "downstream",
-      "protocol": "REST"
+      "direction": "upstream",
+      "protocol": "OAuth2"
     }
   ],
   "architecturePatterns": [
     "Microservice",
+    "Event-driven",
     "API Gateway",
-    "Event-Driven Architecture",
-    "Natural Language Processing Pipeline",
-    "Serverless (AWS managed services)"
+    "OAuth2 Authentication",
+    "LLM-based Query Understanding",
+    "Session Management"
   ],
   "techStack": [
-    "Python 3.11",
+    "Python",
     "FastAPI",
-    "Amazon Bedrock",
-    "DynamoDB",
+    "SQLAlchemy",
     "PostgreSQL",
-    "Anthropic Claude LLM",
-    "Docker",
-    "Server-Sent Events",
-    "Poetry",
-    "Pytest",
-    "AWS SDK"
+    "AWS Bedrock",
+    "AWS DynamoDB",
+    "AWS Secrets Manager",
+    "Claude 3 Sonnet (Anthropic)",
+    "Docker"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "SQL Injection Vulnerability",
-      "description": "Although there is SQL validation logic in sql_executor.py that checks for forbidden keywords and only allows SELECT statements, the application generates SQL from LLM output which could potentially be manipulated. The system should use parameterized queries consistently and add additional validation layers.",
+      "title": "Insecure token validation in streaming endpoint",
+      "description": "The chat streaming endpoint validates session ownership but doesn't appear to verify token expiration. An expired token could potentially continue accessing streams if the session ID is known.",
       "files": [
-        "app/ai/sql_executor.py",
-        "app/ai/ai_service.py"
+        "app/api/routes/chat_stream.py"
       ]
     },
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Connection Pool Management Issues",
-      "description": "The SQL executor creates a new connection pool without proper lifecycle management, which could lead to connection leaks. The fallback _SimplePool implementation is particularly problematic as it doesn't properly handle connection closing in all error cases.",
+      "title": "Lack of rate limiting for AI service",
+      "description": "The application doesn't implement rate limiting for AI calls, which could lead to excessive costs and potential abuse. Consider adding a rate limiter for API calls to Bedrock.",
+      "files": [
+        "app/ai/ai_service.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Potential SQL injection vulnerability",
+      "description": "While the application attempts to validate SQL safety with regex patterns, the _apply_required_predicates function in sql_executor.py may be vulnerable to SQL injection as it directly interpolates values into queries.",
       "files": [
         "app/ai/sql_executor.py"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "Hardcoded AWS Resource ARNs",
-      "description": "There appear to be hardcoded AWS resource ARNs in the code that should be moved to configuration. This is evident in the sql_executor code where it references DB_CLUSTER_ARN and DB_SECRET_ARN.",
-      "files": [
-        "app/ai/sql_executor_old.py"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "Token Validation Without Proper JWK Verification",
-      "description": "The authentication code doesn't show proper JWT verification against a JWK set from the identity server, which could allow forged tokens if implemented incorrectly. The authentication_code_bearer.py file needs review.",
-      "files": [
-        "app/core/security/authentication_code_bearer.py"
       ]
     }
   ]

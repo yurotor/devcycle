@@ -27,6 +27,8 @@ export interface ChoiceChatProps {
   onReady?: () => void;
   /** If provided, auto-sends this message to kick off the conversation when history is empty */
   autoStartMessage?: string;
+  /** If true, the auto-start message is sent but not shown in the chat */
+  hideAutoStart?: boolean;
   /** Header text shown above the chat */
   headerText?: string;
   /** Placeholder text for the input field */
@@ -64,6 +66,7 @@ export function ChoiceChat({
   postExtras = {},
   onReady,
   autoStartMessage,
+  hideAutoStart = false,
   headerText,
   placeholder = "Type your answer...",
 }: ChoiceChatProps) {
@@ -87,16 +90,18 @@ export function ChoiceChat({
   // ── Send a message ──────────────────────────────────────────
 
   const sendMsg = useCallback(
-    async (text: string) => {
+    async (text: string, silent = false) => {
       if (!text.trim() || sendingRef.current) return;
       sendingRef.current = true;
       setSending(true);
 
       const tempId = Date.now();
-      setMessages((prev) => [
-        ...prev,
-        { id: tempId, role: "user", content: text, createdAt: tempId },
-      ]);
+      if (!silent) {
+        setMessages((prev) => [
+          ...prev,
+          { id: tempId, role: "user", content: text, createdAt: tempId },
+        ]);
+      }
 
       try {
         const res = await fetch(apiUrl, {
@@ -138,10 +143,14 @@ export function ChoiceChat({
     fetch(apiUrl)
       .then((r) => r.json())
       .then((data) => {
-        const msgs: ChatMsg[] = (data.messages ?? []).map((m: ChatMsg) => ({
+        let msgs: ChatMsg[] = (data.messages ?? []).map((m: ChatMsg) => ({
           ...m,
           choices: m.choices ? (typeof m.choices === "string" ? JSON.parse(m.choices) : m.choices) : null,
         }));
+        // Hide the auto-start user message from history if hideAutoStart is set
+        if (hideAutoStart && autoStartMessage && msgs.length > 0 && msgs[0].role === "user" && msgs[0].content === autoStartMessage) {
+          msgs = msgs.slice(1);
+        }
         setMessages(msgs);
 
         // Check if already ready
@@ -164,12 +173,13 @@ export function ChoiceChat({
             lc.includes("good understanding of the system")
           ) {
             setReady(true);
+            onReadyRef.current?.();
           }
         }
 
         if (msgs.length === 0 && autoStartMessage && !autoStartedRef.current) {
           autoStartedRef.current = true;
-          sendMsg(autoStartMessage);
+          sendMsg(autoStartMessage, hideAutoStart);
         }
       })
       .finally(() => setLoading(false));

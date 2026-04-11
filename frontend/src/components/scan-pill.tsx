@@ -223,6 +223,7 @@ export function ScanPill() {
                   theme="violet"
                   apiUrl="/api/kb/interview"
                   autoStartMessage="Let's start the interview. I'm ready to answer questions about our system."
+                  hideAutoStart
                   onReady={handleInterviewDone}
                   placeholder="Answer the question or provide more context..."
                 />

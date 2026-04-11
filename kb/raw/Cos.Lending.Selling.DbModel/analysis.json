@@ -1,158 +1,146 @@
 {
-  "purpose": "This repository provides the database model and context for the Cos Lending Selling system, which appears to be a financial lending and loan servicing platform. It defines the data entities, relationships, and database interactions required to support loan management, interest calculations, fee processing, and investor operations.",
+  "purpose": "This repository provides the database model and context for a lending and selling system within a financial services application. It defines entities, relationships, and database operations for managing loans, accounts, fees, transfers, and other financial transactions in a multi-tenant architecture.",
   "businessFeatures": [
-    "Loan origination and servicing",
-    "Loan transfer and selling to investors",
+    "Loan origination and management",
+    "Fee calculation and processing",
     "Interest calculation and accrual",
-    "Fee management and charging",
-    "Batch processing for loan operations",
-    "Multi-tenant architecture with role-based access",
-    "Contract management",
-    "Volume fee calculations",
-    "Automated loan purchasing"
+    "Investor management",
+    "Contract and transfer management",
+    "Multi-tenant authorization",
+    "Transaction batch processing",
+    "Account management",
+    "Volume fee calculation",
+    "Reporting capabilities"
   ],
   "apis": [],
   "dependencies": [
     {
-      "target": "EntityFrameworkCore",
-      "type": "shared-lib"
-    },
-    {
       "target": "Npgsql.EntityFrameworkCore.PostgreSQL",
       "type": "database"
+    },
+    {
+      "target": "Microsoft.EntityFrameworkCore",
+      "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
-      "name": "Loan",
-      "description": "Represents a financial loan with its associated details and status"
-    },
-    {
-      "name": "LoanAccount",
-      "description": "Links loans to accounts for financial tracking"
-    },
-    {
       "name": "Account",
-      "description": "Represents a financial account in the system"
+      "description": "Represents financial accounts in the system"
+    },
+    {
+      "name": "Loan",
+      "description": "Core entity representing loan products with their characteristics"
+    },
+    {
+      "name": "Investor",
+      "description": "Entity representing investors who purchase loans"
     },
     {
       "name": "Transfer",
-      "description": "Represents the transfer of a loan between parties"
+      "description": "Represents transfers of loans between accounts or entities"
     },
     {
       "name": "Contract",
-      "description": "Represents a legal agreement between parties"
+      "description": "Represents legal agreements for loans"
+    },
+    {
+      "name": "Fee",
+      "description": "Represents various fees applied to loans or accounts"
     },
     {
       "name": "InterestHistory",
       "description": "Tracks historical interest calculations for loans"
     },
     {
-      "name": "Investor",
-      "description": "Represents entities that invest in or purchase loans"
-    },
-    {
-      "name": "Fee",
-      "description": "Represents fees charged in loan transactions"
-    },
-    {
-      "name": "FeeSweep",
-      "description": "Represents fee collection events"
+      "name": "Mpl",
+      "description": "Mortgage Program Lending configuration and details"
     },
     {
       "name": "Batch",
-      "description": "Groups related operations for processing together"
+      "description": "Batch operations for processing multiple records"
     },
     {
-      "name": "Mpl",
-      "description": "Marketplace lending entity that originates loans"
-    },
-    {
-      "name": "Bank",
-      "description": "Financial institution entity involved in lending"
+      "name": "LoanEvent",
+      "description": "Events that occur during loan lifecycle"
     },
     {
       "name": "Servicing",
-      "description": "Represents loan servicing operations and status"
-    },
-    {
-      "name": "Sofr",
-      "description": "Secured Overnight Financing Rate data for interest calculations"
+      "description": "Loan servicing information and configurations"
     }
   ],
   "messagingPatterns": [
     {
       "type": "outbox",
-      "name": "TransferOutbox",
-      "description": "Ensures reliable message delivery for loan transfer events"
-    },
-    {
-      "type": "outbox",
-      "name": "FeeOutbox",
-      "description": "Ensures reliable message delivery for fee-related events"
-    },
-    {
-      "type": "outbox",
       "name": "BatchInitOutbox",
-      "description": "Ensures reliable message delivery for batch initialization events"
+      "description": "Outbox pattern for batch initialization messages"
     },
     {
       "type": "outbox",
       "name": "DailyInterestOutbox",
-      "description": "Ensures reliable message delivery for daily interest calculation events"
+      "description": "Outbox pattern for daily interest calculation messages"
     },
     {
       "type": "outbox",
-      "name": "MaturedLoanOutbox",
-      "description": "Ensures reliable message delivery for loan maturity events"
+      "name": "FeeOutbox",
+      "description": "Outbox pattern for fee processing messages"
     },
     {
       "type": "outbox",
-      "name": "NotificationOutbox",
-      "description": "Ensures reliable message delivery for notification events"
-    },
-    {
-      "type": "outbox",
-      "name": "ReportingOutbox",
-      "description": "Ensures reliable message delivery for reporting events"
-    },
-    {
-      "type": "outbox",
-      "name": "TrueUpVolumeFeeOutbox",
-      "description": "Ensures reliable message delivery for volume fee adjustments"
+      "name": "TransferOutbox",
+      "description": "Outbox pattern for transfer operation messages"
     },
     {
       "type": "outbox",
       "name": "VolumeFeeOutbox",
-      "description": "Ensures reliable message delivery for volume fee events"
+      "description": "Outbox pattern for volume fee calculation messages"
+    },
+    {
+      "type": "outbox",
+      "name": "NotificationOutbox",
+      "description": "Outbox pattern for notification messages"
+    },
+    {
+      "type": "outbox",
+      "name": "ReportingOutbox",
+      "description": "Outbox pattern for reporting data messages"
     }
   ],
   "integrations": [],
   "architecturePatterns": [
     "Repository Pattern",
-    "Entity Framework Core ORM",
     "Outbox Pattern",
-    "Multi-tenant architecture",
-    "Database Migration Management"
+    "Entity-Attribute-Value Pattern",
+    "Multi-tenant Architecture",
+    "Domain-Driven Design"
   ],
   "techStack": [
     ".NET Core",
     "Entity Framework Core",
     "PostgreSQL",
-    "Npgsql",
-    "Jenkins CI/CD"
+    "C#",
+    "Npgsql"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Outbox Pattern Implementation Risk",
-      "description": "The repository uses multiple outbox tables with corresponding dead letter tables but lacks visible processing or retry logic, risking message loss during system failures. Implement comprehensive outbox message processing with monitoring and alerting.",
+      "title": "Multiple dead letter queues without handling mechanism",
+      "description": "The repository contains multiple dead letter entities (e.g., BatchInitOutboxDeadLetter, FeeOutboxDeadLetter) but lacks visible mechanisms for handling or processing these dead letters. This could lead to unprocessed messages and system inconsistencies. Implement a dead letter processing strategy or monitoring system.",
       "files": [
-        "CRB.Cos.Lending.Selling.DbContext/DbModel/TransferOutbox.cs",
-        "CRB.Cos.Lending.Selling.DbContext/DbModel/FeeOutbox.cs",
-        "CRB.Cos.Lending.Selling.DbContext/DbModel/TransferOutboxDeadLetter.cs",
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/BatchInitOutboxDeadLetter.cs",
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/DailyInterestOutboxDeadLetter.cs",
         "CRB.Cos.Lending.Selling.DbContext/DbModel/FeeOutboxDeadLetter.cs"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Multi-tenant data access control lacks clear enforcement",
+      "description": "While there's a tenant authorization structure in place, the repository doesn't show clear enforcement mechanisms for tenant-based data isolation in database queries. This could potentially allow data leakage between tenants. Implement consistent tenant filtering in all data access queries.",
+      "files": [
+        "CRB.Cos.Lending.Selling.Authorization/Tenant.cs",
+        "CRB.Cos.Lending.Selling.Authorization/TenantProvider.cs"
       ]
     }
   ]

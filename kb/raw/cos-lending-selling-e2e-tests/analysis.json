@@ -1,43 +1,56 @@
 {
-  "purpose": "This repository contains end-to-end testing framework for Cross River Bank's lending and selling platform, simulating the entire environment including loan origination, servicing, purchasing, and accounting operations to validate the platform's functionality through comprehensive test scenarios.",
+  "purpose": "This repository contains end-to-end tests for Cross River Bank's loan selling system, simulating the entire lending-selling environment to test loan origination, seasoning, interest calculation, fee collection, and loan purchase workflows in a controlled environment.",
   "businessFeatures": [
-    "Loan ingestion and curation",
-    "Loan purchasing automation",
-    "Contract management and enforcement",
+    "Loan ingestion from source systems",
+    "Loan curation and status management",
     "Interest calculation and accrual",
-    "Volume fee calculation and true-ups",
-    "Loan servicing",
+    "Volume fee calculation",
+    "Loan purchase processing",
+    "Fee collection and sweeping",
     "Loan type changes (grooming)",
-    "Investor reassignment",
-    "Fee collection and management",
-    "Accounting integration",
-    "Batch processing"
+    "Investor changes",
+    "Servicing data ingestion",
+    "True-up volume fee processing",
+    "Pass-through interest calculations",
+    "Auto-purchase functionality",
+    "Merchant fee processing",
+    "Purchase date adjustment"
   ],
   "apis": [
     {
       "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
       "method": "POST",
-      "purpose": "Returns account configurations for loans"
+      "purpose": "Get account information for loan actions"
     },
     {
       "endpoint": "/Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts",
       "method": "POST",
-      "purpose": "Gets account configurations for loan type changes"
+      "purpose": "Get accounts for loan type changes"
     },
     {
       "endpoint": "/core/v1/dda/accounts/{account_number}",
       "method": "GET",
-      "purpose": "Returns account balance information"
+      "purpose": "Get account balance"
     },
     {
       "endpoint": "/core/v1/dda/subaccounts/{account_number}",
       "method": "GET",
-      "purpose": "Returns subaccount balance information"
+      "purpose": "Get subaccount balance"
+    },
+    {
+      "endpoint": "/init/{mpl_id}/{issuing_bank_id}/{loan_type}/{objective}/{account_number}/{is_subaccount}",
+      "method": "GET",
+      "purpose": "Initialize account configuration"
+    },
+    {
+      "endpoint": "/set_delay_transfers",
+      "method": "POST",
+      "purpose": "Control transfer delays in the COS mock service"
     },
     {
       "endpoint": "/payment",
       "method": "POST",
-      "purpose": "Simulates payment processing"
+      "purpose": "Process payment transfers"
     }
   ],
   "dependencies": [
@@ -46,11 +59,19 @@
       "type": "database"
     },
     {
-      "target": "source-db",
+      "target": "arix-db",
       "type": "database"
     },
     {
-      "target": "cos-sim",
+      "target": "web-api",
+      "type": "http"
+    },
+    {
+      "target": "dbt",
+      "type": "shared-lib"
+    },
+    {
+      "target": "cos-simulator",
       "type": "http"
     },
     {
@@ -58,172 +79,155 @@
       "type": "http"
     },
     {
+      "target": "hooks",
+      "type": "messaging"
+    },
+    {
       "target": "rabbitmq",
       "type": "messaging"
     },
     {
-      "target": "hooks-e2e",
-      "type": "http"
-    },
-    {
-      "target": "web-api",
-      "type": "http"
-    },
-    {
-      "target": "AWS SQS",
-      "type": "messaging"
-    },
-    {
-      "target": "AWS S3",
+      "target": "aws-s3",
       "type": "file"
+    },
+    {
+      "target": "aws-sqs",
+      "type": "messaging"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan data with loan status, amounts, and investor information"
+      "description": "Core loan entity with funding details, status, and purchase information"
     },
     {
       "name": "Contract",
-      "description": "Terms and fee structures between MPL (marketplace lender) and bank"
-    },
-    {
-      "name": "Batch",
-      "description": "Group of loans for purchase processing"
+      "description": "Defines relationship between MPL, bank, and investor with fee structures"
     },
     {
       "name": "LoanAction",
-      "description": "Operations performed on loans (purchase, interest accrual, etc.)"
+      "description": "Represents actions performed on loans like purchase or interest accrual"
     },
     {
       "name": "Transfer",
-      "description": "Money movement between accounts"
+      "description": "Financial transfer between accounts for loan operations"
+    },
+    {
+      "name": "Batch",
+      "description": "Group of loans processed together for purchase"
     },
     {
       "name": "AccountConfig",
-      "description": "Account configuration based on MPL, issuing bank, loan type, and objective"
+      "description": "Configuration for different account types used in loan transactions"
     },
     {
       "name": "TrueUpVolumeFee",
-      "description": "Minimum fee true-up calculations for contracts"
-    },
-    {
-      "name": "GroomingProcess",
-      "description": "Workflow for changing loan type with retroactive interest calculation"
+      "description": "Volume fee adjustments based on contract terms"
     }
   ],
   "messagingPatterns": [
     {
-      "type": "outbox",
-      "name": "TransferOutbox",
-      "description": "Ensures transfer messages are reliably sent to payment systems"
-    },
-    {
-      "type": "outbox",
-      "name": "DailyInterestOutbox",
-      "description": "Ensures interest accrual messages are reliably processed"
-    },
-    {
-      "type": "outbox",
-      "name": "VolumeFeeOutbox",
-      "description": "Ensures volume fee messages are reliably processed"
-    },
-    {
       "type": "queue",
-      "name": "SellingWebApiMessagesQueue",
-      "description": "Handles payment status updates from COS"
+      "name": "SQS Payment Processing",
+      "description": "Processes payment messages for transfers"
     },
     {
       "type": "event",
-      "name": "LoanSaleStatusChanged",
-      "description": "Publishes loan status change events to hooks service"
+      "name": "Loan Sale Status Changed",
+      "description": "Publishes events when loan sale status changes"
     },
     {
       "type": "event",
-      "name": "BatchPurchaseCompleted",
-      "description": "Publishes batch completion events to hooks service"
+      "name": "Batch Purchase Completed",
+      "description": "Publishes events when batch purchase is completed"
+    },
+    {
+      "type": "event",
+      "name": "True Up Volume Fee Charged",
+      "description": "Publishes events when true-up volume fees are charged"
+    },
+    {
+      "type": "event",
+      "name": "Investor Changed",
+      "description": "Publishes events when loan investor changes"
+    },
+    {
+      "type": "event",
+      "name": "Loan Type Changed",
+      "description": "Publishes events when loan type changes"
+    },
+    {
+      "type": "outbox",
+      "name": "Transfer Outbox",
+      "description": "Ensures reliable delivery of transfer messages"
     }
   ],
   "integrations": [
     {
       "system": "COS (Core Operating System)",
-      "direction": "bidirectional",
-      "protocol": "REST"
-    },
-    {
-      "system": "Lending Accounting",
       "direction": "downstream",
       "protocol": "REST"
     },
     {
-      "system": "Arix DB",
+      "system": "Arix",
       "direction": "upstream",
       "protocol": "database"
     },
     {
-      "system": "Hooks Service",
+      "system": "LendingAccounting",
       "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS S3",
+      "direction": "bidirectional",
+      "protocol": "file"
+    },
+    {
+      "system": "AWS SQS",
+      "direction": "bidirectional",
       "protocol": "messaging"
     },
     {
-      "system": "S3 Servicing",
-      "direction": "upstream",
-      "protocol": "file"
+      "system": "RabbitMQ",
+      "direction": "bidirectional",
+      "protocol": "messaging"
     }
   ],
   "architecturePatterns": [
     "Microservices",
-    "Event-driven",
-    "Outbox Pattern",
-    "Database-per-service",
-    "API Gateway",
-    "Message Queue",
-    "Docker Containerization"
+    "Event-driven architecture",
+    "Outbox pattern",
+    "Mock services",
+    "Orchestration",
+    "Time travel testing",
+    "Message-based communication",
+    "Transactional outbox",
+    "Container-based testing"
   ],
   "techStack": [
     "Python",
-    "FastAPI",
-    "PostgreSQL",
-    "MSSQL",
     "Docker",
+    "PostgreSQL",
+    "MS SQL Server",
+    "FastAPI",
+    "SQLAlchemy",
     "RabbitMQ",
     "AWS SQS",
     "AWS S3",
-    "DBT",
-    "Pytest",
-    "Pydantic",
-    "SQLAlchemy"
+    "pytest",
+    "DBT (Data Build Tool)",
+    "Docker Compose"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Insufficient error handling in payment processing",
-      "description": "The payment simulation in modules/cos/src/main.py lacks proper error handling for failed transactions, which could lead to inconsistent state. Implement robust error handling and retries for payment failures.",
+      "title": "Excessive use of sleep() for synchronization",
+      "description": "The codebase uses numerous sleep() calls to wait for asynchronous operations to complete. This creates brittle tests that may fail intermittently or take longer than necessary to run. Replace with proper synchronization mechanisms like polling with timeouts or event listeners.",
       "files": [
-        "modules/cos/src/main.py",
-        "modules/e2e/src/assertions/batch_assertions.py"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "AWS credentials passed as environment variables",
-      "description": "AWS credentials are passed as environment variables in docker-compose.yml which is a security risk. Use AWS IAM roles or a secure credentials manager instead of hardcoded credentials.",
-      "files": [
-        "docker-compose.yml",
-        "scripts/prepare.sh"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "architecture",
-      "title": "Tight coupling to simulated services",
-      "description": "The test framework is tightly coupled to specific implementations of simulated services, making it brittle when service interfaces change. Consider using interface-based testing or contract testing approaches.",
-      "files": [
-        "modules/e2e/src/accounting.py",
-        "modules/e2e/src/airflow.py",
-        "modules/e2e/src/dbt.py"
+        "modules/e2e/src/assertions/batch_assertions.py",
+        "modules/e2e/src/assertions/grooming_assertions.py"
       ]
     }
   ]

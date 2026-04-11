@@ -1,84 +1,105 @@
 {
-  "purpose": "COS Lending Selling Datatools is a data pipeline repository that extracts, transforms, and loads data from the Cross River Bank lending and selling systems. It serves as the analytical data layer for the lending business, providing curated data models for reporting and analysis.",
+  "purpose": "This repository contains data transformation tools for CrossRiver Bank's lending and selling operations. It uses DBT (Data Build Tool) to transform data from source systems into a data warehouse, with Apache Airflow orchestrating the ETL pipelines in both local development and cloud (AWS) environments.",
   "businessFeatures": [
-    "Loan data extraction and transformation",
-    "Contract and fee parameter data ingestion",
-    "Seasoning period calculations",
-    "Volume-based fee processing",
-    "Data exports to warehouse"
+    "Loan data processing and transformation",
+    "Contract data ingestion and management",
+    "Seasoning period tracking and calculations",
+    "Volume fee calculations and reporting",
+    "Reference data management for loan types, statuses, and entities"
   ],
   "apis": [
     {
-      "endpoint": "/airflow/api",
-      "method": "GET",
-      "purpose": "Interface for Airflow DAG execution and monitoring"
+      "endpoint": "/api/ingestion",
+      "method": "POST",
+      "purpose": "Ingests data from source systems into the data warehouse"
     }
   ],
   "dependencies": [
     {
-      "target": "selling-web-api",
+      "target": "cos-lending-selling-web-api",
       "type": "database"
-    },
-    {
-      "target": "cos-lending-selling-database",
-      "type": "database"
-    },
-    {
-      "target": "aws-s3",
-      "type": "storage"
     },
     {
       "target": "aws-ssm",
-      "type": "configuration"
+      "type": "http"
+    },
+    {
+      "target": "aws-s3",
+      "type": "http"
+    },
+    {
+      "target": "aws-secretsmanager",
+      "type": "http"
+    },
+    {
+      "target": "aws-ecs",
+      "type": "http"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Representation of a loan with origination and sale status"
+      "description": "Core entity representing loans being processed in the system"
     },
     {
       "name": "Contract",
-      "description": "Terms and conditions for loan agreements"
+      "description": "Represents loan contracts with associated terms and conditions"
+    },
+    {
+      "name": "Account",
+      "description": "Entity representing customer accounts"
+    },
+    {
+      "name": "LoanTypeEntity",
+      "description": "Reference data for loan types"
+    },
+    {
+      "name": "LoanSaleStatusEntity",
+      "description": "Reference data for loan sale statuses"
+    },
+    {
+      "name": "SeasoningPeriodEntity",
+      "description": "Reference data for loan seasoning periods"
     },
     {
       "name": "Fee",
-      "description": "Fee parameters and calculations for loans"
+      "description": "Fee structures and parameters applied to loans"
     },
     {
-      "name": "Seasoning",
-      "description": "Loan seasoning periods and rules"
-    },
-    {
-      "name": "Volume",
-      "description": "Loan volume data used for fee calculations"
+      "name": "VolumeFee",
+      "description": "Volume-based fee calculations for loan portfolios"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "LoanDataIngestion",
-      "description": "Triggers extraction of loan data from source system"
-    },
-    {
-      "type": "event",
-      "name": "ContractIngestion",
-      "description": "Triggers extraction of contract data from source system"
+      "name": "ECSTaskExecution",
+      "description": "Orchestrates ETL tasks execution via AWS ECS Fargate"
     }
   ],
   "integrations": [
-    {
-      "system": "Cross River Bank Selling Web API",
-      "direction": "upstream",
-      "protocol": "database"
-    },
     {
       "system": "AWS S3",
       "direction": "bidirectional",
       "protocol": "REST"
     },
     {
-      "system": "AWS SSM",
+      "system": "AWS SSM Parameter Store",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS ECS",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "PostgreSQL",
+      "direction": "bidirectional",
+      "protocol": "database"
+    },
+    {
+      "system": "AWS Secrets Manager",
       "direction": "upstream",
       "protocol": "REST"
     }
@@ -86,26 +107,30 @@
   "architecturePatterns": [
     "ETL Pipeline",
     "Data Warehouse",
-    "ECS Task Execution",
-    "Container-based Processing"
+    "Containerization",
+    "Infrastructure as Code",
+    "DevOps Automation"
   ],
   "techStack": [
-    "Python 3.11",
-    "dbt",
-    "Airflow",
-    "PostgreSQL",
+    "Python",
+    "DBT (Data Build Tool)",
+    "Apache Airflow",
     "Docker",
+    "PostgreSQL",
     "AWS ECS",
     "AWS S3",
-    "AWS SSM",
-    "AWS Fargate"
+    "AWS SSM Parameter Store",
+    "AWS Secrets Manager",
+    "Flyway",
+    "Jenkins",
+    "Azure DevOps"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded S3 credentials in aws_utils.py",
-      "description": "The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username and password) for local development. These should be moved to environment variables or a secure configuration to prevent credential exposure.",
+      "title": "Hardcoded credentials in aws_utils.py",
+      "description": "The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username and password) for local development. While these appear to be for local development only, hardcoded credentials are a security risk and should be moved to environment variables or a dedicated configuration file that is not tracked in source control.",
       "files": [
         "dags/projects/utils/aws_utils.py"
       ]
@@ -113,10 +138,21 @@
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Incomplete ingestion task implementation",
-      "description": "The bootstrapping_dag.py contains TODO comments indicating incomplete implementation of ingestion tasks. The ingestion functionality is critical for the data pipeline but appears to be unfinished, which could cause data availability issues.",
+      "title": "Incomplete bootstrapping DAG implementation",
+      "description": "The bootstrapping DAG file (dags/projects/cos_lending_selling/bootstrapping_dag.py) contains TODO comments indicating unfinished implementation. This could cause problems when deploying to production as the ETL pipeline may not function correctly or may be missing critical components.",
       "files": [
         "dags/projects/cos_lending_selling/bootstrapping_dag.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "optimization",
+      "title": "Duplicate source definitions across DBT projects",
+      "description": "Multiple DBT projects (export, loans_curation, seasoning) define the same source tables independently. This creates maintenance overhead and risk of inconsistency when source schemas change. Consider centralizing source definitions in a shared package.",
+      "files": [
+        "modules/dbt/projects/export/models/source/loan_type_entity.yml",
+        "modules/dbt/projects/loans_curation/models/source/loan_type_entity.yml",
+        "modules/dbt/projects/seasoning/models/source/loan_type_entity.yml"
       ]
     }
   ]

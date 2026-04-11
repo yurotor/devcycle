@@ -1,110 +1,125 @@
 {
-  "purpose": "This repository contains Infrastructure as Code (IaC) for the Cross River Bank's lending and selling platform. It manages AWS cloud resources using Terragrunt and Terraform to provision and configure databases, APIs, messaging services, and orchestration components across multiple environments.",
+  "purpose": "This repository contains Infrastructure as Code (IaC) configurations for Cross River Bank's Cos Lending Selling platform. It automates the provisioning and management of AWS cloud resources including Aurora databases, Airflow workflows, API services, and storage solutions across multiple environments.",
   "businessFeatures": [
-    "Loan servicing and selling",
-    "AI-based loan processing",
-    "Database external access management",
-    "Application infrastructure deployment",
+    "Loan servicing and management",
+    "Lending operations",
+    "Loan selling automation",
+    "AI/ML integration for lending decisions",
+    "External database access management",
     "Workflow orchestration with Airflow"
   ],
   "apis": [
     {
-      "endpoint": "/admin-api",
+      "endpoint": "/web-api/*",
       "method": "REST",
-      "purpose": "Administrative API for internal operations"
+      "purpose": "Web application interface for lending services"
     },
     {
-      "endpoint": "/web-api",
+      "endpoint": "/admin-api/*",
       "method": "REST",
-      "purpose": "Web interface for loan management"
+      "purpose": "Administrative interface for lending system management"
+    },
+    {
+      "endpoint": "/ai-api/*",
+      "method": "REST",
+      "purpose": "AI-powered lending decision interface"
     }
   ],
   "dependencies": [
     {
-      "target": "Aurora PostgreSQL",
+      "target": "aurora-database",
       "type": "database"
     },
     {
-      "target": "Amazon S3",
+      "target": "athena-analytics",
       "type": "database"
     },
     {
-      "target": "Amazon ECS",
-      "type": "http"
+      "target": "s3-servicing",
+      "type": "shared-lib"
     },
     {
-      "target": "Amazon SQS",
+      "target": "selling-x",
       "type": "messaging"
     },
     {
-      "target": "Amazon Lambda",
-      "type": "http"
-    },
-    {
-      "target": "Amazon MWAA (Airflow)",
+      "target": "airflow-mwaa",
       "type": "http"
     }
   ],
   "dataEntities": [
     {
-      "name": "Loan",
-      "description": "Core lending entity with funding information"
+      "name": "LoanFunding",
+      "description": "Funding details for loan transactions"
     },
     {
-      "name": "ExportedData",
-      "description": "Data exported from the system for external consumption"
+      "name": "DatabaseCredentials",
+      "description": "Secure access credentials for database connections"
+    },
+    {
+      "name": "ApplicationUser",
+      "description": "User identity and permissions for application access"
     }
   ],
   "messagingPatterns": [
     {
       "type": "queue",
       "name": "SQS Queues",
-      "description": "Message queues for selling platform operations"
+      "description": "Message queuing for selling-x service integration"
+    },
+    {
+      "type": "event",
+      "name": "CloudWatch Events",
+      "description": "System monitoring and alerts for platform operations"
     }
   ],
   "integrations": [
     {
-      "system": "AWS Secrets Manager",
+      "system": "AI Decision Service",
       "direction": "bidirectional",
       "protocol": "REST"
     },
     {
-      "system": "AWS CloudWatch",
-      "direction": "upstream",
-      "protocol": "REST"
+      "system": "External Database",
+      "direction": "bidirectional",
+      "protocol": "database"
     },
     {
-      "system": "Artifactory",
-      "direction": "upstream",
-      "protocol": "REST"
+      "system": "Selling-X Platform",
+      "direction": "bidirectional",
+      "protocol": "messaging"
     }
   ],
   "architecturePatterns": [
     "Infrastructure as Code",
-    "Microservices",
+    "Serverless Functions",
+    "Containerized Services",
     "Secret Rotation",
-    "CI/CD Pipeline",
-    "Environment Segregation",
-    "Serverless",
-    "Container Orchestration"
+    "Event-driven Architecture",
+    "Microservices"
   ],
   "techStack": [
-    "Terragrunt",
-    "Terraform",
     "AWS",
+    "Terraform",
+    "Terragrunt",
+    "ECS Fargate",
+    "Aurora PostgreSQL",
+    "Lambda",
+    "S3",
+    "SQS",
+    "Airflow",
     "Python",
-    "Docker",
-    "PostgreSQL",
-    "Apache Airflow",
-    "Jenkins",
-    "Azure DevOps"
+    "DynamoDB",
+    "CloudWatch",
+    "ALB",
+    "Secrets Manager"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded database permissions in rotation scripts",
-      "description": "Database permissions are hardcoded in rotation scripts rather than being configurable, which could lead to privilege escalation or excessive permissions. Consider moving these to environment variables or configuration files.",
+      "title": "Hardcoded SQL permissions in rotation scripts",
+      "description": "The database credential rotation scripts (ai-api and db-external-access modules) contain hardcoded SQL permissions that are granted to users. These should be parameterized based on environment to prevent potential privilege escalation.",
       "files": [
         "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
         "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
@@ -113,11 +128,10 @@
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Secret rotation logic duplication",
-      "description": "Secret rotation logic is duplicated across multiple Lambda functions with only slight differences. This creates maintenance issues and increases the risk of security vulnerabilities. Extract common code into a shared library.",
+      "title": "State bucket name generation creates potential collision risk",
+      "description": "The terraform state bucket name is generated based on branch names, which could lead to collisions or unauthorized access. Consider using a more robust naming strategy with additional entropy and access controls.",
       "files": [
-        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
-        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
+        "README.md"
       ]
     }
   ]
