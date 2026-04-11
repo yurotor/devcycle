@@ -1,8 +1,7 @@
-# cos-lending-selling-e2e-tests — Index
+# cos-lending-selling-e2e-tests — Raw Analysis
 
-Generated: 2026-04-11T12:40:24.315Z
+Generated: 2026-04-11T15:16:36.898Z
 
 ## Files
-
-- [summary.md](./summary.md)
-- [architecture.md](./architecture.md)
+- [analysis.json](./analysis.json) — structured analysis data
+- [analysis.md](./analysis.md) — human-readable analysis

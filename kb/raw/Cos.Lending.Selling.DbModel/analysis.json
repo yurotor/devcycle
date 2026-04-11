@@ -1,0 +1,159 @@
+{
+  "purpose": "This repository provides the database model and context for the Cos Lending Selling system, which appears to be a financial lending and loan servicing platform. It defines the data entities, relationships, and database interactions required to support loan management, interest calculations, fee processing, and investor operations.",
+  "businessFeatures": [
+    "Loan origination and servicing",
+    "Loan transfer and selling to investors",
+    "Interest calculation and accrual",
+    "Fee management and charging",
+    "Batch processing for loan operations",
+    "Multi-tenant architecture with role-based access",
+    "Contract management",
+    "Volume fee calculations",
+    "Automated loan purchasing"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "EntityFrameworkCore",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "type": "database"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents a financial loan with its associated details and status"
+    },
+    {
+      "name": "LoanAccount",
+      "description": "Links loans to accounts for financial tracking"
+    },
+    {
+      "name": "Account",
+      "description": "Represents a financial account in the system"
+    },
+    {
+      "name": "Transfer",
+      "description": "Represents the transfer of a loan between parties"
+    },
+    {
+      "name": "Contract",
+      "description": "Represents a legal agreement between parties"
+    },
+    {
+      "name": "InterestHistory",
+      "description": "Tracks historical interest calculations for loans"
+    },
+    {
+      "name": "Investor",
+      "description": "Represents entities that invest in or purchase loans"
+    },
+    {
+      "name": "Fee",
+      "description": "Represents fees charged in loan transactions"
+    },
+    {
+      "name": "FeeSweep",
+      "description": "Represents fee collection events"
+    },
+    {
+      "name": "Batch",
+      "description": "Groups related operations for processing together"
+    },
+    {
+      "name": "Mpl",
+      "description": "Marketplace lending entity that originates loans"
+    },
+    {
+      "name": "Bank",
+      "description": "Financial institution entity involved in lending"
+    },
+    {
+      "name": "Servicing",
+      "description": "Represents loan servicing operations and status"
+    },
+    {
+      "name": "Sofr",
+      "description": "Secured Overnight Financing Rate data for interest calculations"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "outbox",
+      "name": "TransferOutbox",
+      "description": "Ensures reliable message delivery for loan transfer events"
+    },
+    {
+      "type": "outbox",
+      "name": "FeeOutbox",
+      "description": "Ensures reliable message delivery for fee-related events"
+    },
+    {
+      "type": "outbox",
+      "name": "BatchInitOutbox",
+      "description": "Ensures reliable message delivery for batch initialization events"
+    },
+    {
+      "type": "outbox",
+      "name": "DailyInterestOutbox",
+      "description": "Ensures reliable message delivery for daily interest calculation events"
+    },
+    {
+      "type": "outbox",
+      "name": "MaturedLoanOutbox",
+      "description": "Ensures reliable message delivery for loan maturity events"
+    },
+    {
+      "type": "outbox",
+      "name": "NotificationOutbox",
+      "description": "Ensures reliable message delivery for notification events"
+    },
+    {
+      "type": "outbox",
+      "name": "ReportingOutbox",
+      "description": "Ensures reliable message delivery for reporting events"
+    },
+    {
+      "type": "outbox",
+      "name": "TrueUpVolumeFeeOutbox",
+      "description": "Ensures reliable message delivery for volume fee adjustments"
+    },
+    {
+      "type": "outbox",
+      "name": "VolumeFeeOutbox",
+      "description": "Ensures reliable message delivery for volume fee events"
+    }
+  ],
+  "integrations": [],
+  "architecturePatterns": [
+    "Repository Pattern",
+    "Entity Framework Core ORM",
+    "Outbox Pattern",
+    "Multi-tenant architecture",
+    "Database Migration Management"
+  ],
+  "techStack": [
+    ".NET Core",
+    "Entity Framework Core",
+    "PostgreSQL",
+    "Npgsql",
+    "Jenkins CI/CD"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Outbox Pattern Implementation Risk",
+      "description": "The repository uses multiple outbox tables with corresponding dead letter tables but lacks visible processing or retry logic, risking message loss during system failures. Implement comprehensive outbox message processing with monitoring and alerting.",
+      "files": [
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/TransferOutbox.cs",
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/FeeOutbox.cs",
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/TransferOutboxDeadLetter.cs",
+        "CRB.Cos.Lending.Selling.DbContext/DbModel/FeeOutboxDeadLetter.cs"
+      ]
+    }
+  ]
+}

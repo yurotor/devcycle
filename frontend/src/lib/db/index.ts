@@ -113,6 +113,14 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   choices TEXT,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS interview_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL,
+  transcript TEXT NOT NULL,
+  extracted_facts TEXT,
+  created_at INTEGER NOT NULL
+);
 `;
 
 // Idempotent column additions — SQLite has no ALTER TABLE IF NOT EXISTS,

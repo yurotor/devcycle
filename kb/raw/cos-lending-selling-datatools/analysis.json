@@ -1,0 +1,123 @@
+{
+  "purpose": "COS Lending Selling Datatools is a data pipeline repository that extracts, transforms, and loads data from the Cross River Bank lending and selling systems. It serves as the analytical data layer for the lending business, providing curated data models for reporting and analysis.",
+  "businessFeatures": [
+    "Loan data extraction and transformation",
+    "Contract and fee parameter data ingestion",
+    "Seasoning period calculations",
+    "Volume-based fee processing",
+    "Data exports to warehouse"
+  ],
+  "apis": [
+    {
+      "endpoint": "/airflow/api",
+      "method": "GET",
+      "purpose": "Interface for Airflow DAG execution and monitoring"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "selling-web-api",
+      "type": "database"
+    },
+    {
+      "target": "cos-lending-selling-database",
+      "type": "database"
+    },
+    {
+      "target": "aws-s3",
+      "type": "storage"
+    },
+    {
+      "target": "aws-ssm",
+      "type": "configuration"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Representation of a loan with origination and sale status"
+    },
+    {
+      "name": "Contract",
+      "description": "Terms and conditions for loan agreements"
+    },
+    {
+      "name": "Fee",
+      "description": "Fee parameters and calculations for loans"
+    },
+    {
+      "name": "Seasoning",
+      "description": "Loan seasoning periods and rules"
+    },
+    {
+      "name": "Volume",
+      "description": "Loan volume data used for fee calculations"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "event",
+      "name": "LoanDataIngestion",
+      "description": "Triggers extraction of loan data from source system"
+    },
+    {
+      "type": "event",
+      "name": "ContractIngestion",
+      "description": "Triggers extraction of contract data from source system"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "Cross River Bank Selling Web API",
+      "direction": "upstream",
+      "protocol": "database"
+    },
+    {
+      "system": "AWS S3",
+      "direction": "bidirectional",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS SSM",
+      "direction": "upstream",
+      "protocol": "REST"
+    }
+  ],
+  "architecturePatterns": [
+    "ETL Pipeline",
+    "Data Warehouse",
+    "ECS Task Execution",
+    "Container-based Processing"
+  ],
+  "techStack": [
+    "Python 3.11",
+    "dbt",
+    "Airflow",
+    "PostgreSQL",
+    "Docker",
+    "AWS ECS",
+    "AWS S3",
+    "AWS SSM",
+    "AWS Fargate"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded S3 credentials in aws_utils.py",
+      "description": "The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username and password) for local development. These should be moved to environment variables or a secure configuration to prevent credential exposure.",
+      "files": [
+        "dags/projects/utils/aws_utils.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Incomplete ingestion task implementation",
+      "description": "The bootstrapping_dag.py contains TODO comments indicating incomplete implementation of ingestion tasks. The ingestion functionality is critical for the data pipeline but appears to be unfinished, which could cause data availability issues.",
+      "files": [
+        "dags/projects/cos_lending_selling/bootstrapping_dag.py"
+      ]
+    }
+  ]
+}

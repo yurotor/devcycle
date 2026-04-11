@@ -162,7 +162,37 @@ Surface scan findings in the existing suggestions panel and wire dismiss + promo
 
 ---
 
-### [ ] 8 · Analyze phase with Claude API
+### [ ] 8 · Async background scanning UX
+**Type:** AFK · **Blocked by:** 4, 5, 6
+
+Rework scanning from a blocking full-screen view to an async background process with a floating status pill.
+
+**Scope:**
+- **Retry logic:** exponential backoff (3 retries, 2s/4s/8s) for 429/504 in `anthropic.ts`; reduce scan concurrency from 4 to 2; sequential per-feature Claude calls with 1s delay; 300s curl timeout
+- **Scan API:** `POST /api/scan/start` (fire-and-forget), `GET /api/scan/status` (poll). Scan state in `jobs` table with phase/events in `meta` JSON
+- **Floating scan pill (`ScanPill`):** fixed bottom-right, shows progress during scan. States: hidden → scanning (cyan) → interview ready (violet, auto-opens) → failed 3x (amber, auto-opens) → done (green, fades 5s). Click expands to detail dialog with full scan log
+- **Setup flow change:** after repo selection, trigger `POST /api/scan/start` then proceed to Jira step. After setup completes, land on kanban board (remove `ScanningView` full-screen)
+- **Interview integration:** pill transitions to violet on synthesis complete, auto-opens interview dialog. Messages persist to DB incrementally for resume across refreshes
+- **Re-scan:** button in KB browser sidebar header triggers new scan job
+- **Page refresh resilience:** pill reads job state from DB on mount
+
+**Acceptance criteria:**
+- [ ] After repo selection, scan starts in background and user proceeds to Jira setup
+- [ ] Floating pill visible during scan with correct color states
+- [ ] Clicking pill opens detail dialog with scan log and progress
+- [ ] Pill auto-opens when interview is ready (violet state)
+- [ ] Pill auto-opens after 3 consecutive failures (amber state)
+- [ ] Pill shows "KB ready" and fades after scan + interview complete
+- [ ] Re-scan from KB browser header works
+- [ ] Scan progress survives page refresh (reads from jobs table)
+- [ ] 429/504 errors are retried with exponential backoff
+- [ ] No more than 2 concurrent repo analyses
+
+**User stories:** 4, 5, 6, 7, 14
+
+---
+
+### [ ] 9 · Analyze phase with Claude API
 **Type:** AFK · **Blocked by:** 3, 5
 
 Replace mock chat in the Analyze phase with real streaming Claude API calls. Store conversation transcripts in `kb/raw/`. Enforce phase-transition lock.
@@ -189,8 +219,8 @@ Replace mock chat in the Analyze phase with real streaming Claude API calls. Sto
 
 ---
 
-### [ ] 9 · Plan phase — PRD generation
-**Type:** AFK · **Blocked by:** 8
+### [ ] 10 · Plan phase — PRD generation
+**Type:** AFK · **Blocked by:** 9
 
 Wire the Plan phase to real Claude API calls that produce a PRD. Compile Analyze transcript to wiki on phase entry. Store PRD in `kb/wiki/`. Require approval before advancing.
 
@@ -212,8 +242,8 @@ Wire the Plan phase to real Claude API calls that produce a PRD. Compile Analyze
 
 ---
 
-### [ ] 10 · Design phase — wave/swimlane editor
-**Type:** AFK · **Blocked by:** 9
+### [ ] 11 · Design phase — wave/swimlane editor
+**Type:** AFK · **Blocked by:** 10
 
 Wire the Design phase to real AI-generated task breakdowns and connect the swimlane editor to a real task store with dependency validation.
 
@@ -237,8 +267,8 @@ Wire the Design phase to real AI-generated task breakdowns and connect the swiml
 
 ---
 
-### [ ] 11 · Implement phase — Agent Runner *(HITL)*
-**Type:** HITL · **Blocked by:** 10
+### [ ] 12 · Implement phase — Agent Runner *(HITL)*
+**Type:** HITL · **Blocked by:** 11
 
 Wire the Implement phase to a real Agent Runner that invokes Claude Code CLI as a subprocess, streams progress via SSE, and surfaces a diff for human review before continuing.
 
@@ -265,8 +295,8 @@ Wire the Implement phase to a real Agent Runner that invokes Claude Code CLI as 
 
 ---
 
-### [ ] 12 · Create PR + AI code review
-**Type:** AFK · **Blocked by:** 11
+### [ ] 13 · Create PR + AI code review
+**Type:** AFK · **Blocked by:** 12
 
 Wire the Create PR and Review phases to real Azure DevOps PR creation and AI-powered code review.
 
@@ -297,14 +327,15 @@ Wire the Create PR and Review phases to real Azure DevOps PR creation and AI-pow
 1 (backend)
 ├── 2 (ADO client)      → 4 (scan raw)
 │                            ├── 5 (wiki/schema)
-│                            └── 6 (KB browser)
-│                            └── 7 (suggestions) ← also needs 3
+│                            ├── 6 (KB browser)
+│                            ├── 7 (suggestions) ← also needs 3
+│                            └── 8 (async scan UX) ← also needs 5, 6
 └── 3 (Jira client)     → 7 (suggestions)
-                         → 8 (Analyze) ← also needs 5
-                              → 9 (Plan)
-                                   → 10 (Design)
-                                        → 11 (Implement) HITL
-                                              → 12 (PR + review)
+                         → 9 (Analyze) ← also needs 5
+                              → 10 (Plan)
+                                   → 11 (Design)
+                                        → 12 (Implement) HITL
+                                              → 13 (PR + review)
 ```
 
 ---

@@ -118,6 +118,16 @@ export const scanSuggestions = sqliteTable("scan_suggestions", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ─── Interview Notes ──────────────────────────────────────────────
+
+export const interviewNotes = sqliteTable("interview_notes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  transcript: text("transcript").notNull(),
+  extractedFacts: text("extracted_facts"), // JSON: structured facts
+  createdAt: integer("created_at").notNull(),
+});
+
 // ─── Chat Messages ────────────────────────────────────────────────
 
 export const chatMessages = sqliteTable("chat_messages", {

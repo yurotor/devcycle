@@ -1,0 +1,138 @@
+{
+  "purpose": "This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) for automating and orchestrating data workflows in a lending and selling system. It schedules and manages various ETL processes, data synchronization tasks, fee calculations, and integration points between different services in the lending platform.",
+  "businessFeatures": [
+    "Loan data ingestion and curation from external sources",
+    "Interest accrual calculation and processing",
+    "Fee collection and management",
+    "Data export to third-party systems",
+    "Presale reporting",
+    "Servicing data synchronization",
+    "MPL (Marketplace Lender) management",
+    "SOFR (Secured Overnight Financing Rate) ingestion",
+    "True-up volume fee processing",
+    "Organization data management"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "loans-db",
+      "type": "database"
+    },
+    {
+      "target": "volume-db",
+      "type": "database"
+    },
+    {
+      "target": "contracts-db",
+      "type": "database"
+    },
+    {
+      "target": "vampire-db",
+      "type": "database"
+    },
+    {
+      "target": "selling-db",
+      "type": "database"
+    },
+    {
+      "target": "dbt-runner",
+      "type": "shared-lib"
+    },
+    {
+      "target": "athena",
+      "type": "database"
+    },
+    {
+      "target": "lending-accounting-api",
+      "type": "http"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Core entity representing loan information including loan terms, status and related financial details"
+    },
+    {
+      "name": "Account",
+      "description": "Entity that tracks financial accounts associated with loans"
+    },
+    {
+      "name": "Fee",
+      "description": "Entity representing various fees applied to loans and accounts"
+    },
+    {
+      "name": "MPL",
+      "description": "Marketplace Lender entity representing organizations that originate loans"
+    },
+    {
+      "name": "Organization",
+      "description": "Entity representing issuing banks and investors"
+    },
+    {
+      "name": "SOFR",
+      "description": "Secured Overnight Financing Rate data used for interest rate calculations"
+    },
+    {
+      "name": "LoanAction",
+      "description": "Entity that tracks various actions performed on loans"
+    },
+    {
+      "name": "Batch",
+      "description": "Entity that manages groups of loans processed together"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "VAMPIRE",
+      "direction": "downstream",
+      "protocol": "database"
+    },
+    {
+      "system": "AWS Athena",
+      "direction": "bidirectional",
+      "protocol": "database"
+    }
+  ],
+  "architecturePatterns": [
+    "Extract-Load-Transform (ELT)",
+    "Task orchestration",
+    "Container-based task execution",
+    "Parameter-driven workflows",
+    "Database migration automation"
+  ],
+  "techStack": [
+    "Apache Airflow",
+    "Python",
+    "AWS ECS",
+    "AWS MWAA",
+    "DBT (Data Build Tool)",
+    "PostgreSQL",
+    "Docker",
+    "Flyway",
+    "AWS Secrets Manager",
+    "AWS SSM Parameter Store",
+    "AWS CloudWatch"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded credentials in configuration",
+      "description": "The Docker configuration files contain hardcoded database credentials (postgres:airflow) which could pose a security risk if exposed. These should be replaced with environment variables or secrets management.",
+      "files": [
+        ".devcontainer/docker-compose.yml"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Tight coupling to AWS infrastructure",
+      "description": "The DAG implementations are tightly coupled to AWS services like ECS, SSM, and Secrets Manager, making it difficult to migrate to another cloud provider or run in a non-AWS environment. Consider abstracting cloud-specific implementations behind interfaces.",
+      "files": [
+        "dags/projects/utils/dbt_task_factory.py",
+        "dags/projects/utils/ingestion_task_factory.py"
+      ]
+    }
+  ]
+}

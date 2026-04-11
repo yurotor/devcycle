@@ -1,274 +1,612 @@
-// KnowledgeBaseManager — post-processes raw scan output into wiki docs,
-// machine-readable schema, and the root CLAUDE.md that ties everything together.
+// KnowledgeBaseManager — compiles raw scan output + system synthesis into
+// topic-organized wiki with bidirectional links.
 //
-// Called once after scanning completes (not in real-time).
+// Wiki structure:
+//   wiki/architecture/   — system-level architecture docs
+//   wiki/features/       — one page per business feature
+//   wiki/integrations/   — external system integrations
+//   wiki/data-model/     — consolidated entity docs
+//   wiki/repos/          — deep per-repo reference pages
+//   wiki/INDEX.md        — master index
+//   wiki/manifest.json   — page title → path mapping for link resolution
 
 import fs from "fs";
 import path from "path";
+import { complete, isAIAvailable } from "@/lib/anthropic";
+import type { DeepRepoAnalysis, SystemSynthesis } from "@/lib/scan/engine";
 
 const KB_ROOT = path.join(process.cwd(), "..", "kb");
 const RAW_DIR = path.join(KB_ROOT, "raw");
 const WIKI_DIR = path.join(KB_ROOT, "wiki");
-const SCHEMA_DIR = path.join(KB_ROOT, "schema");
 
 // ─── Types ────────────────────────────────────────────────────────
 
-interface RepoRaw {
-  name: string;
-  summary: string;
-  architecture: string;
-  findings: string | null;
+interface WikiPage {
+  title: string;
+  path: string; // relative to wiki/, e.g. "architecture/system-overview.md"
+  content: string;
 }
 
-interface RepoSchema {
-  name: string;
-  fileCount: number;
-  techStack: string[];
-  topLevelDirs: string[];
-  findings: Array<{
-    severity: string;
-    category: string;
-    title: string;
-  }>;
-  generatedAt: string;
-}
+/** Maps page titles to their wiki-relative paths. */
+type WikiManifest = Record<string, string>;
 
 // ─── Public API ───────────────────────────────────────────────────
 
-export function compileKnowledgeBase(): { repos: number; wikiFiles: number; schemaFiles: number } {
-  // Ensure output dirs exist
+export async function compileKnowledgeBase(): Promise<{ repos: number; wikiFiles: number; schemaFiles: number }> {
+  // Clean and recreate wiki dir
+  fs.rmSync(WIKI_DIR, { recursive: true, force: true });
   fs.mkdirSync(WIKI_DIR, { recursive: true });
-  fs.mkdirSync(SCHEMA_DIR, { recursive: true });
 
-  // Discover repos from raw output
-  const repoDirs = fs.readdirSync(RAW_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+  // Load inputs
+  const synthesis = loadSynthesis();
+  const repoAnalyses = loadRepoAnalyses();
+  const repoNames = Array.from(repoAnalyses.keys());
 
-  let wikiFiles = 0;
-  let schemaFiles = 0;
+  // Build all pages
+  const pages: WikiPage[] = [];
+  const manifest: WikiManifest = {};
 
-  const repoSchemas: RepoSchema[] = [];
+  // 1. Architecture pages
+  pages.push(...generateArchitecturePages(synthesis, repoNames));
 
-  for (const repoName of repoDirs) {
-    const raw = readRawRepo(repoName);
-    if (!raw) continue;
+  // 2. Feature pages
+  const featurePages = await generateFeaturePages(synthesis, repoAnalyses);
+  pages.push(...featurePages);
 
-    // ── Wiki compilation ─────────────────────────────────────
-    wikiFiles += compileWiki(raw);
+  // 3. Integration pages
+  pages.push(...generateIntegrationPages(synthesis, repoAnalyses));
 
-    // ── Schema generation ────────────────────────────────────
-    const schema = generateSchema(raw);
-    repoSchemas.push(schema);
-    writeSchema(repoName, schema);
-    schemaFiles += 2; // .json + .md
+  // 4. Data model pages
+  pages.push(...generateDataModelPages(synthesis, repoAnalyses));
+
+  // 5. Per-repo reference pages
+  pages.push(...generateRepoPages(repoAnalyses, synthesis));
+
+  // Build manifest
+  for (const page of pages) {
+    manifest[page.title] = page.path;
   }
 
-  // ── Root CLAUDE.md ───────────────────────────────────────────
-  generateClaudeMd(repoDirs, repoSchemas);
-
-  // ── Root INDEX files ─────────────────────────────────────────
-  generateRawIndex(repoDirs);
-  generateWikiIndex(repoDirs);
-
-  return { repos: repoDirs.length, wikiFiles, schemaFiles };
-}
-
-// ─── Read raw scan output ─────────────────────────────────────────
-
-function readRawRepo(repoName: string): RepoRaw | null {
-  const dir = path.join(RAW_DIR, repoName);
-  const summaryPath = path.join(dir, "summary.md");
-  const archPath = path.join(dir, "architecture.md");
-  const findingsPath = path.join(dir, "findings.md");
-
-  if (!fs.existsSync(summaryPath)) return null;
-
-  return {
-    name: repoName,
-    summary: fs.readFileSync(summaryPath, "utf8"),
-    architecture: fs.readFileSync(archPath, "utf8"),
-    findings: fs.existsSync(findingsPath) ? fs.readFileSync(findingsPath, "utf8") : null,
-  };
-}
-
-// ─── Wiki compilation ─────────────────────────────────────────────
-
-function compileWiki(raw: RepoRaw): number {
-  const wikiDir = path.join(WIKI_DIR, raw.name);
-  fs.mkdirSync(wikiDir, { recursive: true });
-
-  const files: Array<{ name: string; content: string }> = [];
-
-  // Overview page — combines summary + architecture into a single readable doc
-  const overview = [
-    `# ${raw.name}`,
-    "",
-    "## Overview",
-    "",
-    stripHeading(raw.summary),
-    "",
-    "## Architecture",
-    "",
-    stripHeading(raw.architecture),
-  ].join("\n");
-
-  files.push({ name: "overview.md", content: overview });
-
-  // Findings page (if any)
-  if (raw.findings) {
-    files.push({ name: "findings.md", content: raw.findings });
+  // Inject bidirectional links and write files
+  for (const page of pages) {
+    const dir = path.join(WIKI_DIR, path.dirname(page.path));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(WIKI_DIR, page.path), page.content, "utf8");
   }
 
-  // Write files
-  for (const file of files) {
-    fs.writeFileSync(path.join(wikiDir, file.name), file.content, "utf8");
-  }
-
-  // Write INDEX.md
-  const index = [
-    `# ${raw.name} — Wiki`,
-    "",
-    `Generated: ${new Date().toISOString()}`,
-    "",
-    "## Pages",
-    "",
-    ...files.map((f) => `- [${f.name}](./${f.name})`),
-  ].join("\n");
-  fs.writeFileSync(path.join(wikiDir, "INDEX.md"), index, "utf8");
-
-  return files.length;
-}
-
-// ─── Schema generation ────────────────────────────────────────────
-
-function generateSchema(raw: RepoRaw): RepoSchema {
-  // Extract tech stack from summary text
-  const techMatch = raw.summary.match(/Tech stack:\s*([^.]+)\./);
-  const techStack = techMatch
-    ? techMatch[1].split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
-
-  // Extract file count
-  const countMatch = raw.summary.match(/contains (\d+) files/);
-  const fileCount = countMatch ? parseInt(countMatch[1], 10) : 0;
-
-  // Extract top-level dirs from architecture
-  const dirsMatch = raw.architecture.match(/Top-level directories:\s*(.+)/);
-  const topLevelDirs = dirsMatch
-    ? dirsMatch[1].split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
-
-  // Extract findings titles from findings text
-  const findings: RepoSchema["findings"] = [];
-  if (raw.findings) {
-    const findingMatches = raw.findings.matchAll(/## \[(\w+)\] (.+)\n\n\*\*Category:\*\* (\w+)/g);
-    for (const m of findingMatches) {
-      findings.push({ severity: m[1].toLowerCase(), category: m[3], title: m[2] });
-    }
-  }
-
-  return {
-    name: raw.name,
-    fileCount,
-    techStack,
-    topLevelDirs,
-    findings,
-    generatedAt: new Date().toISOString(),
-  };
-}
-
-function writeSchema(repoName: string, schema: RepoSchema): void {
-  // JSON schema
+  // Write manifest
   fs.writeFileSync(
-    path.join(SCHEMA_DIR, `${repoName}.json`),
-    JSON.stringify(schema, null, 2),
+    path.join(WIKI_DIR, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
     "utf8"
   );
 
-  // Human-readable markdown schema
-  const md = [
-    `# ${repoName} — Schema`,
-    "",
-    `| Field | Value |`,
-    `|-------|-------|`,
-    `| Files | ${schema.fileCount} |`,
-    `| Tech Stack | ${schema.techStack.join(", ") || "—"} |`,
-    `| Top-level Dirs | ${schema.topLevelDirs.slice(0, 8).join(", ") || "—"} |`,
-    `| Findings | ${schema.findings.length} |`,
-    "",
-    schema.findings.length > 0
-      ? [
-          "## Findings",
-          "",
-          ...schema.findings.map((f) => `- **[${f.severity}]** ${f.title} (${f.category})`),
-        ].join("\n")
-      : "",
-    "",
-    `*Generated: ${schema.generatedAt}*`,
-  ].filter((line) => line !== undefined).join("\n");
+  // Write INDEX.md
+  writeIndex(pages);
 
-  fs.writeFileSync(path.join(SCHEMA_DIR, `${repoName}.md`), md, "utf8");
+  // Write root CLAUDE.md
+  writeClaudeMd(synthesis, repoNames, pages);
+
+  return { repos: repoNames.length, wikiFiles: pages.length, schemaFiles: 0 };
 }
 
-// ─── Root CLAUDE.md ───────────────────────────────────────────────
+// ─── Load inputs ─────────────────────────────────────────────────
 
-function generateClaudeMd(repoNames: string[], schemas: RepoSchema[]): void {
-  const lines = [
-    "# DevCycle Knowledge Base",
+function loadSynthesis(): SystemSynthesis | null {
+  const synthPath = path.join(RAW_DIR, "system-synthesis.json");
+  if (!fs.existsSync(synthPath)) return null;
+  return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
+}
+
+function loadRepoAnalyses(): Map<string, DeepRepoAnalysis> {
+  const map = new Map<string, DeepRepoAnalysis>();
+  if (!fs.existsSync(RAW_DIR)) return map;
+
+  for (const entry of fs.readdirSync(RAW_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const analysisPath = path.join(RAW_DIR, entry.name, "analysis.json");
+    if (fs.existsSync(analysisPath)) {
+      map.set(entry.name, JSON.parse(fs.readFileSync(analysisPath, "utf8")) as DeepRepoAnalysis);
+    }
+  }
+  return map;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────
+
+function slug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/** Create a relative link from one wiki page to another. */
+function wikiLink(label: string, targetPath: string, fromPath: string): string {
+  const fromDir = path.dirname(fromPath);
+  const rel = path.relative(fromDir, targetPath);
+  return `[${label}](${rel})`;
+}
+
+// ─── Architecture pages ──────────────────────────────────────────
+
+function generateArchitecturePages(synthesis: SystemSynthesis | null, repoNames: string[]): WikiPage[] {
+  const pages: WikiPage[] = [];
+  const dir = "architecture";
+
+  // System overview
+  const overviewContent = [
+    `# System Overview`,
     "",
-    "This file is the root index for the DevCycle knowledge base.",
-    "It is auto-generated after each scan.",
+    synthesis?.systemOverview || `This system comprises ${repoNames.length} repositories.`,
     "",
     "## Repositories",
     "",
-    `${repoNames.length} repos scanned.`,
+    ...repoNames.map((r) => `- [${r}](../repos/${slug(r)}.md)`),
     "",
-    "| Repo | Files | Tech Stack | Findings |",
-    "|------|-------|------------|----------|",
-    ...schemas.map((s) =>
-      `| [${s.name}](wiki/${s.name}/overview.md) | ${s.fileCount} | ${s.techStack.join(", ") || "—"} | ${s.findings.length} |`
-    ),
+    "---",
     "",
-    "## Sections",
+    `> See also: [Service Map](./service-map.md) | [Data Flows](./data-flows.md) | [Architecture Patterns](./patterns.md)`,
     "",
-    "- [Raw scan output](raw/) — per-repo summaries, architecture docs, and findings",
-    "- [Wiki](wiki/) — compiled human-readable documentation",
-    "- [Schema](schema/) — machine-readable repo metadata (JSON + markdown)",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  pages.push({ title: "System Overview", path: `${dir}/system-overview.md`, content: overviewContent });
+
+  // Service map
+  const serviceMapRows = (synthesis?.serviceMap ?? []).map((s) => {
+    const comms = s.communicatesWith.map((c) => `[${c}](../repos/${slug(c)}.md)`).join(", ");
+    return `- **[${s.repo}](../repos/${slug(s.repo)}.md)** — ${s.role}${comms ? `\n  - Communicates with: ${comms}` : ""}`;
+  });
+
+  const serviceMapContent = [
+    `# Service Map`,
+    "",
+    "How the repositories in this system relate to each other.",
+    "",
+    ...(serviceMapRows.length > 0 ? serviceMapRows : [`*${repoNames.length} repos — run a scan with Claude API connected for detailed service map.*`]),
+    "",
+    "---",
+    "",
+    `> See also: [System Overview](./system-overview.md) | [Data Flows](./data-flows.md)`,
+    "",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  pages.push({ title: "Service Map", path: `${dir}/service-map.md`, content: serviceMapContent });
+
+  // Data flows
+  const dataFlowSections = (synthesis?.dataFlows ?? []).map((df) => {
+    const steps = df.steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    return `## ${df.name}\n\n${df.description}\n\n${steps}`;
+  });
+
+  const dataFlowContent = [
+    `# Data Flows`,
+    "",
+    "Major end-to-end data flows through the system.",
+    "",
+    ...(dataFlowSections.length > 0 ? dataFlowSections : ["*No data flows identified yet. Re-scan with Claude API for detailed analysis.*"]),
+    "",
+    "---",
+    "",
+    `> See also: [System Overview](./system-overview.md) | [Service Map](./service-map.md)`,
+    "",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  pages.push({ title: "Data Flows", path: `${dir}/data-flows.md`, content: dataFlowContent });
+
+  // Architecture patterns
+  const patternSections = (synthesis?.architecturePatterns ?? []).map((p) => {
+    const repos = p.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+    return `## ${p.pattern}\n\n${p.description}\n\n**Used in:** ${repos}`;
+  });
+
+  const patternsContent = [
+    `# Architecture Patterns`,
+    "",
+    "Shared architectural patterns across the system.",
+    "",
+    ...(patternSections.length > 0 ? patternSections : ["*No patterns identified yet.*"]),
+    "",
+    "---",
+    "",
+    `> See also: [System Overview](./system-overview.md)`,
+    "",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  pages.push({ title: "Architecture Patterns", path: `${dir}/patterns.md`, content: patternsContent });
+
+  return pages;
+}
+
+// ─── Feature pages ───────────────────────────────────────────────
+
+async function generateFeaturePages(
+  synthesis: SystemSynthesis | null,
+  repoAnalyses: Map<string, DeepRepoAnalysis>
+): Promise<WikiPage[]> {
+  const features = synthesis?.features ?? [];
+  if (features.length === 0) {
+    // Fallback: collect features from individual repo analyses
+    const seen = new Set<string>();
+    for (const [repoName, analysis] of repoAnalyses) {
+      for (const feat of analysis.businessFeatures) {
+        if (!seen.has(feat.toLowerCase())) {
+          seen.add(feat.toLowerCase());
+          features.push({ name: feat, description: "", repos: [repoName], dataFlow: "" });
+        }
+      }
+    }
+  }
+
+  const pages: WikiPage[] = [];
+
+  let featureIndex = 0;
+  for (const feature of features) {
+    const featureSlug = slug(feature.name);
+    const pagePath = `features/${featureSlug}.md`;
+
+    let content: string;
+
+    // Delay between Claude calls to avoid rate limits
+    if (featureIndex > 0 && isAIAvailable()) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    featureIndex++;
+
+    // Try Claude-generated feature doc
+    if (isAIAvailable() && feature.repos.length > 0) {
+      try {
+        const repoContexts = feature.repos
+          .filter((r) => repoAnalyses.has(r))
+          .map((r) => {
+            const a = repoAnalyses.get(r)!;
+            return `**${r}**: ${a.purpose}\nAPIs: ${a.apis.map((api) => `${api.method} ${api.endpoint}`).join(", ") || "none"}\nEntities: ${a.dataEntities.map((e) => e.name).join(", ") || "none"}`;
+          })
+          .join("\n\n");
+
+        const raw = await complete(
+          [
+            {
+              role: "user",
+              content: `Write a comprehensive wiki page for the "${feature.name}" feature of this system.
+
+Feature description: ${feature.description || "See repo context below."}
+Data flow: ${feature.dataFlow || "Not yet documented."}
+
+Repos involved:
+${repoContexts}
+
+System overview: ${synthesis?.systemOverview?.slice(0, 500) || "N/A"}
+
+Write in markdown with these sections:
+1. Overview — what the feature does and why it exists
+2. How It Works — technical description of the data flow and logic
+3. Repos Involved — which repos implement what part (use links like [RepoName](../repos/repo-slug.md))
+4. Key APIs — endpoints involved
+5. Data Entities — entities involved (use links like [EntityName](../data-model/entities.md))
+
+Keep it concise but thorough. Write for an engineer joining the team.`,
+            },
+          ],
+          {
+            system: "You are documenting a software system's features. Write clear, technical wiki pages in markdown. Use the relative link format provided for cross-references.",
+            maxTokens: 2048,
+          }
+        );
+        content = raw;
+      } catch {
+        content = generateFeaturePageStub(feature);
+      }
+    } else {
+      content = generateFeaturePageStub(feature);
+    }
+
+    // Append cross-references footer
+    const repoLinks = feature.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(" | ");
+    content += `\n\n---\n\n> **Repos:** ${repoLinks}\n> See also: [System Overview](../architecture/system-overview.md) | [Data Flows](../architecture/data-flows.md)\n\n*Generated: ${new Date().toISOString()}*`;
+
+    pages.push({ title: feature.name, path: pagePath, content });
+  }
+
+  return pages;
+}
+
+function generateFeaturePageStub(feature: { name: string; description: string; repos: string[]; dataFlow: string }): string {
+  return [
+    `# ${feature.name}`,
+    "",
+    feature.description || "*No description available yet.*",
+    "",
+    "## Data Flow",
+    "",
+    feature.dataFlow || "*Not yet documented.*",
+    "",
+    "## Repos Involved",
+    "",
+    ...feature.repos.map((r) => `- [${r}](../repos/${slug(r)}.md)`),
+  ].join("\n");
+}
+
+// ─── Integration pages ───────────────────────────────────────────
+
+function generateIntegrationPages(
+  synthesis: SystemSynthesis | null,
+  repoAnalyses: Map<string, DeepRepoAnalysis>
+): WikiPage[] {
+  const integrations = synthesis?.integrations ?? [];
+
+  // Fallback: collect from repos
+  if (integrations.length === 0) {
+    for (const [repoName, analysis] of repoAnalyses) {
+      for (const integ of analysis.integrations) {
+        integrations.push({ ...integ, repos: [repoName] });
+      }
+    }
+  }
+
+  const rows = integrations.map((i) => {
+    const repos = i.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+    return `| **${i.system}** | ${i.direction} | ${i.protocol} | ${repos} |`;
+  });
+
+  const content = [
+    `# External Integrations`,
+    "",
+    "All external systems that this system communicates with.",
+    "",
+    "| System | Direction | Protocol | Repos |",
+    "|--------|-----------|----------|-------|",
+    ...(rows.length > 0 ? rows : ["| *None identified* | — | — | — |"]),
+    "",
+    "---",
+    "",
+    `> See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)`,
+    "",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  return [{ title: "External Integrations", path: "integrations/overview.md", content }];
+}
+
+// ─── Data model pages ────────────────────────────────────────────
+
+function generateDataModelPages(
+  synthesis: SystemSynthesis | null,
+  repoAnalyses: Map<string, DeepRepoAnalysis>
+): WikiPage[] {
+  const entities = synthesis?.dataModel ?? [];
+
+  // Fallback: collect from repos
+  if (entities.length === 0) {
+    for (const [repoName, analysis] of repoAnalyses) {
+      for (const entity of analysis.dataEntities) {
+        entities.push({ entity: entity.name, description: entity.description, repos: [repoName] });
+      }
+    }
+  }
+
+  const entitySections = entities.map((e) => {
+    const repos = e.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+    return `### ${e.entity}\n\n${e.description}\n\n**Defined in:** ${repos}`;
+  });
+
+  const content = [
+    `# Data Model`,
+    "",
+    "Consolidated data entities across the system.",
+    "",
+    ...(entitySections.length > 0 ? entitySections : ["*No entities identified yet. Re-scan with Claude API for detailed analysis.*"]),
+    "",
+    "---",
+    "",
+    `> See also: [System Overview](../architecture/system-overview.md)`,
+    "",
+    `*Generated: ${new Date().toISOString()}*`,
+  ].join("\n");
+
+  return [{ title: "Data Model", path: "data-model/entities.md", content }];
+}
+
+// ─── Per-repo reference pages ────────────────────────────────────
+
+function generateRepoPages(
+  repoAnalyses: Map<string, DeepRepoAnalysis>,
+  synthesis: SystemSynthesis | null
+): WikiPage[] {
+  const pages: WikiPage[] = [];
+
+  for (const [repoName, analysis] of repoAnalyses) {
+    const repoSlug = slug(repoName);
+
+    // Find which features this repo implements
+    const repoFeatures = (synthesis?.features ?? [])
+      .filter((f) => f.repos.includes(repoName))
+      .map((f) => `[${f.name}](../features/${slug(f.name)}.md)`);
+
+    // Find service map entry
+    const serviceEntry = (synthesis?.serviceMap ?? []).find((s) => s.repo === repoName);
+
+    const sections: string[] = [
+      `# ${repoName}`,
+      "",
+      `## Purpose`,
+      "",
+      analysis.purpose,
+      "",
+    ];
+
+    if (serviceEntry) {
+      const comms = serviceEntry.communicatesWith.map((c) => `[${c}](../repos/${slug(c)}.md)`).join(", ");
+      if (comms) {
+        sections.push(`## Communicates With`, "", comms, "");
+      }
+    }
+
+    if (repoFeatures.length > 0) {
+      sections.push(`## Features Implemented`, "", ...repoFeatures.map((f) => `- ${f}`), "");
+    }
+
+    if (analysis.businessFeatures.length > 0) {
+      sections.push(`## Business Features`, "", ...analysis.businessFeatures.map((f) => `- ${f}`), "");
+    }
+
+    if (analysis.apis.length > 0) {
+      sections.push(
+        `## APIs`,
+        "",
+        "| Method | Endpoint | Purpose |",
+        "|--------|----------|---------|",
+        ...analysis.apis.map((a) => `| ${a.method} | \`${a.endpoint}\` | ${a.purpose} |`),
+        ""
+      );
+    }
+
+    if (analysis.dependencies.length > 0) {
+      sections.push(
+        `## Dependencies`,
+        "",
+        ...analysis.dependencies.map((d) => {
+          const targetLink = repoAnalyses.has(d.target)
+            ? `[${d.target}](../repos/${slug(d.target)}.md)`
+            : `**${d.target}**`;
+          return `- ${targetLink} (${d.type})`;
+        }),
+        ""
+      );
+    }
+
+    if (analysis.dataEntities.length > 0) {
+      sections.push(
+        `## Data Entities`,
+        "",
+        ...analysis.dataEntities.map((e) => `- **${e.name}** — ${e.description}`),
+        "",
+        `> See also: [Data Model](../data-model/entities.md)`,
+        ""
+      );
+    }
+
+    if (analysis.messagingPatterns.length > 0) {
+      sections.push(
+        `## Messaging Patterns`,
+        "",
+        ...analysis.messagingPatterns.map((m) => `- **${m.name}** (${m.type}) — ${m.description}`),
+        ""
+      );
+    }
+
+    if (analysis.integrations.length > 0) {
+      sections.push(
+        `## External Integrations`,
+        "",
+        ...analysis.integrations.map((i) => `- **${i.system}** — ${i.direction} via ${i.protocol}`),
+        "",
+        `> See also: [Integrations Overview](../integrations/overview.md)`,
+        ""
+      );
+    }
+
+    if (analysis.architecturePatterns.length > 0) {
+      sections.push(`## Architecture Patterns`, "", ...analysis.architecturePatterns.map((p) => `- ${p}`), "");
+    }
+
+    sections.push(`## Tech Stack`, "", ...analysis.techStack.map((t) => `- ${t}`), "");
+
+    if (analysis.findings.length > 0) {
+      sections.push(
+        `## Findings`,
+        "",
+        ...analysis.findings.map(
+          (f) => `### [${f.severity.toUpperCase()}] ${f.title}\n\n**Category:** ${f.category}  \n**Files:** ${f.files?.join(", ") || "N/A"}\n\n${f.description}`
+        ),
+        ""
+      );
+    }
+
+    sections.push(
+      "---",
+      "",
+      `> See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)`,
+      "",
+      `*Generated: ${new Date().toISOString()}*`
+    );
+
+    pages.push({
+      title: repoName,
+      path: `repos/${repoSlug}.md`,
+      content: sections.join("\n"),
+    });
+  }
+
+  return pages;
+}
+
+// ─── Index & CLAUDE.md ───────────────────────────────────────────
+
+function writeIndex(pages: WikiPage[]): void {
+  const bySection: Record<string, WikiPage[]> = {};
+  for (const page of pages) {
+    const section = page.path.split("/")[0];
+    if (!bySection[section]) bySection[section] = [];
+    bySection[section].push(page);
+  }
+
+  const sectionLabels: Record<string, string> = {
+    architecture: "Architecture",
+    features: "Features",
+    integrations: "Integrations",
+    "data-model": "Data Model",
+    repos: "Repositories",
+  };
+
+  const lines = [
+    "# Knowledge Base — Index",
+    "",
+    `${pages.length} pages across ${Object.keys(bySection).length} sections.`,
+    "",
+  ];
+
+  for (const [section, label] of Object.entries(sectionLabels)) {
+    const sectionPages = bySection[section] ?? [];
+    if (sectionPages.length === 0) continue;
+    lines.push(`## ${label}`, "");
+    for (const page of sectionPages) {
+      lines.push(`- [${page.title}](${page.path})`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`*Generated: ${new Date().toISOString()}*`);
+  fs.writeFileSync(path.join(WIKI_DIR, "INDEX.md"), lines.join("\n"), "utf8");
+}
+
+function writeClaudeMd(
+  synthesis: SystemSynthesis | null,
+  repoNames: string[],
+  pages: WikiPage[]
+): void {
+  const lines = [
+    "# DevCycle Knowledge Base",
+    "",
+    synthesis?.systemOverview || `System with ${repoNames.length} repositories.`,
+    "",
+    "## Wiki Sections",
+    "",
+    "- [Architecture](wiki/architecture/system-overview.md) — system overview, service map, data flows, patterns",
+    "- [Features](wiki/features/) — business feature documentation",
+    "- [Integrations](wiki/integrations/overview.md) — external system integrations",
+    "- [Data Model](wiki/data-model/entities.md) — consolidated entity documentation",
+    "- [Repositories](wiki/repos/) — deep per-repo reference pages",
+    "",
+    `## Repositories (${repoNames.length})`,
+    "",
+    ...repoNames.map((r) => `- [${r}](wiki/repos/${slug(r)}.md)`),
+    "",
+    `Total wiki pages: ${pages.length}`,
     "",
     `*Generated: ${new Date().toISOString()}*`,
   ];
 
   fs.writeFileSync(path.join(KB_ROOT, "CLAUDE.md"), lines.join("\n"), "utf8");
-}
-
-// ─── Index files ──────────────────────────────────────────────────
-
-function generateRawIndex(repoNames: string[]): void {
-  const lines = [
-    "# Raw Scan Output — Index",
-    "",
-    ...repoNames.map((name) => `- [${name}](${name}/INDEX.md)`),
-    "",
-    `*Generated: ${new Date().toISOString()}*`,
-  ];
-  fs.writeFileSync(path.join(RAW_DIR, "INDEX.md"), lines.join("\n"), "utf8");
-}
-
-function generateWikiIndex(repoNames: string[]): void {
-  const lines = [
-    "# Wiki — Index",
-    "",
-    ...repoNames.map((name) => `- [${name}](${name}/INDEX.md)`),
-    "",
-    `*Generated: ${new Date().toISOString()}*`,
-  ];
-  fs.writeFileSync(path.join(WIKI_DIR, "INDEX.md"), lines.join("\n"), "utf8");
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-/** Strip the first markdown heading line from content. */
-function stripHeading(content: string): string {
-  return content.replace(/^#[^\n]*\n+/, "").trim();
 }

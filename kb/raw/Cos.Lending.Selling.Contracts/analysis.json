@@ -1,0 +1,128 @@
+{
+  "purpose": "This repository provides contract definitions for a loan selling system within a financial institution. It defines data structures and types for managing loan purchases, transfers, discrepancies, and related financial processes between different entities in a lending ecosystem.",
+  "businessFeatures": [
+    "Loan purchase management",
+    "Interest and fee calculation",
+    "Batch processing of loans",
+    "Discrepancy identification and reporting",
+    "Invoice and receipt generation",
+    "Reverse interest processing",
+    "Purchase date updates",
+    "Interest suspension management",
+    "Transfer management"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "CRB.Cos.Lending.Origination",
+      "type": "shared-lib"
+    },
+    {
+      "target": "CRB.Cos.Lending.Accounting",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents a loan in the selling system with details about origination, sale status, amounts, and investor information"
+    },
+    {
+      "name": "PagedLoanItem",
+      "description": "Simplified representation of a loan for listing and pagination purposes"
+    },
+    {
+      "name": "Invoice",
+      "description": "Represents a purchase invoice containing loans to be purchased and associated fees"
+    },
+    {
+      "name": "Receipt",
+      "description": "Records the results of a loan purchase process including successful and failed purchases"
+    },
+    {
+      "name": "Investor",
+      "description": "Entity that purchases loans from the originator"
+    },
+    {
+      "name": "Bank",
+      "description": "Financial institution involved in the loan process as issuer or servicer"
+    },
+    {
+      "name": "Mpl",
+      "description": "Marketplace lender entity in the loan ecosystem"
+    },
+    {
+      "name": "Discrepancy",
+      "description": "Represents differences between expected and actual loan data"
+    },
+    {
+      "name": "BatchInfo",
+      "description": "Tracking information for batch processes with status counts and timing"
+    },
+    {
+      "name": "PurchaseAccount",
+      "description": "Account used for loan purchase transactions"
+    },
+    {
+      "name": "SofrRate",
+      "description": "Secured Overnight Financing Rate data used for interest calculations"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "event",
+      "name": "LoanBatchPurchaseRequest",
+      "description": "Request to process a batch of loans for purchase with specified parameters"
+    },
+    {
+      "type": "event",
+      "name": "PurchaseDateUpdateBatchRequest",
+      "description": "Request to update purchase dates for a batch of loans"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "Loan Origination System",
+      "direction": "upstream",
+      "protocol": "shared contract"
+    },
+    {
+      "system": "Accounting System",
+      "direction": "downstream",
+      "protocol": "shared contract"
+    }
+  ],
+  "architecturePatterns": [
+    "Domain-Driven Design",
+    "Contract-first design",
+    "Batch processing",
+    "Event-driven architecture"
+  ],
+  "techStack": [
+    "F#",
+    ".NET",
+    "Azure DevOps"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "PII data marked but not secured",
+      "description": "PIIDataAttribute is defined but there's no evidence of encryption or special handling of PII-marked properties. The borrower's SSN, address, DOB, and other personal information should have additional protection mechanisms.",
+      "files": [
+        "CRB.Cos.Lending.Selling.Contracts/Attributes/PIIDataAttribute.fs",
+        "CRB.Cos.Lending.Selling.Contracts/Loan.fs"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Missing validation attributes on critical financial fields",
+      "description": "Financial values like loan amounts, interest rates, and fees lack validation attributes to ensure they're within acceptable ranges. This could allow invalid data to be processed, potentially causing financial discrepancies.",
+      "files": [
+        "CRB.Cos.Lending.Selling.Contracts/Loan.fs",
+        "CRB.Cos.Lending.Selling.Contracts/InvoiceAndReceipt.fs"
+      ]
+    }
+  ]
+}

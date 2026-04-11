@@ -75,13 +75,13 @@ export function ReviewPhase({ ticket, onComplete }: ReviewPhaseProps) {
             <MessageSquare className="w-5 h-5 text-rose" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-medium text-sm">AI Code Review</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="font-medium text-base">AI Code Review</h3>
+            <p className="text-sm text-muted-foreground">
               Run an AI-powered code review on the changes in this PR.
             </p>
           </div>
           <Button
-            className="bg-rose text-background hover:bg-rose/90 text-xs h-9"
+            className="bg-rose text-background hover:bg-rose/90 text-sm h-9"
             onClick={runReview}
           >
             <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
@@ -96,7 +96,7 @@ export function ReviewPhase({ ticket, onComplete }: ReviewPhaseProps) {
     return (
       <div className="h-full flex flex-col items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-rose mb-3" />
-        <p className="text-xs text-muted-foreground">Running AI code review...</p>
+        <p className="text-sm text-muted-foreground">Running AI code review...</p>
       </div>
     );
   }
@@ -108,11 +108,11 @@ export function ReviewPhase({ ticket, onComplete }: ReviewPhaseProps) {
       <div className="shrink-0 px-4 py-3 border-b border-border bg-rose/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-3.5 h-3.5 text-rose" />
-          <span className="text-[11px] font-medium">
+          <span className="text-sm font-medium">
             {comments.length} comments
           </span>
           {criticals > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-rose/15 text-rose border-rose/20">
+            <span className="text-xs px-1.5 py-0.5 rounded border bg-rose/15 text-rose border-rose/20">
               {criticals} critical
             </span>
           )}
@@ -131,15 +131,15 @@ export function ReviewPhase({ ticket, onComplete }: ReviewPhaseProps) {
               >
                 <div className={`px-3 py-2 flex items-center gap-2 ${style.bg} border-b ${style.border}`}>
                   <Icon className="w-3.5 h-3.5 shrink-0" />
-                  <code className="text-[10px] font-mono flex-1 truncate">
+                  <code className="text-xs font-mono flex-1 truncate">
                     {comment.file}:{comment.line}
                   </code>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded border font-medium ${style.badge}`}>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded border font-medium ${style.badge}`}>
                     {comment.priority}
                   </span>
                 </div>
                 <div className="px-3 py-2.5">
-                  <p className="text-xs leading-relaxed">{comment.content}</p>
+                  <p className="text-sm leading-relaxed">{comment.content}</p>
                 </div>
               </div>
             );
@@ -148,14 +148,14 @@ export function ReviewPhase({ ticket, onComplete }: ReviewPhaseProps) {
       </ScrollArea>
 
       <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {criticals > 0
             ? "Address critical issues before completing."
             : "No critical issues found."}
         </p>
         <Button
           size="sm"
-          className="h-8 text-xs bg-emerald text-background hover:bg-emerald/90 gap-1"
+          className="h-8 text-sm bg-emerald text-background hover:bg-emerald/90 gap-1"
           onClick={onComplete}
         >
           <CheckCircle2 className="w-3.5 h-3.5" />

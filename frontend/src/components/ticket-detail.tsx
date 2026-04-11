@@ -65,28 +65,28 @@ export function TicketDetail({
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-muted-foreground">
+              <span className="text-sm font-mono text-muted-foreground">
                 {ticket.jiraKey}
               </span>
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                className={`text-xs px-1.5 py-0.5 rounded border font-medium ${
                   PHASE_COLORS[ticket.phase]
                 }`}
               >
                 {PHASE_LABELS[ticket.phase]}
               </span>
-              <span className="text-[10px] text-muted-foreground capitalize">
+              <span className="text-xs text-muted-foreground capitalize">
                 {ticket.type}
               </span>
             </div>
-            <h2 className="text-sm font-medium truncate mt-0.5">
+            <h2 className="text-base font-medium truncate mt-0.5">
               {ticket.title}
             </h2>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-[10px] gap-1 text-muted-foreground"
+            className="h-7 text-xs gap-1 text-muted-foreground"
           >
             <ExternalLink className="w-3 h-3" />
             Jira
@@ -119,6 +119,7 @@ export function TicketDetail({
       <div className="flex-1 overflow-auto">
         {ticket.phase === "analyze" && (
           <AnalyzeChat
+            key={ticket.id}
             ticket={ticket}
             onComplete={() => onPhaseChange("plan")}
           />
@@ -159,8 +160,8 @@ export function TicketDetail({
               <div className="w-12 h-12 rounded-xl bg-emerald/10 border border-emerald/20 flex items-center justify-center mx-auto">
                 <Lock className="w-5 h-5 text-emerald" />
               </div>
-              <h3 className="font-medium text-sm">Ticket complete</h3>
-              <p className="text-xs text-muted-foreground">
+              <h3 className="font-medium text-base">Ticket complete</h3>
+              <p className="text-sm text-muted-foreground">
                 PR approved and merged. This ticket is closed.
               </p>
             </div>
@@ -168,15 +169,15 @@ export function TicketDetail({
         )}
       </div>
 
-      {/* Footer with advance button */}
-      {canAdvance && ticket.phase !== "done" && (
+      {/* Footer with advance button — hidden for analyze (it has its own) */}
+      {canAdvance && ticket.phase !== "done" && ticket.phase !== "analyze" && ticket.phase !== "plan" && ticket.phase !== "design" && (
         <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {ticket.assignee && `Assigned to ${ticket.assignee}`}
           </span>
           <Button
             size="sm"
-            className="h-8 text-xs bg-cyan text-background hover:bg-cyan/90 gap-1"
+            className="h-8 text-sm bg-cyan text-background hover:bg-cyan/90 gap-1"
             onClick={() => nextPhase && onPhaseChange(nextPhase)}
           >
             Advance to {nextPhase && PHASE_LABELS[nextPhase]}

@@ -20,9 +20,9 @@ export interface Message {
 
 // ─── HTTP via curl (async) ───────────────────────────────────────
 
-function httpPost(url: string, headers: Record<string, string>, body: string): Promise<{ status: number; body: string }> {
+function httpPost(url: string, headers: Record<string, string>, body: string, timeoutMs = 300_000): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const args = ["-sS", "-X", "POST", "-w", "\n__HTTP_STATUS__%{http_code}"];
+    const args = ["-sS", "-X", "POST", "-w", "\n__HTTP_STATUS__%{http_code}", "--max-time", String(Math.ceil(timeoutMs / 1000))];
     for (const [k, v] of Object.entries(headers)) {
       args.push("-H", `${k}: ${v}`);
     }
@@ -31,11 +31,10 @@ function httpPost(url: string, headers: Record<string, string>, body: string): P
 
     const child = execFile("curl", args, {
       encoding: "utf8",
-      timeout: 120_000,
+      timeout: timeoutMs + 5_000, // node timeout slightly longer than curl's
       maxBuffer: 10 * 1024 * 1024,
     }, (err, stdout, stderr) => {
       if (err) {
-        // Include curl's stderr for useful diagnostics (e.g. "Could not resolve host")
         const detail = stderr?.trim() || err.message;
         return reject(new Error(`API request failed: ${detail}`));
       }
@@ -52,6 +51,10 @@ function httpPost(url: string, headers: Record<string, string>, body: string): P
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 // ─── Bedrock Converse API ─────────────────────────────────────────
 
 interface ConverseRequest {
@@ -62,12 +65,22 @@ interface ConverseRequest {
 }
 
 interface ConverseResponse {
-  output: {
+  // Standard Bedrock Converse API shape
+  output?: {
+    message: {
+      content: Array<{ text: string }>;
+    };
+  };
+  // Custom gateway wrapper shape
+  bedrock_response?: {
     message: {
       content: Array<{ text: string }>;
     };
   };
 }
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [2000, 4000, 8000]; // exponential backoff
 
 async function completeViaBedrock(
   messages: Message[],
@@ -88,21 +101,55 @@ async function completeViaBedrock(
     inferenceConfig: { maxTokens },
   };
 
-  const res = await httpPost(
-    url,
-    {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    JSON.stringify(body)
-  );
+  const payload = JSON.stringify(body);
+  let lastError: Error | null = null;
 
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(`Bedrock API error ${res.status}: ${res.body.slice(0, 300)}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_DELAYS[attempt - 1] ?? 8000;
+      console.log(`[bedrock] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms...`);
+      await sleep(delay);
+    }
+
+    try {
+      const res = await httpPost(
+        url,
+        {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+        },
+        payload
+      );
+
+      // Retryable status codes
+      if ((res.status === 429 || res.status === 504) && attempt < MAX_RETRIES) {
+        console.warn(`[bedrock] Got ${res.status}, will retry...`);
+        lastError = new Error(`Bedrock API error ${res.status}: ${res.body.slice(0, 300)}`);
+        continue;
+      }
+
+      if (res.status < 200 || res.status >= 300) {
+        throw new Error(`Bedrock API error ${res.status}: ${res.body.slice(0, 300)}`);
+      }
+
+      const data = JSON.parse(res.body) as ConverseResponse;
+      const message = data.bedrock_response?.message ?? data.output?.message;
+      if (!message) {
+        throw new Error(`Unexpected Bedrock response shape: ${res.body.slice(0, 300)}`);
+      }
+      return message.content.map((c) => c.text).join("");
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Only retry on network/timeout errors or if we haven't exhausted retries
+      if (attempt < MAX_RETRIES && !lastError.message.startsWith("Bedrock API error")) {
+        console.warn(`[bedrock] Request failed: ${lastError.message}, will retry...`);
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  const data = JSON.parse(res.body) as ConverseResponse;
-  return data.output.message.content.map((c) => c.text).join("");
+  throw lastError ?? new Error("Bedrock request failed after retries");
 }
 
 // ─── Anthropic API ────────────────────────────────────────────────

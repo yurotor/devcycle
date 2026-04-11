@@ -1,0 +1,134 @@
+{
+  "purpose": "COS.Lending.Selling.UI is a frontend application for Cross River Bank's loan selling platform. It provides an interface for managing, viewing, and processing held-for-sale loans across the lending lifecycle, enabling various user roles to interact with loan data, perform approvals, and view loan history.",
+  "businessFeatures": [
+    "Loan inventory management",
+    "Loan details viewing",
+    "Loan filtering and sorting",
+    "Loan history and AI-powered chat interface",
+    "Pending loan approvals workflow",
+    "Long-term held-for-sale (LTHFS) loan management",
+    "Role-based access control",
+    "External organization access (MPL, Investor, Issuing Bank)"
+  ],
+  "apis": [
+    {
+      "endpoint": "/selling/api/loans/HFS",
+      "method": "GET",
+      "purpose": "Retrieve held-for-sale loans with pagination and filtering"
+    },
+    {
+      "endpoint": "/selling/api/loans/{id}",
+      "method": "GET",
+      "purpose": "Retrieve detailed information about a specific loan"
+    },
+    {
+      "endpoint": "/crb/ai/chat/session",
+      "method": "POST",
+      "purpose": "Create or retrieve a chat session for loan history analysis"
+    },
+    {
+      "endpoint": "/crb/ai/chat/session/{sessionId}/history",
+      "method": "GET",
+      "purpose": "Retrieve chat history for a loan session"
+    },
+    {
+      "endpoint": "/crb/ai/chat/session/{sessionId}/stream",
+      "method": "GET",
+      "purpose": "Stream chat responses for loan history queries"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "COS.Lending.Selling.API",
+      "type": "http"
+    },
+    {
+      "target": "CRB.AI.API",
+      "type": "http"
+    },
+    {
+      "target": "CRB Identity Provider",
+      "type": "http"
+    },
+    {
+      "target": "CosLendingMenu",
+      "type": "http"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents a loan that is held for sale"
+    },
+    {
+      "name": "LoanDetails",
+      "description": "Extended information about a specific loan"
+    },
+    {
+      "name": "PendingApproval",
+      "description": "Loan waiting for approval in the workflow"
+    },
+    {
+      "name": "ChatSession",
+      "description": "AI-powered conversation session for loan history analysis"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "event",
+      "name": "SSE (Server-Sent Events)",
+      "description": "Used for streaming AI responses in the loan history chat interface"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "CosLendingMenu",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "CRB Identity Provider",
+      "direction": "upstream",
+      "protocol": "OAuth"
+    }
+  ],
+  "architecturePatterns": [
+    "Single-page application",
+    "Component-based architecture",
+    "OAuth authentication flow",
+    "Server-Sent Events for real-time streaming",
+    "Role-based access control"
+  ],
+  "techStack": [
+    "React",
+    "TypeScript",
+    "Styled Components",
+    "Zustand (state management)",
+    "React Router",
+    "CRB UI component library",
+    "Vite",
+    "Cypress",
+    "Docker",
+    "Nginx"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Credentials in configuration files",
+      "description": "The Cypress configuration files reference environment variables for authentication which may not be properly secured. Testing credentials should be stored in a secure vault or CI/CD secrets management.",
+      "files": [
+        "cypress/config/cypress.base.config.ts"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "CORS-related workaround in documentation",
+      "description": "The README recommends disabling CORS with a Chrome extension for development. This is an insecure practice and should be replaced with proper CORS configuration on the backend services.",
+      "files": [
+        "README.md"
+      ]
+    }
+  ]
+}

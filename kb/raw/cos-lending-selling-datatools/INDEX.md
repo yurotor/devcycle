@@ -1,8 +1,7 @@
-# cos-lending-selling-datatools — Index
+# cos-lending-selling-datatools — Raw Analysis
 
-Generated: 2026-04-11T12:40:24.295Z
+Generated: 2026-04-11T15:16:16.639Z
 
 ## Files
-
-- [summary.md](./summary.md)
-- [architecture.md](./architecture.md)
+- [analysis.json](./analysis.json) — structured analysis data
+- [analysis.md](./analysis.md) — human-readable analysis

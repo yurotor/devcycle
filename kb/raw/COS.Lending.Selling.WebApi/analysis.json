@@ -1,0 +1,231 @@
+{
+  "purpose": "COS.Lending.Selling.WebApi is a .NET-based service that manages the selling and purchase of loans between marketplace lenders (MPLs) and investors. It handles loan lifecycle management including funding, purchasing, interest accrual, and fee collections, serving as a core component in Cross River Bank's lending platform.",
+  "businessFeatures": [
+    "Loan purchasing and sales processing",
+    "Interest accrual and collection",
+    "Fee calculation and collection (Volume fees, DMV fees, Florida stamp tax, etc.)",
+    "Grooming (changing loan attributes/investors)",
+    "Loan reconciliation and discrepancy detection",
+    "Loan reporting (pre-sale and post-sale reports)",
+    "Monthly minimum fees processing",
+    "Auto-purchase of eligible loans",
+    "Transfer management between accounts",
+    "Batch processing for loan operations"
+  ],
+  "apis": [
+    {
+      "endpoint": "/api/loans",
+      "method": "GET",
+      "purpose": "Retrieve loans with optional filtering"
+    },
+    {
+      "endpoint": "/api/loans/{id}",
+      "method": "GET",
+      "purpose": "Get details for a specific loan"
+    },
+    {
+      "endpoint": "/api/loans/purchase",
+      "method": "POST",
+      "purpose": "Purchase loans for an investor"
+    },
+    {
+      "endpoint": "/api/grooming",
+      "method": "POST",
+      "purpose": "Initiate grooming process for loans"
+    },
+    {
+      "endpoint": "/api/reports",
+      "method": "POST",
+      "purpose": "Generate pre-sale or post-sale loan reports"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "AWS SQS",
+      "type": "messaging"
+    },
+    {
+      "target": "Postgres",
+      "type": "database"
+    },
+    {
+      "target": "COS",
+      "type": "http"
+    },
+    {
+      "target": "CRB.CosWrapper",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Lending.Contracts",
+      "type": "http"
+    },
+    {
+      "target": "HooksService",
+      "type": "http"
+    },
+    {
+      "target": "Storage Service",
+      "type": "http"
+    },
+    {
+      "target": "Lending.Accounting",
+      "type": "http"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents a loan with its sale status, type and associated details"
+    },
+    {
+      "name": "LoanAccount",
+      "description": "Account information associated with a loan for different purposes"
+    },
+    {
+      "name": "Contract",
+      "description": "Agreement between MPL and issuing bank containing fee calculation methods"
+    },
+    {
+      "name": "Transfer",
+      "description": "Money transfer between accounts with status tracking"
+    },
+    {
+      "name": "LoanAction",
+      "description": "Records actions performed on loans like daily interest accrual"
+    },
+    {
+      "name": "Batch",
+      "description": "Group of loans being processed together"
+    },
+    {
+      "name": "VolumeFeeCalculationMethod",
+      "description": "Defines how fees are calculated for loans"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "outbox",
+      "name": "DailyInterestOutbox",
+      "description": "Ensures reliable processing of daily interest accruals"
+    },
+    {
+      "type": "outbox",
+      "name": "TransferOutbox",
+      "description": "Handles asynchronous money transfers between accounts"
+    },
+    {
+      "type": "outbox",
+      "name": "BatchInitOutbox",
+      "description": "Initiates loan batch purchases"
+    },
+    {
+      "type": "outbox",
+      "name": "FeeOutbox",
+      "description": "Manages fee collections (DMV, Florida Stamp Tax, etc.)"
+    },
+    {
+      "type": "outbox",
+      "name": "NotificationOutbox",
+      "description": "Sends notifications about events via hooks service"
+    },
+    {
+      "type": "outbox",
+      "name": "ReportingOutbox",
+      "description": "Handles generation of pre-sale and post-sale reports"
+    },
+    {
+      "type": "outbox",
+      "name": "VolumeFeeOutbox",
+      "description": "Manages volume fee collection processing"
+    },
+    {
+      "type": "outbox",
+      "name": "MaturedLoanOutbox",
+      "description": "Processes matured loans for purchase"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "COS (Core Operating System)",
+      "direction": "bidirectional",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS SQS",
+      "direction": "bidirectional",
+      "protocol": "messaging"
+    },
+    {
+      "system": "Storage Service",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Hooks Service",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Lending Contracts Service",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Lending Accounting Service",
+      "direction": "downstream",
+      "protocol": "REST"
+    }
+  ],
+  "architecturePatterns": [
+    "Microservice",
+    "Outbox Pattern",
+    "CQRS",
+    "Event-driven architecture",
+    "Repository Pattern",
+    "Background Service Workers",
+    "Multi-tenancy"
+  ],
+  "techStack": [
+    ".NET 8",
+    "PostgreSQL",
+    "F#",
+    "C#",
+    "AWS SQS",
+    "Entity Framework Core",
+    "Docker",
+    "Jenkins",
+    "Azure DevOps",
+    "Quartz.NET"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Multi-tenancy enforcement issues",
+      "description": "The PolicyTenantService doesn't validate if the tenant has proper access to resources in some paths. Some tenant validation might be bypassed, particularly in the CRB tenant identification logic which relies only on string matching of policy names rather than proper role-based checks.",
+      "files": [
+        "CRB.Cos.Lending.Selling.Middlewares/PolicyTenantService.cs"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Manual transaction management",
+      "description": "Various processors manage database transactions manually, which could lead to inconsistent state if errors occur during processing. Consider implementing a more robust transaction management approach with proper rollback mechanisms.",
+      "files": [
+        "CRB.COS.Lending.Selling.OutboxProcessors/OutboxProcessorBase.cs",
+        "CRB.COS.Lending.Selling.OutboxProcessors/Services/MessageDispatcherService.cs"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded credentials in docker-compose",
+      "description": "The docker-compose.yml file contains hardcoded database credentials. These should be externalized using environment variables or a secrets management solution.",
+      "files": [
+        ".devcontainer/docker-compose.yml"
+      ]
+    }
+  ]
+}

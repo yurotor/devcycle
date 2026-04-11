@@ -1,0 +1,178 @@
+{
+  "purpose": "This repository implements an AI-powered assistant for loan data analysis in the COS Lending/Selling platform. It uses Amazon Bedrock to provide natural language interactions with structured loan data, enabling users to query loan history, interest calculations, transfers, and other financial details via conversational prompts.",
+  "businessFeatures": [
+    "Loan history timeline visualization and querying",
+    "Interest calculation breakdown and analysis",
+    "Financial transfer history tracking",
+    "Loan details and status reporting",
+    "Fee structure analysis and calculation",
+    "Conversational interface to loan data"
+  ],
+  "apis": [
+    {
+      "endpoint": "/crb/ai/loan",
+      "method": "POST",
+      "purpose": "Submit a natural language question about loan data"
+    },
+    {
+      "endpoint": "/chat/",
+      "method": "POST",
+      "purpose": "Create or resume a chat session for a user+loan pair"
+    },
+    {
+      "endpoint": "/chat/{session_id}/message",
+      "method": "POST",
+      "purpose": "Submit a user message to an existing chat session"
+    },
+    {
+      "endpoint": "/chat/{session_id}/history",
+      "method": "GET",
+      "purpose": "Get all messages for a specific chat session"
+    },
+    {
+      "endpoint": "/chat/{session_id}/stream",
+      "method": "GET",
+      "purpose": "Stream chat responses using Server-Sent Events (SSE)"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "identity-server",
+      "type": "http"
+    },
+    {
+      "target": "aws-bedrock",
+      "type": "http"
+    },
+    {
+      "target": "dynamodb",
+      "type": "database"
+    },
+    {
+      "target": "postgres-db",
+      "type": "database"
+    },
+    {
+      "target": "aws-secrets-manager",
+      "type": "http"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Core loan information including ID, amounts, dates, and status"
+    },
+    {
+      "name": "LoanAction",
+      "description": "Record of actions performed on a loan"
+    },
+    {
+      "name": "LoanEvent",
+      "description": "Events in a loan's lifecycle including status changes and purchases"
+    },
+    {
+      "name": "Transfer",
+      "description": "Financial transfers related to loans like interest payments and fees"
+    },
+    {
+      "name": "InterestCalculationMethod",
+      "description": "Method used to calculate interest for a loan"
+    },
+    {
+      "name": "Session",
+      "description": "User conversation session with message history"
+    },
+    {
+      "name": "FedDay",
+      "description": "Calendar of federal banking days for interest calculations"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "event",
+      "name": "SSE Streaming",
+      "description": "Server-sent events for streaming AI responses to clients"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "Amazon Bedrock",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS DynamoDB",
+      "direction": "downstream",
+      "protocol": "AWS SDK"
+    },
+    {
+      "system": "AWS Secrets Manager",
+      "direction": "downstream",
+      "protocol": "AWS SDK"
+    },
+    {
+      "system": "Identity Server",
+      "direction": "downstream",
+      "protocol": "REST"
+    }
+  ],
+  "architecturePatterns": [
+    "Microservice",
+    "API Gateway",
+    "Event-Driven Architecture",
+    "Natural Language Processing Pipeline",
+    "Serverless (AWS managed services)"
+  ],
+  "techStack": [
+    "Python 3.11",
+    "FastAPI",
+    "Amazon Bedrock",
+    "DynamoDB",
+    "PostgreSQL",
+    "Anthropic Claude LLM",
+    "Docker",
+    "Server-Sent Events",
+    "Poetry",
+    "Pytest",
+    "AWS SDK"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "SQL Injection Vulnerability",
+      "description": "Although there is SQL validation logic in sql_executor.py that checks for forbidden keywords and only allows SELECT statements, the application generates SQL from LLM output which could potentially be manipulated. The system should use parameterized queries consistently and add additional validation layers.",
+      "files": [
+        "app/ai/sql_executor.py",
+        "app/ai/ai_service.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Connection Pool Management Issues",
+      "description": "The SQL executor creates a new connection pool without proper lifecycle management, which could lead to connection leaks. The fallback _SimplePool implementation is particularly problematic as it doesn't properly handle connection closing in all error cases.",
+      "files": [
+        "app/ai/sql_executor.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded AWS Resource ARNs",
+      "description": "There appear to be hardcoded AWS resource ARNs in the code that should be moved to configuration. This is evident in the sql_executor code where it references DB_CLUSTER_ARN and DB_SECRET_ARN.",
+      "files": [
+        "app/ai/sql_executor_old.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Token Validation Without Proper JWK Verification",
+      "description": "The authentication code doesn't show proper JWT verification against a JWK set from the identity server, which could allow forged tokens if implemented incorrectly. The authentication_code_bearer.py file needs review.",
+      "files": [
+        "app/core/security/authentication_code_bearer.py"
+      ]
+    }
+  ]
+}

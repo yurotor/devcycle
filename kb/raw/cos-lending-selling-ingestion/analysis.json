@@ -1,0 +1,170 @@
+{
+  "purpose": "This repository handles data ingestion from various sources to a lending/selling database system. It primarily processes loan servicing data, SOFR rates, and contract information from different loan providers, and also collects metrics for monitoring the lending/selling platform's operational status.",
+  "businessFeatures": [
+    "Loan servicing data ingestion from MPLs (Marketplace Lenders)",
+    "SOFR (Secured Overnight Financing Rate) data ingestion from Federal Reserve API",
+    "Contract data bootstrapping from external systems",
+    "Synchronization of loan statuses between Arix and Selling databases",
+    "CloudWatch metrics collection and reporting for operational dashboards",
+    "Servicing data processing from S3 CSV files"
+  ],
+  "apis": [
+    {
+      "endpoint": "Federal Reserve SOFR API",
+      "method": "GET",
+      "purpose": "Fetch SOFR rates for loan calculations"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "selling-db",
+      "type": "database"
+    },
+    {
+      "target": "loans-db",
+      "type": "database"
+    },
+    {
+      "target": "contracts-db",
+      "type": "database"
+    },
+    {
+      "target": "volume-db",
+      "type": "database"
+    },
+    {
+      "target": "vampire-db",
+      "type": "database"
+    },
+    {
+      "target": "AWS Secrets Manager",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS CloudWatch",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS S3",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS Athena",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS SSM Parameter Store",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Contract",
+      "description": "Loan contract terms and associated metadata"
+    },
+    {
+      "name": "Loan",
+      "description": "Core loan entity with origination and sale status"
+    },
+    {
+      "name": "MplBootstrapping",
+      "description": "Configuration for marketplace lender bootstrapping"
+    },
+    {
+      "name": "Sofr",
+      "description": "SOFR rate data used for loan calculations"
+    },
+    {
+      "name": "ServicingTimestamp",
+      "description": "Tracks data ingestion timestamps for each MPL"
+    },
+    {
+      "name": "ServicingValue",
+      "description": "Loan servicing data values including interest and payment information"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "event",
+      "name": "CloudWatch Metrics",
+      "description": "Publishes operational metrics for loan processing and system health"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "Federal Reserve",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS S3",
+      "direction": "upstream",
+      "protocol": "file"
+    },
+    {
+      "system": "Arix",
+      "direction": "bidirectional",
+      "protocol": "database"
+    },
+    {
+      "system": "Vampire",
+      "direction": "upstream",
+      "protocol": "database"
+    },
+    {
+      "system": "AWS CloudWatch",
+      "direction": "downstream",
+      "protocol": "messaging"
+    }
+  ],
+  "architecturePatterns": [
+    "Extract-Transform-Load (ETL)",
+    "Repository Pattern",
+    "Database Abstraction Layer",
+    "Configuration-Driven Processing",
+    "Containerized Microservice"
+  ],
+  "techStack": [
+    "Python",
+    "SQLAlchemy",
+    "PostgreSQL",
+    "MS SQL Server",
+    "AWS S3",
+    "AWS CloudWatch",
+    "AWS Secrets Manager",
+    "AWS SSM Parameter Store",
+    "AWS Athena",
+    "Docker",
+    "Pandas",
+    "Boto3"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded Database Connection in README",
+      "description": "The README contains hardcoded database credentials (P4ssw0rd) for testing. Even if this is just for documentation, it sets a bad security precedent and could be mistaken for real credentials. Replace with placeholders or environment variable references.",
+      "files": [
+        "README.md"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Insufficient Exception Handling in SOFR Ingestion",
+      "description": "The SOFR ingestion code doesn't properly handle API connectivity failures or response validation errors. Failed data fetches could cause inconsistent loan calculations. Implement comprehensive retry logic and fallback mechanisms.",
+      "files": [
+        "modules/src/ingestion/sofr.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Unvalidated CSV File Processing",
+      "description": "S3Utils processes CSV files without proper validation, which could lead to injection attacks if maliciously crafted CSVs are uploaded. Implement strict schema validation before processing files.",
+      "files": [
+        "modules/src/utils/s3_utils.py"
+      ]
+    }
+  ]
+}

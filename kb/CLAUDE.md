@@ -1,31 +1,30 @@
 # DevCycle Knowledge Base
 
-This file is the root index for the DevCycle knowledge base.
-It is auto-generated after each scan.
+System with 12 repositories.
 
-## Repositories
+## Wiki Sections
 
-12 repos scanned.
+- [Architecture](wiki/architecture/system-overview.md) — system overview, service map, data flows, patterns
+- [Features](wiki/features/) — business feature documentation
+- [Integrations](wiki/integrations/overview.md) — external system integrations
+- [Data Model](wiki/data-model/entities.md) — consolidated entity documentation
+- [Repositories](wiki/repos/) — deep per-repo reference pages
 
-| Repo | Files | Tech Stack | Findings |
-|------|-------|------------|----------|
-| [COS.Lending.Selling.Hooks](wiki/COS.Lending.Selling.Hooks/overview.md) | 41 | — | 0 |
-| [COS.Lending.Selling.UI](wiki/COS.Lending.Selling.UI/overview.md) | 141 | Node | 0 |
-| [COS.Lending.Selling.WebApi](wiki/COS.Lending.Selling.WebApi/overview.md) | 331 | — | 0 |
-| [Cos.Lending.Selling.Contracts](wiki/Cos.Lending.Selling.Contracts/overview.md) | 18 | — | 0 |
-| [Cos.Lending.Selling.DbModel](wiki/Cos.Lending.Selling.DbModel/overview.md) | 459 | — | 0 |
-| [cos-lending-selling-ai](wiki/cos-lending-selling-ai/overview.md) | 87 | Python, Docker | 0 |
-| [cos-lending-selling-dags](wiki/cos-lending-selling-dags/overview.md) | 54 | Python, Docker | 0 |
-| [cos-lending-selling-data-utils](wiki/cos-lending-selling-data-utils/overview.md) | 57 | — | 0 |
-| [cos-lending-selling-datatools](wiki/cos-lending-selling-datatools/overview.md) | 884 | Python, Docker | 0 |
-| [cos-lending-selling-e2e-tests](wiki/cos-lending-selling-e2e-tests/overview.md) | 155 | Python, Docker | 0 |
-| [cos-lending-selling-ingestion](wiki/cos-lending-selling-ingestion/overview.md) | 95 | Python, Docker | 0 |
-| [iac-cos-lending-selling](wiki/iac-cos-lending-selling/overview.md) | 288 | Python | 0 |
+## Repositories (12)
 
-## Sections
+- [COS.Lending.Selling.Hooks](wiki/repos/cos-lending-selling-hooks.md)
+- [COS.Lending.Selling.UI](wiki/repos/cos-lending-selling-ui.md)
+- [COS.Lending.Selling.WebApi](wiki/repos/cos-lending-selling-webapi.md)
+- [Cos.Lending.Selling.Contracts](wiki/repos/cos-lending-selling-contracts.md)
+- [Cos.Lending.Selling.DbModel](wiki/repos/cos-lending-selling-dbmodel.md)
+- [cos-lending-selling-ai](wiki/repos/cos-lending-selling-ai.md)
+- [cos-lending-selling-dags](wiki/repos/cos-lending-selling-dags.md)
+- [cos-lending-selling-data-utils](wiki/repos/cos-lending-selling-data-utils.md)
+- [cos-lending-selling-datatools](wiki/repos/cos-lending-selling-datatools.md)
+- [cos-lending-selling-e2e-tests](wiki/repos/cos-lending-selling-e2e-tests.md)
+- [cos-lending-selling-ingestion](wiki/repos/cos-lending-selling-ingestion.md)
+- [iac-cos-lending-selling](wiki/repos/iac-cos-lending-selling.md)
 
-- [Raw scan output](raw/) — per-repo summaries, architecture docs, and findings
-- [Wiki](wiki/) — compiled human-readable documentation
-- [Schema](schema/) — machine-readable repo metadata (JSON + markdown)
+Total wiki pages: 98
 
-*Generated: 2026-04-11T12:40:24.399Z*
+*Generated: 2026-04-11T14:15:34.289Z*

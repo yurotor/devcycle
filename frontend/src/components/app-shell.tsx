@@ -134,7 +134,8 @@ export function AppShell() {
   const noJira = !jiraUrl && !loading && tickets.length === 0;
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex relative">
+
       {/* Icon rail */}
       <div className="w-12 border-r border-border bg-sidebar flex flex-col items-center py-3 gap-1 shrink-0">
         <div className="w-8 h-8 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center mb-3">
@@ -263,7 +264,7 @@ export function AppShell() {
                   </code>
                 </div>
                 <div className="flex-1 overflow-auto">
-                  <MarkdownViewer path={filePath} />
+                  <MarkdownViewer path={filePath} onNavigate={handleFileClick} />
                 </div>
               </motion.div>
             )}

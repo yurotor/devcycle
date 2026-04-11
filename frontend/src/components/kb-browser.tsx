@@ -9,6 +9,7 @@ import {
   Folder,
   FolderOpen,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 
 export interface KBFile {
@@ -51,7 +52,7 @@ function FileNode({
           ) : (
             <Folder className="w-3.5 h-3.5 text-amber shrink-0" />
           )}
-          <span className="text-xs truncate">{node.name}</span>
+          <span className="text-sm truncate">{node.name}</span>
         </button>
         {expanded && node.children && (
           <div>
@@ -90,7 +91,7 @@ function FileNode({
             : "text-muted-foreground"
         }`}
       />
-      <span className="text-xs truncate text-muted-foreground group-hover:text-foreground transition-colors">
+      <span className="text-sm truncate text-muted-foreground group-hover:text-foreground transition-colors">
         {node.name}
       </span>
     </button>
@@ -100,6 +101,7 @@ function FileNode({
 export function KBBrowser({ onFileClick }: KBBrowserProps) {
   const [tree, setTree] = useState<KBFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
   const fetchTree = () => {
     setLoading(true);
@@ -110,6 +112,17 @@ export function KBBrowser({ onFileClick }: KBBrowserProps) {
       .finally(() => setLoading(false));
   };
 
+  const triggerRescan = async () => {
+    setScanning(true);
+    try {
+      await fetch("/api/scan/start", { method: "POST" });
+    } catch {
+      // ignore
+    } finally {
+      setTimeout(() => setScanning(false), 2000);
+    }
+  };
+
   useEffect(() => {
     fetchTree();
   }, []);
@@ -118,16 +131,26 @@ export function KBBrowser({ onFileClick }: KBBrowserProps) {
     <ScrollArea className="h-full">
       <div className="p-2">
         <div className="px-3 py-2 mb-1 flex items-center justify-between">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Knowledge Base
           </span>
-          <button
-            onClick={fetchTree}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={triggerRescan}
+              className="text-muted-foreground hover:text-cyan transition-colors"
+              title="Re-scan repositories"
+              disabled={scanning}
+            >
+              <Zap className={`w-3 h-3 ${scanning ? "text-cyan animate-pulse" : ""}`} />
+            </button>
+            <button
+              onClick={fetchTree}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Refresh tree"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
         {loading && tree.length === 0 && (
           <div className="px-3 py-4 text-xs text-muted-foreground">Loading...</div>

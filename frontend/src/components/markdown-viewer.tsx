@@ -1,13 +1,85 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface MarkdownViewerProps {
   path: string;
+  onNavigate?: (path: string) => void;
 }
 
-export function MarkdownViewer({ path }: MarkdownViewerProps) {
+/** Resolve a relative link against the current file's directory. */
+function resolveLink(href: string, currentPath: string): string | null {
+  if (href.startsWith("http://") || href.startsWith("https://")) return null; // external
+  const currentDir = currentPath.split("/").slice(0, -1);
+  const parts = href.split("/");
+  const resolved = [...currentDir];
+  for (const p of parts) {
+    if (p === "..") resolved.pop();
+    else if (p !== ".") resolved.push(p);
+  }
+  return resolved.join("/");
+}
+
+/** Render inline markdown: **bold**, `code`, [links](path), and plain text. */
+function renderInline(
+  text: string,
+  onNavigate: ((path: string) => void) | undefined,
+  currentPath: string
+): ReactNode[] {
+  // Split on bold, code, and markdown links
+  const parts = text.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="text-foreground font-medium">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <code
+          key={i}
+          className="text-xs px-1 py-0.5 rounded bg-secondary font-mono text-cyan"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+    if (linkMatch) {
+      const [, linkText, href] = linkMatch;
+      const resolved = resolveLink(href, currentPath);
+      if (resolved && onNavigate) {
+        return (
+          <button
+            key={i}
+            onClick={() => onNavigate(resolved)}
+            className="text-cyan hover:text-cyan/80 underline underline-offset-2 decoration-cyan/40 hover:decoration-cyan/70 transition-colors"
+          >
+            {linkText}
+          </button>
+        );
+      }
+      // External link or no navigate handler
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan hover:text-cyan/80 underline underline-offset-2"
+        >
+          {linkText}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+export function MarkdownViewer({ path, onNavigate }: MarkdownViewerProps) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -27,7 +99,7 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
   if (content === null && !error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <span className="text-xs text-muted-foreground">Loading...</span>
+        <span className="text-sm text-muted-foreground">Loading...</span>
       </div>
     );
   }
@@ -37,58 +109,44 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
     : content!;
 
   const lines = text.split("\n");
+  const inline = (t: string) => renderInline(t, onNavigate, path);
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6 max-w-2xl mx-auto">
+      <div className="p-6 max-w-4xl mx-auto">
         <div className="space-y-0">
           {lines.map((line, i) => {
             if (line.startsWith("# ")) {
               return (
-                <h1
-                  key={i}
-                  className="text-xl font-bold mt-0 mb-4 text-foreground"
-                >
-                  {line.replace("# ", "")}
+                <h1 key={i} className="text-2xl font-bold mt-0 mb-4 text-foreground">
+                  {inline(line.slice(2))}
                 </h1>
               );
             }
             if (line.startsWith("## ")) {
               return (
-                <h2
-                  key={i}
-                  className="text-sm font-semibold mt-6 mb-2 text-foreground border-b border-border pb-1"
-                >
-                  {line.replace("## ", "")}
+                <h2 key={i} className="text-lg font-semibold mt-6 mb-2 text-foreground border-b border-border pb-1">
+                  {inline(line.slice(3))}
                 </h2>
               );
             }
             if (line.startsWith("### ")) {
               return (
-                <h3
-                  key={i}
-                  className="text-xs font-semibold mt-4 mb-1.5 text-foreground"
-                >
-                  {line.replace("### ", "")}
+                <h3 key={i} className="text-base font-semibold mt-4 mb-1.5 text-foreground">
+                  {inline(line.slice(4))}
                 </h3>
               );
             }
             if (line.startsWith("> ")) {
               return (
-                <blockquote
-                  key={i}
-                  className="border-l-2 border-cyan/40 pl-3 py-0.5 text-xs text-muted-foreground italic my-2"
-                >
-                  {line.replace("> ", "")}
+                <blockquote key={i} className="border-l-2 border-cyan/40 pl-3 py-0.5 text-sm text-muted-foreground italic my-2">
+                  {inline(line.slice(2))}
                 </blockquote>
               );
             }
             if (line.startsWith("```")) {
               return (
-                <div
-                  key={i}
-                  className="text-[10px] font-mono text-cyan/70 my-1"
-                >
+                <div key={i} className="text-xs font-mono text-cyan/70 my-1">
                   {line}
                 </div>
               );
@@ -101,7 +159,7 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
               return (
                 <div
                   key={i}
-                  className={`flex text-xs ${
+                  className={`flex text-sm ${
                     isHeader
                       ? "font-medium text-foreground border-b border-border pb-1 mb-1"
                       : "text-muted-foreground"
@@ -109,60 +167,24 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
                 >
                   {cells.map((cell, j) => (
                     <div key={j} className="flex-1 py-0.5 px-1">
-                      {cell.trim()}
+                      {inline(cell.trim())}
                     </div>
                   ))}
                 </div>
               );
             }
             if (line.startsWith("- ")) {
-              const item = line.replace("- ", "");
               return (
-                <div
-                  key={i}
-                  className="text-xs text-muted-foreground ml-3 py-0.5 flex items-start gap-1.5"
-                >
+                <div key={i} className="text-sm text-muted-foreground ml-3 py-0.5 flex items-start gap-1.5">
                   <span className="text-cyan mt-0.5 shrink-0">·</span>
-                  <span>
-                    {item.split(/(\*\*.*?\*\*|\`.*?\`)/).map((part, pi) => {
-                      if (part.startsWith("**") && part.endsWith("**")) {
-                        return (
-                          <strong key={pi} className="text-foreground font-medium">
-                            {part.slice(2, -2)}
-                          </strong>
-                        );
-                      }
-                      if (part.startsWith("`") && part.endsWith("`")) {
-                        return (
-                          <code
-                            key={pi}
-                            className="text-[10px] px-1 py-0.5 rounded bg-secondary font-mono text-cyan"
-                          >
-                            {part.slice(1, -1)}
-                          </code>
-                        );
-                      }
-                      return <span key={pi}>{part}</span>;
-                    })}
-                  </span>
+                  <span>{inline(line.slice(2))}</span>
                 </div>
               );
             }
             if (line.match(/^\d+\./)) {
               return (
-                <div
-                  key={i}
-                  className="text-xs text-muted-foreground ml-3 py-0.5"
-                >
-                  {line.split(/(\*\*.*?\*\*)/).map((part, pi) =>
-                    part.startsWith("**") && part.endsWith("**") ? (
-                      <strong key={pi} className="text-foreground font-medium">
-                        {part.slice(2, -2)}
-                      </strong>
-                    ) : (
-                      <span key={pi}>{part}</span>
-                    )
-                  )}
+                <div key={i} className="text-sm text-muted-foreground ml-3 py-0.5">
+                  {inline(line)}
                 </div>
               );
             }
@@ -170,30 +192,8 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
               return <div key={i} className="h-2" />;
             }
             return (
-              <p
-                key={i}
-                className="text-xs text-muted-foreground leading-relaxed my-1"
-              >
-                {line.split(/(\*\*.*?\*\*|\`.*?\`)/).map((part, pi) => {
-                  if (part.startsWith("**") && part.endsWith("**")) {
-                    return (
-                      <strong key={pi} className="text-foreground font-medium">
-                        {part.slice(2, -2)}
-                      </strong>
-                    );
-                  }
-                  if (part.startsWith("`") && part.endsWith("`")) {
-                    return (
-                      <code
-                        key={pi}
-                        className="text-[10px] px-1 py-0.5 rounded bg-secondary font-mono text-cyan"
-                      >
-                        {part.slice(1, -1)}
-                      </code>
-                    );
-                  }
-                  return <span key={pi}>{part}</span>;
-                })}
+              <p key={i} className="text-sm text-muted-foreground leading-relaxed my-1">
+                {inline(line)}
               </p>
             );
           })}

@@ -86,10 +86,11 @@ The prototype runs on localhost with SQLite for structured data and flat files f
 ### UI Components
 11. **UI Shell** — left sidebar (KB browser / kanban toggle) + main content area. shadcn/ui + Tailwind, dark mode only, Linear + Obsidian aesthetic
 12. **Kanban Board** — 7 columns for internal statuses, ticket cards, drag-and-drop via @dnd-kit
-13. **KB File Browser** — Obsidian-like tree view with markdown viewer (react-markdown + rehype plugins)
+13. **KB File Browser** — Obsidian-like tree view with markdown viewer, bidirectional wiki links, re-scan button in header
 14. **Chat Interface** — streaming chat for Analyze/Plan phases, multiple-choice + free-text input
 15. **Swimlane Editor** — repos as rows, waves as columns, dependency arrows, drag-and-drop task movement
 16. **Diff Viewer** — code change review before PR creation
+17. **Scan Pill** — floating bottom-right overlay showing background scan progress, expandable to detail dialog. Auto-opens on interview ready or repeated failures
 
 ### Key Technical Decisions
 - Azure DevOps repos are browsed via API (no cloning) during scanning. Repos are cloned locally only during the Implement phase.
@@ -99,6 +100,48 @@ The prototype runs on localhost with SQLite for structured data and flat files f
 - Background jobs use SSE for real-time progress streaming to the frontend.
 - Jira sync is one-directional: analysis info is pushed to Jira (description update or comments), but Jira statuses are not synced with internal workflow statuses.
 - KB compilation (raw → wiki) triggers on phase transitions, not in real-time.
+
+### Async Background Scanning UX
+Scanning runs asynchronously in the background while the user continues setup and work.
+
+**Flow:**
+1. User selects repos → workspace saved → scan starts in background → user proceeds to Jira connection step
+2. After setup completes, user lands on the kanban board (no dedicated scanning screen)
+3. A floating pill in the bottom-right corner shows scan progress throughout
+
+**Floating Scan Pill:**
+- **Position:** Fixed bottom-right corner, always visible during scan
+- **States:**
+  - Hidden (no scan running, or scan done and faded)
+  - Scanning (cyan pulsing dot) — shows "Scanning... X/Y repos" with progress bar
+  - Interview ready (violet) — auto-opens dialog when synthesis completes
+  - Failed 3x (amber) — auto-opens dialog showing error details + retry button
+  - Complete (green checkmark) — shows "KB ready", fades after 5 seconds
+- **Interaction:** Click pill to expand into a detail view (dialog-style overlay) showing full scan log, progress, and actions
+- **Auto-open triggers:** (a) interview ready, (b) 3 consecutive failures
+
+**Scan Resilience:**
+- Max 2 concurrent repo analyses (reduced from 4 to avoid gateway rate limits)
+- Retry with exponential backoff: 3 retries at 2s, 4s, 8s delays for 429/504 errors
+- 300-second curl timeout for large synthesis calls
+- Sequential per-feature Claude calls with 1s delay during KB compilation
+- Individual repo failures don't block other repos (fail gracefully, continue)
+
+**Interview Flow:**
+- Interview is triggered after synthesis completes successfully
+- Pill transitions to violet state and auto-opens the interview dialog
+- Interview messages persist to DB incrementally (chat_messages pattern) so interview can resume across page refreshes
+- On interview completion, KB recompiles incorporating interview data
+
+**Scan State Persistence:**
+- Scan state stored in `jobs` table (type='scan', status='running'|'done'|'failed', progress=0-100, meta=JSON with phase/events)
+- `GET /api/scan/status` returns current scan state for pill polling
+- `POST /api/scan/start` triggers scan (fire-and-forget, returns immediately)
+- On page refresh, pill reads job state from DB and resumes display
+
+**Re-scan:**
+- Re-scan button in KB browser sidebar header
+- Triggers a new scan job, pill reappears
 
 ## Testing Decisions
 

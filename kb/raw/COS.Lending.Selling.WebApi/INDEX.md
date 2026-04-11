@@ -1,8 +1,7 @@
-# COS.Lending.Selling.WebApi — Index
+# COS.Lending.Selling.WebApi — Raw Analysis
 
-Generated: 2026-04-11T12:40:24.203Z
+Generated: 2026-04-11T15:15:59.460Z
 
 ## Files
-
-- [summary.md](./summary.md)
-- [architecture.md](./architecture.md)
+- [analysis.json](./analysis.json) — structured analysis data
+- [analysis.md](./analysis.md) — human-readable analysis

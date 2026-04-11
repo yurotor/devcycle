@@ -1,0 +1,230 @@
+{
+  "purpose": "This repository contains end-to-end testing framework for Cross River Bank's lending and selling platform, simulating the entire environment including loan origination, servicing, purchasing, and accounting operations to validate the platform's functionality through comprehensive test scenarios.",
+  "businessFeatures": [
+    "Loan ingestion and curation",
+    "Loan purchasing automation",
+    "Contract management and enforcement",
+    "Interest calculation and accrual",
+    "Volume fee calculation and true-ups",
+    "Loan servicing",
+    "Loan type changes (grooming)",
+    "Investor reassignment",
+    "Fee collection and management",
+    "Accounting integration",
+    "Batch processing"
+  ],
+  "apis": [
+    {
+      "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
+      "method": "POST",
+      "purpose": "Returns account configurations for loans"
+    },
+    {
+      "endpoint": "/Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts",
+      "method": "POST",
+      "purpose": "Gets account configurations for loan type changes"
+    },
+    {
+      "endpoint": "/core/v1/dda/accounts/{account_number}",
+      "method": "GET",
+      "purpose": "Returns account balance information"
+    },
+    {
+      "endpoint": "/core/v1/dda/subaccounts/{account_number}",
+      "method": "GET",
+      "purpose": "Returns subaccount balance information"
+    },
+    {
+      "endpoint": "/payment",
+      "method": "POST",
+      "purpose": "Simulates payment processing"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "selling-db",
+      "type": "database"
+    },
+    {
+      "target": "source-db",
+      "type": "database"
+    },
+    {
+      "target": "cos-sim",
+      "type": "http"
+    },
+    {
+      "target": "accounts-resolver",
+      "type": "http"
+    },
+    {
+      "target": "rabbitmq",
+      "type": "messaging"
+    },
+    {
+      "target": "hooks-e2e",
+      "type": "http"
+    },
+    {
+      "target": "web-api",
+      "type": "http"
+    },
+    {
+      "target": "AWS SQS",
+      "type": "messaging"
+    },
+    {
+      "target": "AWS S3",
+      "type": "file"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Core loan data with loan status, amounts, and investor information"
+    },
+    {
+      "name": "Contract",
+      "description": "Terms and fee structures between MPL (marketplace lender) and bank"
+    },
+    {
+      "name": "Batch",
+      "description": "Group of loans for purchase processing"
+    },
+    {
+      "name": "LoanAction",
+      "description": "Operations performed on loans (purchase, interest accrual, etc.)"
+    },
+    {
+      "name": "Transfer",
+      "description": "Money movement between accounts"
+    },
+    {
+      "name": "AccountConfig",
+      "description": "Account configuration based on MPL, issuing bank, loan type, and objective"
+    },
+    {
+      "name": "TrueUpVolumeFee",
+      "description": "Minimum fee true-up calculations for contracts"
+    },
+    {
+      "name": "GroomingProcess",
+      "description": "Workflow for changing loan type with retroactive interest calculation"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "outbox",
+      "name": "TransferOutbox",
+      "description": "Ensures transfer messages are reliably sent to payment systems"
+    },
+    {
+      "type": "outbox",
+      "name": "DailyInterestOutbox",
+      "description": "Ensures interest accrual messages are reliably processed"
+    },
+    {
+      "type": "outbox",
+      "name": "VolumeFeeOutbox",
+      "description": "Ensures volume fee messages are reliably processed"
+    },
+    {
+      "type": "queue",
+      "name": "SellingWebApiMessagesQueue",
+      "description": "Handles payment status updates from COS"
+    },
+    {
+      "type": "event",
+      "name": "LoanSaleStatusChanged",
+      "description": "Publishes loan status change events to hooks service"
+    },
+    {
+      "type": "event",
+      "name": "BatchPurchaseCompleted",
+      "description": "Publishes batch completion events to hooks service"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "COS (Core Operating System)",
+      "direction": "bidirectional",
+      "protocol": "REST"
+    },
+    {
+      "system": "Lending Accounting",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Arix DB",
+      "direction": "upstream",
+      "protocol": "database"
+    },
+    {
+      "system": "Hooks Service",
+      "direction": "downstream",
+      "protocol": "messaging"
+    },
+    {
+      "system": "S3 Servicing",
+      "direction": "upstream",
+      "protocol": "file"
+    }
+  ],
+  "architecturePatterns": [
+    "Microservices",
+    "Event-driven",
+    "Outbox Pattern",
+    "Database-per-service",
+    "API Gateway",
+    "Message Queue",
+    "Docker Containerization"
+  ],
+  "techStack": [
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "MSSQL",
+    "Docker",
+    "RabbitMQ",
+    "AWS SQS",
+    "AWS S3",
+    "DBT",
+    "Pytest",
+    "Pydantic",
+    "SQLAlchemy"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Insufficient error handling in payment processing",
+      "description": "The payment simulation in modules/cos/src/main.py lacks proper error handling for failed transactions, which could lead to inconsistent state. Implement robust error handling and retries for payment failures.",
+      "files": [
+        "modules/cos/src/main.py",
+        "modules/e2e/src/assertions/batch_assertions.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "AWS credentials passed as environment variables",
+      "description": "AWS credentials are passed as environment variables in docker-compose.yml which is a security risk. Use AWS IAM roles or a secure credentials manager instead of hardcoded credentials.",
+      "files": [
+        "docker-compose.yml",
+        "scripts/prepare.sh"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Tight coupling to simulated services",
+      "description": "The test framework is tightly coupled to specific implementations of simulated services, making it brittle when service interfaces change. Consider using interface-based testing or contract testing approaches.",
+      "files": [
+        "modules/e2e/src/accounting.py",
+        "modules/e2e/src/airflow.py",
+        "modules/e2e/src/dbt.py"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "purpose": "This repository contains Infrastructure as Code (IaC) for the Cross River Bank's lending and selling platform. It manages AWS cloud resources using Terragrunt and Terraform to provision and configure databases, APIs, messaging services, and orchestration components across multiple environments.",
+  "businessFeatures": [
+    "Loan servicing and selling",
+    "AI-based loan processing",
+    "Database external access management",
+    "Application infrastructure deployment",
+    "Workflow orchestration with Airflow"
+  ],
+  "apis": [
+    {
+      "endpoint": "/admin-api",
+      "method": "REST",
+      "purpose": "Administrative API for internal operations"
+    },
+    {
+      "endpoint": "/web-api",
+      "method": "REST",
+      "purpose": "Web interface for loan management"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "Aurora PostgreSQL",
+      "type": "database"
+    },
+    {
+      "target": "Amazon S3",
+      "type": "database"
+    },
+    {
+      "target": "Amazon ECS",
+      "type": "http"
+    },
+    {
+      "target": "Amazon SQS",
+      "type": "messaging"
+    },
+    {
+      "target": "Amazon Lambda",
+      "type": "http"
+    },
+    {
+      "target": "Amazon MWAA (Airflow)",
+      "type": "http"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Core lending entity with funding information"
+    },
+    {
+      "name": "ExportedData",
+      "description": "Data exported from the system for external consumption"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "type": "queue",
+      "name": "SQS Queues",
+      "description": "Message queues for selling platform operations"
+    }
+  ],
+  "integrations": [
+    {
+      "system": "AWS Secrets Manager",
+      "direction": "bidirectional",
+      "protocol": "REST"
+    },
+    {
+      "system": "AWS CloudWatch",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Artifactory",
+      "direction": "upstream",
+      "protocol": "REST"
+    }
+  ],
+  "architecturePatterns": [
+    "Infrastructure as Code",
+    "Microservices",
+    "Secret Rotation",
+    "CI/CD Pipeline",
+    "Environment Segregation",
+    "Serverless",
+    "Container Orchestration"
+  ],
+  "techStack": [
+    "Terragrunt",
+    "Terraform",
+    "AWS",
+    "Python",
+    "Docker",
+    "PostgreSQL",
+    "Apache Airflow",
+    "Jenkins",
+    "Azure DevOps"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded database permissions in rotation scripts",
+      "description": "Database permissions are hardcoded in rotation scripts rather than being configurable, which could lead to privilege escalation or excessive permissions. Consider moving these to environment variables or configuration files.",
+      "files": [
+        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
+        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Secret rotation logic duplication",
+      "description": "Secret rotation logic is duplicated across multiple Lambda functions with only slight differences. This creates maintenance issues and increases the risk of security vulnerabilities. Extract common code into a shared library.",
+      "files": [
+        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
+        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
+      ]
+    }
+  ]
+}

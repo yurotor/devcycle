@@ -8,6 +8,7 @@ import {
   type Ticket,
   type WorkflowPhase,
 } from "@/lib/fake-data";
+import { ScanPill } from "@/components/scan-pill";
 
 interface KanbanBoardProps {
   tickets: Ticket[];
@@ -61,21 +62,24 @@ export function KanbanBoard({
     <div className="h-full flex flex-col">
       {/* Board header */}
       <div className="shrink-0 h-12 flex items-center px-5 border-b border-border gap-3">
-        <h2 className="text-sm font-semibold tracking-tight">Board</h2>
-        <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
+        <h2 className="text-base font-semibold tracking-tight">Board</h2>
+        <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
           {tickets.length} tickets
         </span>
-        {onSync && (
-          <button
-            onClick={onSync}
-            disabled={syncing}
-            className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            title="Sync from Jira"
-          >
-            <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync Jira"}
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          <ScanPill />
+          {onSync && (
+            <button
+              onClick={onSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Sync from Jira"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing..." : "Sync Jira"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Columns */}
@@ -86,17 +90,17 @@ export function KanbanBoard({
             return (
               <div
                 key={phase}
-                className={`w-56 flex flex-col rounded-lg bg-card/30 border border-border/40 border-t-2 ${COLUMN_BORDER_TOP[phase]} shrink-0`}
+                className={`w-64 flex flex-col rounded-lg bg-card/30 border border-border/40 border-t-2 ${COLUMN_BORDER_TOP[phase]} shrink-0`}
               >
                 {/* Column header */}
                 <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
                   <div
                     className={`w-2 h-2 rounded-full shrink-0 ${PHASE_DOT_COLORS[phase]}`}
                   />
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">
                     {PHASE_LABELS[phase]}
                   </span>
-                  <span className="text-[10px] text-muted-foreground/50 ml-auto font-mono">
+                  <span className="text-xs text-muted-foreground/50 ml-auto font-mono">
                     {phaseTickets.length}
                   </span>
                 </div>
@@ -115,28 +119,28 @@ export function KanbanBoard({
                         }`}
                       >
                         <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-[10px] font-mono text-muted-foreground">
+                          <span className="text-xs font-mono text-muted-foreground">
                             {ticket.jiraKey}
                           </span>
                           <span
-                            className={`text-[9px] px-1 py-0.5 rounded border font-medium ${
+                            className={`text-[11px] px-1 py-0.5 rounded border font-medium ${
                               PRIORITY_COLORS[ticket.priority]
                             }`}
                           >
                             {ticket.priority}
                           </span>
                         </div>
-                        <p className="text-[11px] font-medium leading-snug line-clamp-3 mb-1.5">
+                        <p className="text-sm font-medium leading-snug line-clamp-3 mb-1.5">
                           {ticket.title}
                         </p>
                         <div className="flex items-center gap-2">
-                          <span className="text-[9px] text-muted-foreground/70 px-1 py-0.5 rounded bg-secondary/50">
+                          <span className="text-[11px] text-muted-foreground/70 px-1 py-0.5 rounded bg-secondary/50">
                             {TYPE_LABELS[ticket.type]}
                           </span>
                           {ticket.assignee && (
                             <div className="flex items-center gap-1 ml-auto">
-                              <div className="w-4 h-4 rounded-full bg-secondary border border-border flex items-center justify-center">
-                                <span className="text-[7px] font-medium text-muted-foreground">
+                              <div className="w-5 h-5 rounded-full bg-secondary border border-border flex items-center justify-center">
+                                <span className="text-[9px] font-medium text-muted-foreground">
                                   {ticket.assignee
                                     .split(" ")
                                     .map((n) => n[0])
@@ -150,7 +154,7 @@ export function KanbanBoard({
                     ))}
                     {phaseTickets.length === 0 && (
                       <div className="py-6 text-center">
-                        <span className="text-[10px] text-muted-foreground/40">
+                        <span className="text-xs text-muted-foreground/40">
                           No tickets
                         </span>
                       </div>

@@ -1,0 +1,117 @@
+{
+  "purpose": "COS.Lending.Selling.DataTools.AccountsResolver is a utility that resolves and manages accounts for loans in the CRB Lending Selling platform. It retrieves account information from multiple sources including the Lending Accounting API and LS database, then updates the Selling database with the correct account mappings for various financial operations.",
+  "businessFeatures": [
+    "Account resolution for loans with missing account information",
+    "Fee sweep account management",
+    "Custom purchase account mapping",
+    "Loan source account resolution",
+    "Account validation and cleanup"
+  ],
+  "apis": [
+    {
+      "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
+      "method": "POST",
+      "purpose": "Retrieve account information for loans from the CRB.CosLending.Accounting.Api"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "CRB.CosLending.Accounting.Api",
+      "type": "http"
+    },
+    {
+      "target": "SellingDB",
+      "type": "database"
+    },
+    {
+      "target": "MPLConsumerLoansOperationsProd",
+      "type": "database"
+    },
+    {
+      "target": "CRB.Authorization",
+      "type": "shared-lib"
+    },
+    {
+      "target": "CRB.Framework.Logging",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents loan data with identifiers, investor information, and loan status"
+    },
+    {
+      "name": "LoanAccount",
+      "description": "Maps loans to their associated accounts with different objective types"
+    },
+    {
+      "name": "ObjectiveAccount",
+      "description": "Account with a specific purpose (purchase, interest income, fee income, etc.)"
+    },
+    {
+      "name": "FeeSweep",
+      "description": "Represents fee sweep transactions that require account resolution"
+    },
+    {
+      "name": "CustomPurchaseAccountMapping",
+      "description": "Configuration for mapping specific loan attributes to custom purchase accounts"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "Lending Accounting Service",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "OAuth Token Provider",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "MPL Consumer Loan Operations",
+      "direction": "upstream",
+      "protocol": "database"
+    }
+  ],
+  "architecturePatterns": [
+    "Microservice",
+    "Command-line utility",
+    "Repository pattern",
+    "Service pattern",
+    "Dependency injection"
+  ],
+  "techStack": [
+    ".NET 7",
+    "Entity Framework Core",
+    "PostgreSQL",
+    "SQL Server",
+    "Docker",
+    "Azure DevOps pipelines",
+    "CommandLine parser",
+    "Npgsql.Bulk",
+    "JSON"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hardcoded Database Connection Strings",
+      "description": "The application contains hardcoded database connection strings in appsettings.json with empty password fields, which suggests passwords may be added at runtime. This poses a security risk as connection strings could be accidentally committed with credentials or leaked through logs.",
+      "files": [
+        "accounts-resolver/appsettings.json"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Missing error handling for OAuth token failures",
+      "description": "The LendingAccountingClient depends on token-based authentication but lacks robust error handling for token acquisition failures, which could lead to unhandled exceptions and service outages in production.",
+      "files": [
+        "accounts-resolver/Infrastructure/Accounting/LendingAccountingClient.cs"
+      ]
+    }
+  ]
+}

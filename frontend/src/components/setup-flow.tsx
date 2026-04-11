@@ -21,7 +21,7 @@ interface SetupFlowProps {
   onComplete: () => void;
 }
 
-type Step = "welcome" | "azure-pat" | "select-repos" | "jira" | "saving";
+type Step = "welcome" | "azure-pat" | "select-repos" | "jira";
 
 interface AdoRepo {
   adoId: string;
@@ -113,7 +113,7 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
     }
   };
 
-  // ── Step 2: save workspace + go to Jira step ───────────────
+  // ── Step 2: save workspace + trigger scan + go to Jira step ──
 
   const handleSave = async () => {
     setError(null);
@@ -133,6 +133,8 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
         const data = await res.json();
         throw new Error(data.error ?? "Failed to save workspace");
       }
+      // Fire-and-forget: start scan in background
+      fetch("/api/scan/start", { method: "POST" }).catch(console.error);
       setStep("jira");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -169,7 +171,6 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
           : (data.error ?? "Jira connection failed");
         throw new Error(msg);
       }
-      setStep("saving");
       onComplete();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Jira connection failed");
@@ -181,7 +182,6 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
   // ── Step 3b: skip Jira ──────────────────────────────────────
 
   const handleJiraSkip = () => {
-    setStep("saving");
     onComplete();
   };
 
@@ -561,30 +561,6 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
                     </>
                   )}
                 </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── Saving / connecting ─────────────────────────── */}
-          {step === "saving" && (
-            <motion.div
-              key="saving"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="flex flex-col items-center gap-4 py-12"
-            >
-              <div className="relative">
-                <div className="w-16 h-16 rounded-2xl bg-cyan/10 border border-cyan/20 flex items-center justify-center">
-                  <Loader2 className="w-7 h-7 text-cyan animate-spin" />
-                </div>
-                <div className="absolute inset-0 rounded-2xl bg-cyan/10 animate-ping opacity-20" />
-              </div>
-              <div className="text-center space-y-1">
-                <h3 className="font-semibold">Initializing scan...</h3>
-                <p className="text-sm text-muted-foreground">
-                  Connecting to Azure DevOps and preparing workspace
-                </p>
               </div>
             </motion.div>
           )}

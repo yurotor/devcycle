@@ -46,13 +46,13 @@ export function CreatePRPhase({ ticket, onComplete }: CreatePRPhaseProps) {
             <GitPullRequest className="w-5 h-5 text-sky" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-medium text-sm">Create Pull Request</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="font-medium text-base">Create Pull Request</h3>
+            <p className="text-sm text-muted-foreground">
               Create a PR in Azure DevOps with all implemented task branches.
             </p>
           </div>
           <Button
-            className="bg-sky text-background hover:bg-sky/90 text-xs h-9"
+            className="bg-sky text-background hover:bg-sky/90 text-sm h-9"
             onClick={createPR}
           >
             <GitPullRequest className="w-3.5 h-3.5 mr-1.5" />
@@ -67,7 +67,7 @@ export function CreatePRPhase({ ticket, onComplete }: CreatePRPhaseProps) {
     return (
       <div className="h-full flex flex-col items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-sky mb-3" />
-        <p className="text-xs text-muted-foreground">Creating pull request...</p>
+        <p className="text-sm text-muted-foreground">Creating pull request...</p>
       </div>
     );
   }
@@ -79,22 +79,22 @@ export function CreatePRPhase({ ticket, onComplete }: CreatePRPhaseProps) {
           <GitPullRequest className="w-5 h-5 text-sky" />
         </div>
         <div className="space-y-1">
-          <h3 className="font-medium text-sm">PR #{pr!.number} Created</h3>
-          <p className="text-xs text-muted-foreground">{pr!.title}</p>
+          <h3 className="font-medium text-base">PR #{pr!.number} Created</h3>
+          <p className="text-sm text-muted-foreground">{pr!.title}</p>
         </div>
         <div className="flex flex-col items-center gap-2">
           <a
             href={pr!.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-sky hover:underline flex items-center gap-1"
+            className="text-xs text-sky hover:underline flex items-center gap-1"
           >
             <ExternalLink className="w-3 h-3" />
             {pr!.url}
           </a>
           <Button
             size="sm"
-            className="h-8 text-xs bg-sky text-background hover:bg-sky/90 gap-1 mt-2"
+            className="h-8 text-sm bg-sky text-background hover:bg-sky/90 gap-1 mt-2"
             onClick={onComplete}
           >
             <ArrowRight className="w-3.5 h-3.5" />
