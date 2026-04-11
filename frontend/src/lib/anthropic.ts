@@ -143,11 +143,21 @@ async function completeViaAnthropic(
 
 // ─── Public API ───────────────────────────────────────────────────
 
+/** Returns true if a real Claude API is configured. */
+export function isAIAvailable(): boolean {
+  return !!(
+    (process.env.BEDROCK_URL?.trim() &&
+      process.env.BEDROCK_API_KEY?.trim() &&
+      process.env.MODEL_ID?.trim()) ||
+    process.env.ANTHROPIC_API_KEY?.trim()
+  );
+}
+
 export async function complete(
   messages: Message[],
-  options: { system?: string; maxTokens?: number } = {}
+  options: { system?: string; maxTokens?: number; stubResponse?: string } = {}
 ): Promise<string> {
-  const { system, maxTokens = 4096 } = options;
+  const { system, maxTokens = 4096, stubResponse } = options;
 
   const useBedrock =
     process.env.BEDROCK_URL?.trim() &&
@@ -160,6 +170,11 @@ export async function complete(
 
   if (process.env.ANTHROPIC_API_KEY?.trim()) {
     return completeViaAnthropic(messages, system, maxTokens);
+  }
+
+  // No API configured — return stub if provided, otherwise throw
+  if (stubResponse !== undefined) {
+    return stubResponse;
   }
 
   throw new Error(

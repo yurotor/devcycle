@@ -28,4 +28,4 @@ It is auto-generated after each scan.
 - [Wiki](wiki/) — compiled human-readable documentation
 - [Schema](schema/) — machine-readable repo metadata (JSON + markdown)
 
-*Generated: 2026-04-11T12:22:00.031Z*
+*Generated: 2026-04-11T12:40:24.399Z*

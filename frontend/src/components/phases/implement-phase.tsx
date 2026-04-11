@@ -1,220 +1,211 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Play,
-  RotateCcw,
-  CheckCircle2,
-  Terminal,
-  Code2,
   Loader2,
+  CheckCircle2,
+  Circle,
   Hand,
+  ArrowRight,
+  GitBranch,
 } from "lucide-react";
-import { FAKE_DIFF, type Ticket } from "@/lib/fake-data";
+import { type Ticket } from "@/lib/fake-data";
+
+interface TaskRow {
+  id: number;
+  title: string;
+  description: string;
+  status: string;
+  branchName: string | null;
+  implementedManually: number;
+  waveId: number;
+}
+
+interface WaveRow {
+  id: number;
+  name: string;
+  orderIndex: number;
+  tasks: TaskRow[];
+}
 
 interface ImplementPhaseProps {
   ticket: Ticket;
   onComplete: () => void;
 }
 
-const FAKE_LOG_LINES = [
-  { text: "$ claude-code --task implement-wt3", type: "cmd" },
-  { text: "Cloning payments-api to /workspace/payments-api...", type: "info" },
-  { text: "Creating branch: feat/FIN-127-idempotency-keys", type: "info" },
-  { text: "Reading PRD and task requirements...", type: "info" },
-  { text: "Analyzing src/refunds/processor.ts...", type: "info" },
-  { text: "Modifying refund processor for multi-currency support...", type: "info" },
-  { text: "Adding ExchangeRateClient import...", type: "info" },
-  { text: "Updating processRefund() to use original currency...", type: "info" },
-  { text: "Adding currency fields to refund creation...", type: "info" },
-  { text: "Writing unit tests for RefundProcessor...", type: "info" },
-  { text: "  ✓ test: refunds in original currency", type: "success" },
-  { text: "  ✓ test: exchange rate display conversion", type: "success" },
-  { text: "  ✓ test: handles missing exchange rate gracefully", type: "success" },
-  { text: "  ✓ test: idempotency on retry", type: "success" },
-  { text: "Running test suite...", type: "info" },
-  { text: "  Tests: 4 passed, 0 failed", type: "success" },
-  { text: "Committing changes...", type: "info" },
-  { text: "Implementation complete ✓", type: "done" },
-];
-
 export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
-  const [status, setStatus] = useState<"idle" | "running" | "done">("idle");
-  const [logLines, setLogLines] = useState<typeof FAKE_LOG_LINES>([]);
-  const [showDiff, setShowDiff] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [waves, setWaves] = useState<WaveRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
 
-  const startImplementation = () => {
-    setStatus("running");
-    setLogLines([]);
-    setShowDiff(false);
-
-    FAKE_LOG_LINES.forEach((line, i) => {
-      setTimeout(() => {
-        setLogLines((prev) => [...prev, line]);
-        if (i === FAKE_LOG_LINES.length - 1) {
-          setTimeout(() => {
-            setStatus("done");
-            setShowDiff(true);
-          }, 500);
-        }
-      }, i * 400);
-    });
+  const loadTasks = async () => {
+    const res = await fetch(`/api/tickets/${ticket.id}/tasks`);
+    const data = await res.json();
+    setWaves(data.waves ?? []);
   };
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [logLines]);
+    loadTasks().finally(() => setLoading(false));
+  }, [ticket.id]);
 
-  const lineColor = (type: string) => {
-    switch (type) {
-      case "cmd": return "text-cyan";
-      case "success": return "text-emerald";
-      case "done": return "text-emerald font-medium";
-      default: return "text-muted-foreground";
+  const startTask = async (taskId: number) => {
+    setBusyTaskId(taskId);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/implement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", taskId }),
+      });
+      // Simulate implementation completing after a short delay
+      setTimeout(async () => {
+        await fetch(`/api/tickets/${ticket.id}/implement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "complete", taskId }),
+        });
+        await loadTasks();
+        setBusyTaskId(null);
+      }, 1500);
+    } catch {
+      setBusyTaskId(null);
     }
+  };
+
+  const markManual = async (taskId: number) => {
+    setBusyTaskId(taskId);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/implement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "manual", taskId }),
+      });
+      await loadTasks();
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const allTasks = waves.flatMap((w) => w.tasks);
+  const doneTasks = allTasks.filter(
+    (t) => t.status === "done" || t.implementedManually
+  );
+  const allDone = allTasks.length > 0 && doneTasks.length === allTasks.length;
+
+  const statusIcon = (task: TaskRow) => {
+    if (task.status === "done")
+      return <CheckCircle2 className="w-3.5 h-3.5 text-emerald shrink-0" />;
+    if (task.implementedManually)
+      return <Hand className="w-3.5 h-3.5 text-amber shrink-0" />;
+    if (task.status === "in-progress" || busyTaskId === task.id)
+      return <Loader2 className="w-3.5 h-3.5 text-cyan animate-spin shrink-0" />;
+    return <Circle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />;
   };
 
   return (
     <div className="h-full flex flex-col">
-      <div className="shrink-0 px-5 py-3 border-b border-border">
+      <div className="shrink-0 px-4 py-3 border-b border-border bg-emerald/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Code2 className="w-4 h-4 text-emerald" />
-          <span className="text-xs font-medium">Implement & Test</span>
-          <span className="text-[10px] text-muted-foreground ml-1">
-            AI writes code and runs tests
+          <Play className="w-3.5 h-3.5 text-emerald" />
+          <span className="text-[11px] font-medium">
+            {doneTasks.length}/{allTasks.length} tasks complete
           </span>
-          {status === "running" && (
-            <Loader2 className="w-3.5 h-3.5 text-emerald animate-spin ml-auto" />
-          )}
-          {status === "done" && (
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald ml-auto" />
-          )}
+        </div>
+        <div className="w-24 h-1.5 rounded-full bg-secondary overflow-hidden">
+          <div
+            className="h-full bg-emerald rounded-full transition-all"
+            style={{
+              width: `${allTasks.length ? (doneTasks.length / allTasks.length) * 100 : 0}%`,
+            }}
+          />
         </div>
       </div>
 
-      {status === "idle" && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4 max-w-sm">
-            <div className="w-14 h-14 rounded-xl bg-emerald/10 border border-emerald/20 flex items-center justify-center mx-auto">
-              <Terminal className="w-6 h-6 text-emerald" />
-            </div>
-            <div>
-              <h3 className="font-medium text-sm">Ready to implement</h3>
-              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                The AI will clone the repo, create a branch, implement the
-                changes from the task breakdown, write tests, and commit.
-              </p>
-            </div>
-            <div className="flex gap-2 justify-center">
-              <Button
-                size="sm"
-                className="h-9 text-xs bg-emerald text-background hover:bg-emerald/90 gap-1.5"
-                onClick={startImplementation}
-              >
-                <Play className="w-3.5 h-3.5" />
-                Start Implementation
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 text-xs gap-1.5"
-              >
-                <Hand className="w-3.5 h-3.5" />
-                Implement Manually
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(status === "running" || status === "done") && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Terminal output */}
-          <div className="flex-1 bg-[oklch(0.09_0.005_260)] overflow-hidden">
-            <div className="px-3 py-1.5 border-b border-border/50 flex items-center gap-2">
-              <div className="flex gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-amber/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald/60" />
-              </div>
-              <span className="text-[10px] font-mono text-muted-foreground">
-                claude-code — implement
-              </span>
-            </div>
-            <div ref={scrollRef} className="p-3 overflow-auto h-[calc(100%-32px)]">
-              <div className="font-mono text-[11px] space-y-0.5">
-                {logLines.map((line, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className={lineColor(line.type)}
-                  >
-                    {line.text}
-                  </motion.div>
-                ))}
-                {status === "running" && (
-                  <span className="text-emerald cursor-blink">█</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Diff view */}
-          {showDiff && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              className="border-t border-border"
+      <ScrollArea className="flex-1 px-4">
+        <div className="py-4 space-y-4">
+          {waves.map((wave) => (
+            <div
+              key={wave.id}
+              className="border border-border rounded-lg overflow-hidden"
             >
-              <div className="px-3 py-1.5 border-b border-border/50 flex items-center gap-2 bg-card">
-                <Code2 className="w-3 h-3 text-muted-foreground" />
-                <span className="text-[10px] font-mono text-muted-foreground">
-                  src/refunds/processor.ts
-                </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald/10 text-emerald border border-emerald/20 ml-auto">
-                  +18 -4
-                </span>
+              <div className="px-3 py-2 bg-secondary/50 border-b border-border">
+                <span className="text-[11px] font-medium">{wave.name}</span>
               </div>
-              <ScrollArea className="max-h-56">
-                <pre className="p-3 text-[10px] font-mono leading-relaxed overflow-x-auto">
-                  {FAKE_DIFF.split("\n").map((line, i) => {
-                    const color = line.startsWith("+")
-                      ? "text-emerald bg-emerald/5"
-                      : line.startsWith("-")
-                      ? "text-rose bg-rose/5"
-                      : line.startsWith("@@")
-                      ? "text-violet"
-                      : "text-muted-foreground/60";
-                    return (
-                      <div key={i} className={`px-2 -mx-2 ${color}`}>
-                        {line}
+              <div className="divide-y divide-border/50">
+                {wave.tasks.map((task) => {
+                  const isDone = task.status === "done" || !!task.implementedManually;
+                  const isBusy = busyTaskId === task.id;
+                  return (
+                    <div key={task.id} className="px-3 py-2.5 flex items-start gap-2">
+                      <div className="mt-0.5">{statusIcon(task)}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-medium ${isDone ? "line-through text-muted-foreground" : ""}`}>
+                          {task.title}
+                        </p>
+                        {task.branchName && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <GitBranch className="w-3 h-3 text-muted-foreground" />
+                            <code className="text-[9px] text-muted-foreground font-mono">
+                              {task.branchName}
+                            </code>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </pre>
-              </ScrollArea>
-            </motion.div>
-          )}
-
-          {status === "done" && (
-            <div className="shrink-0 px-4 py-3 border-t border-border flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-1"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Re-run with guidance
-              </Button>
+                      {!isDone && !isBusy && (
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 gap-1"
+                            onClick={() => startTask(task.id)}
+                          >
+                            <Play className="w-3 h-3" />
+                            Run
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 gap-1"
+                            onClick={() => markManual(task.id)}
+                          >
+                            <Hand className="w-3 h-3" />
+                            Manual
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          ))}
+        </div>
+      </ScrollArea>
+
+      {allDone && (
+        <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald" />
+            <span className="text-[11px] text-emerald">All tasks implemented</span>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-emerald text-background hover:bg-emerald/90 gap-1"
+            onClick={onComplete}
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+            Create PR
+          </Button>
         </div>
       )}
     </div>

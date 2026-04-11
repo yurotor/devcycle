@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Sparkles } from "lucide-react";
-import { FAKE_ANALYZE_CHAT, type ChatMessage, type Ticket } from "@/lib/fake-data";
+import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
+import { type Ticket } from "@/lib/fake-data";
+
+interface ChatMsg {
+  id: number;
+  role: "ai" | "user";
+  content: string;
+  createdAt: number;
+}
 
 interface AnalyzeChatProps {
   ticket: Ticket;
@@ -14,224 +20,171 @@ interface AnalyzeChatProps {
 }
 
 export function AnalyzeChat({ ticket, onComplete }: AnalyzeChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [sending, setSending] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Simulate loading messages
+  // Load chat history
   useEffect(() => {
-    const timeouts: ReturnType<typeof setTimeout>[] = [];
-    FAKE_ANALYZE_CHAT.forEach((msg, i) => {
-      timeouts.push(
-        setTimeout(() => {
-          if (msg.role === "ai") setTyping(true);
-          setTimeout(() => {
-            setTyping(false);
-            setMessages((prev) => [...prev, msg]);
-          }, msg.role === "ai" ? 800 : 0);
-        }, i * 1500)
-      );
-    });
-    return () => timeouts.forEach(clearTimeout);
-  }, []);
+    fetch(`/api/tickets/${ticket.id}/chat`)
+      .then((r) => r.json())
+      .then((data) => {
+        setMessages(data.messages ?? []);
+        const lastAi = (data.messages ?? [])
+          .filter((m: ChatMsg) => m.role === "ai")
+          .pop();
+        if (lastAi) {
+          const lc = lastAi.content.toLowerCase();
+          if (lc.includes("enough detail") || lc.includes("enough to move")) {
+            setReady(true);
+          }
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [ticket.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, typing]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const handleChoice = (choice: string) => {
-    const newMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: choice,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-    };
-    setMessages((prev) => [...prev, newMsg]);
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
 
-    // Simulate AI follow-up
-    setTimeout(() => {
-      setTyping(true);
-      setTimeout(() => {
-        setTyping(false);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ai-${Date.now()}`,
-            role: "ai",
-            content:
-              "Good choice. I have enough information for this area now. Based on the analysis, this ticket is ready to move to the **Plan** phase.\n\nI'll compile the analysis into the wiki and update the knowledge base.",
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: "numeric",
-              minute: "2-digit",
-            }),
-          },
-        ]);
-      }, 1200);
-    }, 500);
-  };
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const newMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: input,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-    };
-    setMessages((prev) => [...prev, newMsg]);
     setInput("");
+    setSending(true);
+
+    const tempId = Date.now();
+    setMessages((prev) => [
+      ...prev,
+      { id: tempId, role: "user", content: text, createdAt: tempId },
+    ]);
+
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, phase: "analyze" }),
+      });
+      const data = await res.json();
+      if (data.ready) setReady(true);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: "ai",
+          content: data.response,
+          createdAt: Date.now(),
+        },
+      ]);
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } finally {
+      setSending(false);
+    }
   };
 
-  const lastAiMessage = [...messages].reverse().find((m) => m.role === "ai");
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Chat header */}
-      <div className="shrink-0 px-5 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-cyan" />
-          <span className="text-xs font-medium">Analyze Phase</span>
-          <span className="text-[10px] text-muted-foreground ml-1">
-            Business questions to clarify requirements
-          </span>
-        </div>
+      <div className="shrink-0 px-4 py-3 border-b border-border bg-cyan/5">
+        <p className="text-[11px] text-muted-foreground">
+          <Bot className="w-3.5 h-3.5 inline mr-1 text-cyan" />
+          Chat with the AI analyst to clarify requirements, scope, and edge cases for this ticket.
+        </p>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-auto" ref={scrollRef}>
-        <div className="p-5 space-y-4 max-w-2xl">
-          {/* Ticket context */}
-          <div className="p-3 rounded-lg bg-secondary/50 border border-border/50 mb-6">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-              Ticket Description
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {ticket.description}
+      <ScrollArea className="flex-1 px-4">
+        <div className="py-4 space-y-4">
+          {messages.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              Send a message to start the analysis conversation.
             </p>
-          </div>
-
+          )}
           {messages.map((msg) => (
-            <motion.div
+            <div
               key={msg.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+              className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : ""}`}
             >
+              {msg.role === "ai" && (
+                <div className="w-6 h-6 rounded-full bg-cyan/10 border border-cyan/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-3.5 h-3.5 text-cyan" />
+                </div>
+              )}
               <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                  msg.role === "ai"
-                    ? "bg-cyan/10 border border-cyan/20"
-                    : "bg-violet/10 border border-violet/20"
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                  msg.role === "user"
+                    ? "bg-cyan/10 border border-cyan/20 text-foreground"
+                    : "bg-secondary border border-border text-foreground"
                 }`}
               >
-                {msg.role === "ai" ? (
-                  <Bot className="w-3.5 h-3.5 text-cyan" />
-                ) : (
-                  <User className="w-3.5 h-3.5 text-violet" />
-                )}
+                <div className="whitespace-pre-wrap">{msg.content}</div>
               </div>
-              <div
-                className={`flex-1 min-w-0 ${msg.role === "user" ? "text-right" : ""}`}
-              >
-                <div
-                  className={`inline-block text-left p-3 rounded-lg text-sm leading-relaxed max-w-[90%] ${
-                    msg.role === "ai"
-                      ? "bg-card border border-border"
-                      : "bg-violet/10 border border-violet/20"
-                  }`}
-                >
-                  <div className="text-xs whitespace-pre-wrap [&_strong]:font-semibold [&_strong]:text-foreground text-muted-foreground">
-                    {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) =>
-                      part.startsWith("**") && part.endsWith("**") ? (
-                        <strong key={i}>{part.slice(2, -2)}</strong>
-                      ) : (
-                        <span key={i}>{part}</span>
-                      )
-                    )}
-                  </div>
+              {msg.role === "user" && (
+                <div className="w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
-                <div className="text-[10px] text-muted-foreground/50 mt-1 px-1">
-                  {msg.timestamp}
-                </div>
-              </div>
-            </motion.div>
+              )}
+            </div>
           ))}
-
-          {/* Typing indicator */}
-          {typing && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex gap-3"
-            >
-              <div className="w-7 h-7 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center shrink-0">
+          {sending && (
+            <div className="flex gap-2.5">
+              <div className="w-6 h-6 rounded-full bg-cyan/10 border border-cyan/20 flex items-center justify-center shrink-0">
                 <Bot className="w-3.5 h-3.5 text-cyan" />
               </div>
-              <div className="p-3 rounded-lg bg-card border border-border">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:0ms]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:150ms]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:300ms]" />
-                </div>
+              <div className="bg-secondary border border-border rounded-lg px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
               </div>
-            </motion.div>
+            </div>
           )}
+          <div ref={bottomRef} />
         </div>
-      </div>
+      </ScrollArea>
 
-      {/* Multiple choice area */}
-      {lastAiMessage?.choices && !typing && (
-        <div className="shrink-0 px-5 py-3 border-t border-border bg-card/50">
-          <div className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
-            Choose an answer
-          </div>
-          <div className="space-y-1.5">
-            {lastAiMessage.choices.map((choice, i) => (
-              <button
-                key={i}
-                onClick={() => handleChoice(choice)}
-                className="w-full text-left px-3 py-2 rounded-md border border-border/50 bg-secondary/30 hover:bg-secondary hover:border-border text-xs transition-all"
-              >
-                {choice}
-              </button>
-            ))}
-          </div>
+      {ready && (
+        <div className="shrink-0 px-4 py-2 border-t border-emerald/20 bg-emerald/5 flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald" />
+          <span className="text-[11px] text-emerald">
+            Analysis complete — advance to Plan when ready.
+          </span>
         </div>
       )}
 
-      {/* Input */}
-      <div className="shrink-0 px-4 py-3 border-t border-border">
+      <div className="shrink-0 border-t border-border p-3">
         <div className="flex gap-2">
           <Textarea
-            placeholder="Type a message or pick from choices above..."
-            className="min-h-[40px] max-h-[120px] resize-none text-xs bg-secondary border-border/50"
-            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Describe the context, ask questions, or provide details..."
+            className="min-h-[36px] max-h-[120px] text-xs resize-none bg-secondary border-border/50"
+            rows={1}
           />
           <Button
             size="sm"
-            className="h-10 w-10 p-0 bg-cyan text-background hover:bg-cyan/90"
-            onClick={handleSend}
-            disabled={!input.trim()}
+            className="h-9 w-9 p-0 bg-cyan text-background hover:bg-cyan/90 shrink-0"
+            onClick={sendMessage}
+            disabled={!input.trim() || sending}
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
