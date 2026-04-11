@@ -1,0 +1,22 @@
+{
+  "name": "cos-lending-selling-datatools",
+  "fileCount": 884,
+  "techStack": [
+    "Python",
+    "Docker"
+  ],
+  "topLevelDirs": [
+    ".azuredevops",
+    ".dbtignore",
+    ".devcontainer",
+    ".devops",
+    ".gitignore",
+    ".gitkeep",
+    ".vscode",
+    "CRB_Root_CA.crt",
+    "Dockerfile",
+    "README.md"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.355Z"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "cos-lending-selling-ingestion",
+  "fileCount": 95,
+  "techStack": [
+    "Python",
+    "Docker"
+  ],
+  "topLevelDirs": [
+    ".claude",
+    ".devcontainer",
+    ".devops",
+    ".gitignore",
+    ".vscode",
+    "CLAUDE.md",
+    "README.md",
+    "SQLScripts",
+    "TF",
+    "cli_commands.py"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.357Z"
+}

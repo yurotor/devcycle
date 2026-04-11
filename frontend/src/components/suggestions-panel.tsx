@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Shield,
   GitBranch,
@@ -12,11 +11,19 @@ import {
   X,
   ArrowRight,
   Check,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
-import { type ScanSuggestion } from "@/lib/fake-data";
 
-interface SuggestionsPanelProps {
-  suggestions: ScanSuggestion[];
+interface Suggestion {
+  id: string;
+  repo: string;
+  severity: "critical" | "high";
+  category: "security" | "architecture" | "optimization" | "bug";
+  title: string;
+  description: string;
+  files: string[];
+  promoted: boolean;
 }
 
 const CATEGORY_ICON = {
@@ -38,29 +45,96 @@ const SEVERITY_STYLE = {
   high: "bg-amber/15 text-amber border-amber/20",
 };
 
-export function SuggestionsPanel({ suggestions }: SuggestionsPanelProps) {
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [promoted, setPromoted] = useState<Set<string>>(new Set());
+export function SuggestionsPanel() {
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dismissing, setDismissing] = useState<Set<string>>(new Set());
+  const [promoting, setPromoting] = useState<Set<string>>(new Set());
+  const [promotedCount, setPromotedCount] = useState(0);
 
-  const visible = suggestions.filter(
-    (s) => !dismissed.has(s.id) && !promoted.has(s.id)
-  );
+  const fetchSuggestions = () => {
+    setLoading(true);
+    fetch("/api/suggestions")
+      .then((res) => res.json())
+      .then((data) => setSuggestions(data.suggestions ?? []))
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchSuggestions();
+  }, []);
+
+  const handleDismiss = async (id: string) => {
+    setDismissing((prev) => new Set([...prev, id]));
+    try {
+      await fetch(`/api/suggestions/${id}/dismiss`, { method: "POST" });
+      setSuggestions((prev) => prev.filter((s) => s.id !== id));
+    } finally {
+      setDismissing((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const handlePromote = async (id: string) => {
+    setPromoting((prev) => new Set([...prev, id]));
+    try {
+      const res = await fetch(`/api/suggestions/${id}/promote`, { method: "POST" });
+      if (res.ok) {
+        setSuggestions((prev) => prev.filter((s) => s.id !== id));
+        setPromotedCount((c) => c + 1);
+      }
+    } finally {
+      setPromoting((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const visible = suggestions.filter((s) => !s.promoted);
 
   return (
     <ScrollArea className="h-full">
       <div className="p-2">
-        <div className="px-3 py-2 mb-1">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Scan Findings
-          </span>
-          <span className="text-[10px] text-muted-foreground ml-2">
-            {visible.length} remaining
-          </span>
+        <div className="px-3 py-2 mb-1 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              Scan Findings
+            </span>
+            <span className="text-[10px] text-muted-foreground ml-2">
+              {visible.length} remaining
+            </span>
+          </div>
+          <button
+            onClick={fetchSuggestions}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
+
+        {loading && suggestions.length === 0 && (
+          <div className="px-3 py-4 text-xs text-muted-foreground">Loading...</div>
+        )}
+
+        {!loading && visible.length === 0 && promotedCount === 0 && (
+          <div className="px-3 py-4 text-xs text-muted-foreground">
+            No findings. Run a scan to generate suggestions.
+          </div>
+        )}
 
         <div className="space-y-2">
           {visible.map((suggestion) => {
             const Icon = CATEGORY_ICON[suggestion.category];
+            const isDismissing = dismissing.has(suggestion.id);
+            const isPromoting = promoting.has(suggestion.id);
+
             return (
               <div
                 key={suggestion.id}
@@ -91,16 +165,18 @@ export function SuggestionsPanel({ suggestions }: SuggestionsPanelProps) {
                     <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
                       {suggestion.description}
                     </p>
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {suggestion.files.map((f) => (
-                        <code
-                          key={f}
-                          className="text-[9px] px-1 py-0.5 rounded bg-secondary text-muted-foreground font-mono"
-                        >
-                          {f}
-                        </code>
-                      ))}
-                    </div>
+                    {suggestion.files.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {suggestion.files.map((f) => (
+                          <code
+                            key={f}
+                            className="text-[9px] px-1 py-0.5 rounded bg-secondary text-muted-foreground font-mono"
+                          >
+                            {f}
+                          </code>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 pt-1">
@@ -108,34 +184,42 @@ export function SuggestionsPanel({ suggestions }: SuggestionsPanelProps) {
                     variant="ghost"
                     size="sm"
                     className="h-6 text-[10px] text-muted-foreground hover:text-foreground gap-1"
-                    onClick={() =>
-                      setDismissed((prev) => new Set([...prev, suggestion.id]))
-                    }
+                    onClick={() => handleDismiss(suggestion.id)}
+                    disabled={isDismissing}
                   >
-                    <X className="w-3 h-3" />
+                    {isDismissing ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <X className="w-3 h-3" />
+                    )}
                     Dismiss
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 text-[10px] text-cyan hover:text-cyan gap-1 ml-auto"
-                    onClick={() =>
-                      setPromoted((prev) => new Set([...prev, suggestion.id]))
-                    }
+                    onClick={() => handlePromote(suggestion.id)}
+                    disabled={isPromoting}
                   >
-                    Create Ticket
-                    <ArrowRight className="w-3 h-3" />
+                    {isPromoting ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <>
+                        Create Ticket
+                        <ArrowRight className="w-3 h-3" />
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
             );
           })}
 
-          {promoted.size > 0 && (
+          {promotedCount > 0 && (
             <div className="px-3 py-2 flex items-center gap-2 text-emerald">
               <Check className="w-3.5 h-3.5" />
               <span className="text-[11px]">
-                {promoted.size} finding{promoted.size > 1 ? "s" : ""} promoted
+                {promotedCount} finding{promotedCount > 1 ? "s" : ""} promoted
                 to tickets
               </span>
             </div>

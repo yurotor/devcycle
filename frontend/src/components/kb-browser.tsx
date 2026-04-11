@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ChevronRight,
@@ -8,8 +8,15 @@ import {
   File,
   Folder,
   FolderOpen,
+  RefreshCw,
 } from "lucide-react";
-import { FAKE_KB_TREE, type KBFile } from "@/lib/fake-data";
+
+export interface KBFile {
+  name: string;
+  path: string;
+  type: "file" | "folder";
+  children?: KBFile[];
+}
 
 interface KBBrowserProps {
   onFileClick: (path: string) => void;
@@ -24,7 +31,7 @@ function FileNode({
   depth: number;
   onFileClick: (path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(depth < 2);
+  const [expanded, setExpanded] = useState(false);
 
   if (node.type === "folder") {
     return (
@@ -91,15 +98,46 @@ function FileNode({
 }
 
 export function KBBrowser({ onFileClick }: KBBrowserProps) {
+  const [tree, setTree] = useState<KBFile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchTree = () => {
+    setLoading(true);
+    fetch("/api/kb/tree")
+      .then((res) => res.json())
+      .then((data) => setTree(data as KBFile[]))
+      .catch(() => setTree([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTree();
+  }, []);
+
   return (
     <ScrollArea className="h-full">
       <div className="p-2">
-        <div className="px-3 py-2 mb-1">
+        <div className="px-3 py-2 mb-1 flex items-center justify-between">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             Knowledge Base
           </span>
+          <button
+            onClick={fetchTree}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
-        {FAKE_KB_TREE.map((node) => (
+        {loading && tree.length === 0 && (
+          <div className="px-3 py-4 text-xs text-muted-foreground">Loading...</div>
+        )}
+        {!loading && tree.length === 0 && (
+          <div className="px-3 py-4 text-xs text-muted-foreground">
+            No knowledge base files yet. Run a scan to populate.
+          </div>
+        )}
+        {tree.map((node) => (
           <FileNode
             key={node.path}
             node={node}

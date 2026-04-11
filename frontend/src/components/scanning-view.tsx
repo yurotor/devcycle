@@ -12,7 +12,17 @@ import {
   Info,
   Search,
 } from "lucide-react";
-import { SCAN_EVENTS, type ScanEvent } from "@/lib/fake-data";
+
+export interface ScanEvent {
+  repo: string;
+  message: string;
+  type: "info" | "success" | "warning" | "finding";
+}
+
+interface DoneEvent {
+  type: "done";
+  summary: { repos: number; findings: number };
+}
 
 interface ScanningViewProps {
   onComplete: () => void;
@@ -21,23 +31,44 @@ interface ScanningViewProps {
 export function ScanningView({ onComplete }: ScanningViewProps) {
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [done, setDone] = useState(false);
+  const [summary, setSummary] = useState<DoneEvent["summary"] | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Connect to SSE scan stream
   useEffect(() => {
-    const timeouts: ReturnType<typeof setTimeout>[] = [];
-    SCAN_EVENTS.forEach((event, i) => {
-      timeouts.push(
-        setTimeout(() => {
-          setEvents((prev) => [...prev, event]);
-          if (i === SCAN_EVENTS.length - 1) {
-            setTimeout(() => setDone(true), 800);
-          }
-        }, event.delay)
-      );
-    });
-    return () => timeouts.forEach(clearTimeout);
+    const es = new EventSource("/api/scan/stream");
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as ScanEvent | DoneEvent;
+        if ("type" in data && data.type === "done") {
+          setSummary(data.summary);
+          setTimeout(() => setDone(true), 400);
+          es.close();
+        } else {
+          setEvents((prev) => [...prev, data as ScanEvent]);
+        }
+      } catch {
+        // Malformed event — ignore
+      }
+    };
+
+    es.onerror = () => {
+      // Connection closed by server (normal after scan finishes) or network error
+      es.close();
+      setDone((prev) => {
+        if (!prev) {
+          // Unexpected close before done — show completion anyway
+          setTimeout(() => setDone(true), 400);
+        }
+        return prev;
+      });
+    };
+
+    return () => es.close();
   }, []);
 
+  // Auto-scroll log
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -57,18 +88,20 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
     }
   };
 
+  // Deterministic color per repo name
   const repoColor = (repo: string) => {
-    const colors: Record<string, string> = {
-      "payments-api": "text-cyan",
-      "auth-service": "text-violet",
-      "payments-frontend": "text-amber",
-      "shared-libs": "text-emerald",
-      "e2e-tests": "text-sky",
-    };
-    return colors[repo] ?? "text-muted-foreground";
+    const palette = ["text-cyan", "text-violet", "text-amber", "text-emerald", "text-sky", "text-rose"];
+    let hash = 0;
+    for (let i = 0; i < repo.length; i++) hash = (hash * 31 + repo.charCodeAt(i)) & 0xffff;
+    return palette[hash % palette.length];
   };
 
-  const progress = Math.min((events.length / SCAN_EVENTS.length) * 100, 100);
+  const activeRepo = events.length > 0 ? events[events.length - 1].repo : null;
+  const progress = done ? 100 : Math.min((events.length / Math.max(events.length + 3, 10)) * 85, 85);
+
+  const doneText = summary
+    ? `${summary.repos} ${summary.repos === 1 ? "repo" : "repos"} scanned. ${summary.findings} finding${summary.findings !== 1 ? "s" : ""}. Knowledge base ready.`
+    : "Scan complete. Knowledge base ready.";
 
   return (
     <div className="h-full flex items-center justify-center relative overflow-hidden">
@@ -89,9 +122,7 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
               <div className="w-10 h-10 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center">
                 <Zap className="w-5 h-5 text-cyan" />
               </div>
-              <span className="text-lg font-semibold tracking-tight">
-                DevCycle
-              </span>
+              <span className="text-lg font-semibold tracking-tight">DevCycle</span>
             </div>
             <h2 className="text-2xl font-bold tracking-tight">
               {done ? (
@@ -105,7 +136,7 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
             </h2>
             <p className="text-muted-foreground text-sm">
               {done
-                ? "5 repositories scanned. 2 critical findings, 3 high-priority improvements. Knowledge base ready."
+                ? doneText
                 : "AI is analyzing your codebase, discovering patterns, and building your knowledge base."}
             </p>
           </div>
@@ -113,9 +144,7 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
           {/* Progress bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>
-                {done ? "Complete" : `Scanning ${events.length > 0 ? events[events.length - 1].repo : "..."}` }
-              </span>
+              <span>{done ? "Complete" : activeRepo ? `Scanning ${activeRepo}` : "Starting..."}</span>
               <span>{Math.round(progress)}%</span>
             </div>
             <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -131,13 +160,17 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
           {/* Log output */}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald animate-pulse" />
-              <span className="text-xs font-mono text-muted-foreground">
-                scan output
-              </span>
+              <div className={`w-2 h-2 rounded-full ${done ? "bg-emerald" : "bg-emerald animate-pulse"}`} />
+              <span className="text-xs font-mono text-muted-foreground">scan output</span>
             </div>
             <ScrollArea className="h-72">
-              <div ref={scrollRef} className="p-3 space-y-1 font-mono text-xs h-72 overflow-y-auto">
+              <div
+                ref={scrollRef}
+                className="p-3 space-y-1 font-mono text-xs h-72 overflow-y-auto"
+              >
+                {events.length === 0 && !done && (
+                  <span className="text-muted-foreground/50">Connecting to scan engine...</span>
+                )}
                 {events.map((event, i) => (
                   <motion.div
                     key={i}
@@ -147,7 +180,7 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
                     className="flex items-start gap-2 py-0.5"
                   >
                     <span className="shrink-0 mt-0.5">{eventIcon(event.type)}</span>
-                    <span className={`shrink-0 w-40 ${repoColor(event.repo)}`}>
+                    <span className={`shrink-0 w-64 truncate ${repoColor(event.repo)}`}>
                       {event.repo}
                     </span>
                     <span
@@ -156,6 +189,8 @@ export function ScanningView({ onComplete }: ScanningViewProps) {
                           ? "text-rose"
                           : event.type === "success"
                           ? "text-emerald"
+                          : event.type === "warning"
+                          ? "text-amber"
                           : "text-muted-foreground"
                       }
                     >

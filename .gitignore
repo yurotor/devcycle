@@ -1,0 +1,13 @@
+# Cloned repos (large, re-cloneable)
+kb/repos/
+
+# SQLite database (local state)
+frontend/devcycle.db
+frontend/devcycle.db-shm
+frontend/devcycle.db-wal
+
+# Next.js
+frontend/.next/
+
+# Dependencies
+frontend/node_modules/

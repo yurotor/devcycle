@@ -1,6 +1,7 @@
 "use client";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RefreshCw } from "lucide-react";
 import {
   PHASE_LABELS,
   PHASE_DOT_COLORS,
@@ -12,6 +13,8 @@ interface KanbanBoardProps {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
   activeTicketId?: string;
+  onSync?: () => void;
+  syncing?: boolean;
 }
 
 const PHASES: WorkflowPhase[] = [
@@ -51,6 +54,8 @@ export function KanbanBoard({
   tickets,
   onTicketClick,
   activeTicketId,
+  onSync,
+  syncing,
 }: KanbanBoardProps) {
   return (
     <div className="h-full flex flex-col">
@@ -60,6 +65,17 @@ export function KanbanBoard({
         <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
           {tickets.length} tickets
         </span>
+        {onSync && (
+          <button
+            onClick={onSync}
+            disabled={syncing}
+            className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="Sync from Jira"
+          >
+            <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync Jira"}
+          </button>
+        )}
       </div>
 
       {/* Columns */}

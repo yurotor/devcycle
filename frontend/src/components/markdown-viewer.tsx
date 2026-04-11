@@ -1,18 +1,42 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FAKE_KB_CONTENT } from "@/lib/fake-data";
 
 interface MarkdownViewerProps {
   path: string;
 }
 
 export function MarkdownViewer({ path }: MarkdownViewerProps) {
-  const content =
-    FAKE_KB_CONTENT[path] ??
-    `# ${path.split("/").pop()}\n\n*This file has not been generated yet. Run a scan to populate the knowledge base.*`;
+  const [content, setContent] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
-  const lines = content.split("\n");
+  useEffect(() => {
+    setContent(null);
+    setError(false);
+
+    fetch(`/api/kb/file?path=${encodeURIComponent(path)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Not found");
+        return res.text();
+      })
+      .then(setContent)
+      .catch(() => setError(true));
+  }, [path]);
+
+  if (content === null && !error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <span className="text-xs text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
+
+  const text = error
+    ? `# ${path.split("/").pop()}\n\n*This file has not been generated yet. Run a scan to populate the knowledge base.*`
+    : content!;
+
+  const lines = text.split("\n");
 
   return (
     <ScrollArea className="h-full">
@@ -85,18 +109,14 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
                 >
                   {cells.map((cell, j) => (
                     <div key={j} className="flex-1 py-0.5 px-1">
-                      {cell.trim().startsWith("⚠️") ? (
-                        <span className="text-amber">{cell.trim()}</span>
-                      ) : (
-                        cell.trim()
-                      )}
+                      {cell.trim()}
                     </div>
                   ))}
                 </div>
               );
             }
             if (line.startsWith("- ")) {
-              const content = line.replace("- ", "");
+              const item = line.replace("- ", "");
               return (
                 <div
                   key={i}
@@ -104,7 +124,7 @@ export function MarkdownViewer({ path }: MarkdownViewerProps) {
                 >
                   <span className="text-cyan mt-0.5 shrink-0">·</span>
                   <span>
-                    {content.split(/(\*\*.*?\*\*|\`.*?\`)/).map((part, pi) => {
+                    {item.split(/(\*\*.*?\*\*|\`.*?\`)/).map((part, pi) => {
                       if (part.startsWith("**") && part.endsWith("**")) {
                         return (
                           <strong key={pi} className="text-foreground font-medium">

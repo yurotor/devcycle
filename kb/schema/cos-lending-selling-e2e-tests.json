@@ -1,0 +1,22 @@
+{
+  "name": "cos-lending-selling-e2e-tests",
+  "fileCount": 155,
+  "techStack": [
+    "Python",
+    "Docker"
+  ],
+  "topLevelDirs": [
+    ".env",
+    ".gitignore",
+    ".pre-commit-config.yaml",
+    "CLAUDE.md",
+    "CRB_Root_CA.crt",
+    "Makefile",
+    "README.md",
+    "accounting",
+    "arix",
+    "build.sh"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.356Z"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "cos-lending-selling-data-utils",
+  "fileCount": 57,
+  "techStack": [],
+  "topLevelDirs": [
+    ".devcontainer",
+    ".devops",
+    ".dockerignore",
+    ".gitignore",
+    ".vscode",
+    "COS.Lending.Selling.DataTools.AccountsResolver.Tests",
+    "COS.Lending.Selling.DataTools.AccountsResolver.sln",
+    "Directory.Build.props",
+    "Dockerfile",
+    "README.md"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.355Z"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "cos-lending-selling-ai",
+  "fileCount": 87,
+  "techStack": [
+    "Python",
+    "Docker"
+  ],
+  "topLevelDirs": [
+    ".devops",
+    ".gitignore",
+    "AI_SERVICE_USAGE.md",
+    "BEDROCK_TIMEOUT_FIX.md",
+    "Dockerfile",
+    "POLLING_API_USAGE.md",
+    "README.md",
+    "app",
+    "build.sh",
+    "poetry.lock"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.352Z"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "iac-cos-lending-selling",
+  "fileCount": 288,
+  "techStack": [
+    "Python"
+  ],
+  "topLevelDirs": [
+    ".devcontainer",
+    ".devops",
+    ".gitignore",
+    "README.md",
+    "docker",
+    "orchestration"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.358Z"
+}

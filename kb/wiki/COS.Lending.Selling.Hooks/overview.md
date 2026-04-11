@@ -1,0 +1,14 @@
+# COS.Lending.Selling.Hooks
+
+## Overview
+
+Repository "COS.Lending.Selling.Hooks" contains 41 files. Tech stack: .NET/C#, Docker. Top file types: .cs (17), .json (7), .yaml (6), .csproj (4), .sln (1). Key files analyzed: README.md, Dockerfile, src/CRB.Cos.Lending.Selling.Hooks.Contracts/BatchPurchaseCompleted.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/INotification.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/InvestorChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/LoanSaleStatusChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/LoanTypeChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/OverdueLoansAlert.cs, src/CRB.Cos.Lending.Selling.Hooks.Contracts/TrueUpVolumeFeeCharged.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/HooksVariables.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/IBatchPurchaseCompleted.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/IInvestorChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/ILoanSaleStatusChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/ILoanTypeChanged.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/IOverdueLoansAlert.cs, src/CRB.Cos.Lending.Selling.Hooks.Events/ITrueUpVolumeFeeCharged.cs, src/CRB.Cos.Lending.Selling.Hooks.Host/NotificationPublisher.cs, src/CRB.Cos.Lending.Selling.Hooks.Host/Program.cs. (Stub analysis — AI analysis will replace this when Claude API is connected.)
+
+## Architecture
+
+## COS.Lending.Selling.Hooks — Structure
+
+Total files: 41
+Top-level directories: .devops, .dockerignore, .gitignore, CRB.Cos.Lending.Selling.Hooks.sln, Dockerfile, README.md, nuget.config, src, tests
+
+(Stub analysis — AI-generated architecture overview will appear here.)

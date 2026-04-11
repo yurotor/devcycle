@@ -1,0 +1,15 @@
+{
+  "name": "Cos.Lending.Selling.Contracts",
+  "fileCount": 18,
+  "techStack": [],
+  "topLevelDirs": [
+    ".gitignore",
+    "CRB.Cos.Lending.Selling.Contracts",
+    "CRB.Cos.Lending.Selling.Contracts.sln",
+    "README.md",
+    "ap-package-creation-common.yaml",
+    "buildnpush.ps1"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.350Z"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "COS.Lending.Selling.UI",
+  "fileCount": 141,
+  "techStack": [
+    "Node"
+  ],
+  "topLevelDirs": [
+    ".browserslistrc",
+    ".devcontainer",
+    ".devops",
+    ".github",
+    ".gitignore",
+    ".npmrc",
+    ".prettierrc.mjs",
+    ".vscode",
+    "Dockerfile",
+    "Dockerfile.cypress"
+  ],
+  "findings": [],
+  "generatedAt": "2026-04-11T12:16:46.348Z"
+}

@@ -1,0 +1,14 @@
+# cos-lending-selling-ingestion
+
+## Overview
+
+Repository "cos-lending-selling-ingestion" contains 95 files. Tech stack: Python, Docker. Top file types: .py (46), .sql (16), .sh (6), .yaml (5), .md (4). Key files analyzed: README.md, modules/requirements.txt, .devcontainer/docker-compose.yml, modules/Dockerfile, cli_commands.py, modules/src/cloudwatch/metrics.py, modules/src/ingestion/loads.py, modules/src/ingestion/sofr.py, modules/src/ingestion/sync.py, modules/src/models/app_contract_model.py, modules/src/models/app_loan_model.py, modules/src/models/app_mpl_bootstrapping_model.py, modules/src/models/app_sofr_model.py, modules/src/models/servicing_timestamps_model.py, modules/src/models/servicing_values_model.py, modules/src/models/sofr_api_models.py, modules/src/repository/contract_repo.py, modules/src/repository/loan_repo.py, modules/src/repository/mpl_bootstrapping_repo.py, modules/src/repository/servicing_timestamps_repo.py. (Stub analysis — AI analysis will replace this when Claude API is connected.)
+
+## Architecture
+
+## cos-lending-selling-ingestion — Structure
+
+Total files: 95
+Top-level directories: .claude, .devcontainer, .devops, .gitignore, .vscode, CLAUDE.md, README.md, SQLScripts, TF, cli_commands.py
+
+(Stub analysis — AI-generated architecture overview will appear here.)
