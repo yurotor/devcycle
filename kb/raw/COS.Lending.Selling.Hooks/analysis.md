@@ -1,74 +1,68 @@
 # COS.Lending.Selling.Hooks
 
 ## Purpose
-COS.Lending.Selling.Hooks provides a centralized notification service for loan selling operations in the COS Lending system. It processes various business events related to loan sales and investor activities, transforming them into standardized messages and publishing them to downstream systems through a hooks pattern.
+COS.Lending.Selling.Hooks is a service that acts as a notification gateway for loan-selling related events in the CRB Cos Lending platform. It receives notifications about loan sale status changes, batch purchases, and other lending events, and publishes them to a central hooks system to trigger downstream processes.
 
 ## Business Features
 - Loan sale status change notifications
 - Batch purchase completion notifications
-- True-up volume fee charge tracking
-- Loan type change tracking
+- True-up volume fee charge notifications
+- Loan type change notifications
 - Investor change notifications
-- Overdue loans alerting
+- Overdue loans alert notifications
 
 ## APIs
-- **GET /selling/hooks/health** — Health check endpoint for service monitoring
-- **POST /selling/hooks/api/sendNotification** — Accepts various notification types and publishes them as standardized events
+- **GET /selling/hooks/health** — Health check endpoint for the service
+- **POST /selling/hooks/api/sendNotification** — Publishes various types of loan selling notifications to the hooks system
 
 ## Dependencies
 - **CRB.CosLending.Hooks.Hub.Service** (messaging)
 - **NServiceBus** (messaging)
-- **CRB.Framework.Logging** (shared-lib)
-- **CRB.Hooks** (shared-lib)
-- **CRB.CosLending.Common.Messages** (shared-lib)
-- **OAuth Authorization Server** (http)
+- **CRB OAuth Service** (http)
 
 ## Data Entities
-- **LoanSaleStatusChanged** — Represents a change in loan sale status including loan information and sale details
-- **BatchPurchaseCompleted** — Represents a completed batch purchase transaction with financial details and metrics
-- **TrueUpVolumeFeeCharged** — Represents volume fee adjustments charged to loans on a periodic basis
+- **LoanSaleStatusChanged** — Represents a change in loan sale status with loan details, investor, and financial amounts
+- **BatchPurchaseCompleted** — Represents a completed batch purchase with totals for principal, interest, fees and count of loans
+- **TrueUpVolumeFeeCharged** — Represents a true-up volume fee charged for a specific month and year
 - **InvestorChanged** — Represents a change in the investor associated with a loan
-- **LoanTypeChanged** — Represents a change in loan type classification
-- **OverdueLoansAlert** — Represents metrics about overdue loans requiring attention
+- **LoanTypeChanged** — Represents a change in the loan type for a specific loan
+- **OverdueLoansAlert** — Represents alerts for overdue loans with counts and sum amounts
 
 ## Messaging Patterns
-- **LoanSaleStatusUpdated** (event) — Published when a loan's sale status is updated
-- **BatchPurchaseCompleted** (event) — Published when a batch purchase transaction is completed
-- **TrueUpVolumeFeeCharged** (event) — Published when a true-up volume fee is charged
-- **LoanTypeChanged** (event) — Published when a loan's type classification changes
-- **InvestorChanged** (event) — Published when a loan's investor assignment changes
-- **OverdueLoansAlert** (event) — Published when metrics about overdue loans need to be reported
+- **LoanSaleStatusUpdated** (event) — Event published when a loan sale status changes
+- **BatchPurchaseCompleted** (event) — Event published when a batch purchase is completed
+- **TrueUpVolumeFeeCharged** (event) — Event published when a true-up volume fee is charged
+- **LoanTypeChanged** (event) — Event published when a loan type is changed
+- **InvestorChanged** (event) — Event published when an investor is changed for a loan
+- **OverdueLoansAlert** (event) — Event published when overdue loans are detected
 
 ## External Integrations
-- **NServiceBus** — downstream via messaging
-- **CRB.CosLending.Hooks.Hub.Service** — downstream via messaging
-- **OAuth Authorization Server** — upstream via REST
+- **CosLending.Hooks.Hub** — downstream via messaging
 
 ## Architecture Patterns
-- Microservice
 - Event-driven architecture
+- Notification pattern
 - Publisher-subscriber pattern
 - API Gateway
-- Hooks pattern
 
 ## Tech Stack
 - .NET 8
 - ASP.NET Core
 - NServiceBus
 - Docker
-- JWT Authentication
 - Swagger
+- OAuth/JWT Authentication
 
 ## Findings
-### [HIGH] Sensitive configuration in appsettings files
-
-**Category:** security  
-**Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/appsettings.Development.json
-
-The application contains sensitive configuration information in appsettings files, with a note that TransportConnectionString is 'taken from aws secrets manager', but the code doesn't show proper secrets management implementation. This could lead to credential leakage. Implement proper secret management using AWS Secrets Manager or similar service.
-### [HIGH] Lack of input validation
+### [HIGH] Missing error handling for failed event publishing
 
 **Category:** architecture  
 **Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/NotificationPublisher.cs
 
-The NotificationPublisher accepts notification objects without validating their content before publishing them as events. This could lead to data integrity issues or system errors downstream. Implement input validation for all notification types.
+The NotificationPublisher class does not have robust error handling for failures when publishing events. If the NServiceBus message publishing fails, there's no retry mechanism or error tracking, which could lead to lost notifications. Implement proper error handling with retries and dead-letter queue mechanism.
+### [HIGH] Authentication configuration needs safeguards
+
+**Category:** security  
+**Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/appsettings.Development.json
+
+The authentication configuration in appsettings.Development.json indicates that OAuth keys are 'taken from aws secrets manager' but there's no validation to ensure these values are actually present before the application starts, which could lead to unauthenticated access if misconfigured.

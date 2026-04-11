@@ -1,172 +1,141 @@
 {
-  "purpose": "This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) for orchestrating data workflows in a loan lending and selling system. It manages the end-to-end process of loan data ingestion, transformation, interest calculation, fee collection, and data exports for financial reporting.",
+  "purpose": "This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) that orchestrate various ETL processes for a loan selling and servicing platform. It automates data ingestion, transformation, and synchronization between systems to enable loan management, fee collection, interest accrual, and reporting.",
   "businessFeatures": [
-    "Loan data ingestion and synchronization from external sources",
-    "Interest accrual calculations and processing",
-    "Fee collection and management",
-    "Loan curation and servicing",
-    "Data export to external systems",
-    "SOFR (Secured Overnight Financing Rate) ingestion",
-    "Presale reporting generation",
-    "Volume fee calculation and true-up processing",
+    "Loan data ingestion and curation from source systems",
+    "Interest accrual calculations for loans",
+    "Fee collection and processing",
+    "Data export for reporting and analytics",
+    "Loan servicing data management",
     "MPL (Marketplace Lender) management",
-    "Organizations and investor data management"
+    "SOFR rate ingestion for interest calculations",
+    "Pre-sale reporting for loan sales",
+    "Synchronization with vampire (sales data system)",
+    "Account resolution and management"
   ],
   "apis": [],
   "dependencies": [
     {
-      "target": "dbt",
+      "target": "dbt-transformations",
       "type": "shared-lib"
     },
     {
-      "target": "flyway",
+      "target": "flyway-migrations",
       "type": "shared-lib"
     },
     {
-      "target": "aws-ecs",
-      "type": "http"
+      "target": "ingestion-modules",
+      "type": "shared-lib"
     },
     {
       "target": "postgres-rds",
       "type": "database"
     },
     {
-      "target": "aws-athena",
-      "type": "http"
-    },
-    {
-      "target": "aws-ssm",
-      "type": "http"
-    },
-    {
-      "target": "aws-secrets-manager",
-      "type": "http"
-    },
-    {
-      "target": "aws-cloudwatch",
-      "type": "http"
-    },
-    {
-      "target": "volume-db",
+      "target": "vampire",
       "type": "database"
     },
     {
-      "target": "loans-db",
-      "type": "database"
-    },
-    {
-      "target": "contracts-db",
-      "type": "database"
-    },
-    {
-      "target": "vampire-db",
+      "target": "athena",
       "type": "database"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan data entity representing a financial loan with associated attributes"
+      "description": "Core loan data representing originated loans in the system"
     },
     {
       "name": "Account",
-      "description": "Financial account associated with loans"
-    },
-    {
-      "name": "Organization",
-      "description": "Represents issuing banks and investors with organization IDs"
+      "description": "Financial accounts associated with loans"
     },
     {
       "name": "Fee",
-      "description": "Various fees associated with loans and transactions"
+      "description": "Fee data for loan processing and servicing"
     },
     {
       "name": "MPL",
-      "description": "Marketplace Lender entity with associated configuration"
+      "description": "Marketplace Lender entities that originate loans"
     },
     {
-      "name": "Batch",
-      "description": "Grouping of loans for processing or sale"
+      "name": "Organization",
+      "description": "Issuing banks and investors that participate in the lending ecosystem"
     },
     {
       "name": "SOFR",
       "description": "Secured Overnight Financing Rate data used for interest calculations"
     },
     {
-      "name": "LoanAction",
-      "description": "Record of actions performed on loans"
-    },
-    {
       "name": "Contract",
-      "description": "Legal agreements related to loans"
+      "description": "Legal contracts associated with loans"
     },
     {
-      "name": "Volume",
-      "description": "Volume data used for fee calculations and reporting"
+      "name": "FeeTierRange",
+      "description": "Tier-based fee structure definitions"
     }
   ],
   "messagingPatterns": [],
   "integrations": [
     {
-      "system": "VAMPIRE",
+      "system": "SOFR data source",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Vampire",
       "direction": "downstream",
       "protocol": "database"
     },
     {
       "system": "Athena",
-      "direction": "bidirectional",
-      "protocol": "REST"
-    },
-    {
-      "system": "New Relic",
       "direction": "upstream",
-      "protocol": "REST"
+      "protocol": "database"
     },
     {
-      "system": "Servicing System",
-      "direction": "bidirectional",
+      "system": "Servicing data source",
+      "direction": "upstream",
       "protocol": "file"
     }
   ],
   "architecturePatterns": [
-    "Extract-Load-Transform (ELT)",
-    "Task Orchestration",
+    "ELT (Extract, Load, Transform)",
+    "Task orchestration",
+    "Container-based processing",
     "Infrastructure as Code",
-    "Event-driven Processing",
-    "Parameterized Workflows"
+    "Data pipeline"
   ],
   "techStack": [
     "Apache Airflow",
     "Python",
-    "dbt",
-    "Docker",
     "AWS ECS",
-    "AWS MWAA",
+    "Docker",
     "PostgreSQL",
+    "DBT (Data Build Tool)",
     "Flyway",
     "AWS Secrets Manager",
-    "AWS SSM",
-    "AWS CloudWatch",
-    "AWS Athena"
+    "AWS SSM Parameter Store",
+    "AWS Athena",
+    "AWS CloudWatch"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hard-coded credentials in development environment",
-      "description": "The Docker Compose configuration contains hard-coded credentials for the Airflow database and MinIO S3 emulator. While these might be for local development only, they should be replaced with environment variables from a secure source to prevent accidental promotion to higher environments.",
+      "title": "Secret Management Inconsistency",
+      "description": "The repository uses a mix of AWS Secrets Manager and environment variables for credential management. Some credentials like database passwords are properly managed through Secrets Manager ARNs, while others may be exposed through environment files (e.g., selling.env). All secrets should be managed consistently through Secrets Manager to prevent potential credential exposure.",
       "files": [
-        ".devcontainer/docker-compose.yml"
+        ".devcontainer/docker-compose.yml",
+        "dags/projects/utils/ingestion_task_factory.py"
       ]
     },
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Missing error handling in DAG dependencies",
-      "description": "The DAGs are chained together with simple operators without proper error handling or retry logic. This can lead to failed pipeline executions without clear visibility into the failure point. Implement robust error handling strategies with appropriate retry mechanisms and alerting.",
+      "title": "Missing Error Handling in Dag Tasks",
+      "description": "Many of the DAG tasks have minimal or no error handling, which can lead to silent failures or incomplete executions without clear diagnostics. Tasks should implement proper exception handling with appropriate logging and recovery mechanisms to ensure reliability.",
       "files": [
-        "dags/projects/loans_curation/loans_curation_dag.py",
-        "dags/projects/loans_ingestion/loans_ingestion_dag.py"
+        "dags/projects/loans_ingestion/loans_ingestion_dag.py",
+        "dags/projects/utils/dbt_task_factory.py",
+        "dags/projects/utils/ingestion_task_factory.py"
       ]
     }
   ]

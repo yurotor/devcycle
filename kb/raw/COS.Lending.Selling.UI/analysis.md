@@ -1,85 +1,83 @@
 # COS.Lending.Selling.UI
 
 ## Purpose
-COS.Lending.Selling.UI is a React-based frontend application for CrossRiver Bank's lending and selling platform. It provides interfaces for loan management, selling, and tracking with various user role-specific features across different environments (development, QA, staging, production).
+COS.Lending.Selling.UI is a React-based web application that provides a front-end interface for managing and monitoring loans within Cross River Bank's lending and selling system. It enables users with different roles to view, filter, sort, and manage loan details, pending approvals, and loan history.
 
 ## Business Features
-- Loan management and tracking
-- Loan history and details viewing
-- Long-term hold for sale (LTHFS) loan management
+- Loan management dashboard
+- Loan details viewing
+- Loan filtering and searching
+- Loan history tracking and AI-powered queries
 - Pending loan approvals management
-- AI-assisted loan history insights
-- Loan searching, filtering and sorting
+- Long-term held for sale (LTHFS) loan management
 - Role-based access control
 
 ## APIs
-- **GET /selling/api/loans/HFS** — Retrieve loans held for sale data
-- **GET /selling/api/loans/{id}** — Retrieve details of a specific loan
-- **POST /crb/ai/session** — Create or get an AI chat session for loan history analysis
-- **GET /crb/ai/session/{sessionId}/history** — Get history of AI chat sessions
-- **POST /crb/ai/session/{sessionId}/chat** — Send a message to the AI chat session
-- **GET /crb/ai/session/{sessionId}/stream** — Stream AI chat responses for real-time updates
+- **GET /selling/api/loans/HFS** — Retrieve list of loans held for sale
+- **GET /selling/api/loans/{id}** — Get detailed information for a specific loan
+- **POST /crb/ai/session** — Create or get a chat session for loan history AI analysis
+- **GET /crb/ai/session/{sessionId}/history** — Retrieve chat history for a loan session
+- **POST /crb/ai/chat/stream** — Stream AI responses for loan history analysis
+- **POST /crb/ai/session/{sessionId}/message** — Send a message in the loan history chat
 
 ## Dependencies
-- **CosLendingSellingApi** (http)
-- **crb-ui** (shared-lib)
-- **identity-provider** (http)
-- **CRB AI Service** (http)
+- **COS.Lending.Selling.API** (http)
+- **CRB.AI** (http)
+- **Identity Provider (idptest.crbcos.com)** (http)
 - **CosLendingMenu** (http)
 
 ## Data Entities
-- **Loan** — Core loan entity with detailed loan information including status, amounts, and dates
-- **LoanDetails** — Extended information about a specific loan including sale status and borrower info
-- **PendingApproval** — Loan approval requests awaiting management decision
-- **ChatSession** — AI conversation session about loan history and data analysis
-- **ChatMessage** — Individual message in an AI conversation session with loan data insights
+- **Loan** — Represents a loan in the system with its details like loan number, status, and sale information
+- **LoanHistory** — History of interactions and changes related to a specific loan
+- **PendingApproval** — Represents a loan waiting for approval in the system
+- **LTHFS** — Long-term held for sale loans that have specific handling requirements
 
 ## Messaging Patterns
-- **SSE (Server-Sent Events)** (event) — Used for streaming real-time AI chat responses for loan history analysis
+- **Server-Sent Events** (event) — Used for streaming AI responses in the loan history chat feature
 
 ## External Integrations
-- **Identity Provider** — bidirectional via REST
-- **CRB AI Service** — bidirectional via REST
-- **COS Lending Menu** — downstream via web-component
+- **Identity Provider** — upstream via OAuth
+- **CosLendingMenu** — bidirectional via Web Components
+- **New Relic** — downstream via HTTP
+- **TestRail** — downstream via HTTP
 
 ## Architecture Patterns
+- Single Page Application
 - Component-based architecture
-- REST API client
-- Server-Sent Events (SSE)
-- Single Page Application (SPA)
+- Store pattern (Zustand)
 - Role-based access control
-- Micro frontend
+- Environment configuration
 
 ## Tech Stack
 - React
 - TypeScript
-- Styled Components
 - Vite
-- Cypress
+- Styled Components
 - Zustand
-- React Router
-- Dayjs
+- crb-ui (internal UI library)
+- Cypress
+- ReactMarkdown
 - OAuth/OIDC
-- CRB UI component library
+- Server-Sent Events
 - Docker
 - Nginx
 
 ## Findings
-### [HIGH] Disabled CORS in development documentation
+### [HIGH] Hardcoded credentials in configuration files
 
 **Category:** security  
-**Files:** README.md
+**Files:** public/assets/app-settings-dev.js, public/assets/app-settings-qa.js, public/assets/app-settings-stg.js, public/assets/app-settings-prd.js
 
-The README recommends disabling CORS through a browser extension for local development, which could lead to security vulnerabilities if developers forget to re-enable it or become accustomed to working with disabled CORS. A better approach would be to properly configure CORS on the development backend.
-### [HIGH] Potential exposure of user credentials in environment variables
+The configuration files contain placeholders for New Relic credentials. While these appear to be dummy values ('111'), any hardcoded credentials in source code pose a security risk. These should be moved to secure environment variables or secrets management.
+### [HIGH] OAuth client credentials potentially exposed
 
 **Category:** security  
-**Files:** cypress/config/cypress.base.config.ts
+**Files:** public/assets/app-settings.js, public/assets/app-settings-dev.js, public/assets/app-settings-qa.js, public/assets/app-settings-stg.js, public/assets/app-settings-prd.js
 
-User passwords and test credentials appear to be stored in environment variables that might be exposed in CI/CD pipelines or logs. Credentials should be stored in secure credential stores and accessed only during runtime.
-### [HIGH] Inconsistent environment configuration approach
+The application contains OAuth client ID and redirect URIs in public configuration files. While client IDs are typically not sensitive alone, they should ideally be managed through a more secure configuration mechanism to prevent information disclosure.
+### [HIGH] CORS issues requiring extension workaround
 
 **Category:** architecture  
-**Files:** public/assets/app-settings-dev.js, public/assets/app-settings.js, cypress/config/cypress.base.config.ts
+**Files:** README.md
 
-The application uses multiple environment configuration mechanisms (app-settings-*.js files, .env files, and hardcoded config in code), making it difficult to maintain consistent configuration across environments. A unified configuration approach should be implemented.
+The README mentions using a Chrome extension to disable CORS, which is a serious architectural flaw. This approach is highly insecure for development and could lead to security vulnerabilities if the habit carries to production. The application should properly handle CORS through server configuration.

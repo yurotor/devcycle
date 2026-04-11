@@ -1,40 +1,34 @@
 {
-  "purpose": "The COS Lending Selling AI service provides a conversational AI assistant for loan analysis, allowing users to query loan history, interest calculations, transfers, and other details through natural language. It connects to PostgreSQL databases to execute SQL queries based on user questions and returns summarized responses.",
+  "purpose": "This repository provides an AI-powered question-answering system for the COS Lending Selling platform. It enables users to query loan data through natural language, translating these questions into SQL queries and generating human-readable responses using AWS Bedrock and Claude LLMs.",
   "businessFeatures": [
-    "Loan history timeline analysis",
-    "Interest calculation and breakdown",
+    "Conversational loan data querying",
+    "Natural language to SQL translation",
+    "Loan history analysis",
     "Transfer history tracking",
-    "Loan details retrieval",
-    "Fee configuration analysis",
-    "Natural language query processing",
-    "Conversational AI chat interface",
-    "SQL generation from natural language"
+    "Interest breakdown analysis",
+    "Fee details retrieval",
+    "Session-based conversation management"
   ],
   "apis": [
     {
-      "endpoint": "/crb/ai/loan",
-      "method": "POST",
-      "purpose": "Submit a natural language question about a loan"
-    },
-    {
-      "endpoint": "/chat/",
+      "endpoint": "/crb/ai/chat/",
       "method": "POST",
       "purpose": "Create or resume a chat session for a user+loan pair"
     },
     {
-      "endpoint": "/chat/{session_id}/history",
+      "endpoint": "/crb/ai/chat/{session_id}/history",
       "method": "GET",
-      "purpose": "Get message history for a chat session"
+      "purpose": "Get all messages for a session with validation of ownership"
     },
     {
-      "endpoint": "/chat/{session_id}/message",
+      "endpoint": "/crb/ai/chat/{session_id}/message",
       "method": "POST",
-      "purpose": "Submit a user message to a chat session"
+      "purpose": "Submit a user message to the session"
     },
     {
-      "endpoint": "/chat/{session_id}/stream",
+      "endpoint": "/crb/ai/chat/{session_id}/stream",
       "method": "GET",
-      "purpose": "Stream AI-generated responses as server-sent events"
+      "purpose": "SSE stream endpoint that orchestrates the question-answering pipeline"
     }
   ],
   "dependencies": [
@@ -43,11 +37,11 @@
       "type": "http"
     },
     {
-      "target": "lending-selling-database",
+      "target": "cos-lending-selling-postgres",
       "type": "database"
     },
     {
-      "target": "dynamodb",
+      "target": "aws-dynamodb",
       "type": "database"
     },
     {
@@ -57,31 +51,31 @@
   ],
   "dataEntities": [
     {
+      "name": "Session",
+      "description": "User conversation session with session_id, username, loan_id and messages"
+    },
+    {
+      "name": "Message",
+      "description": "Chat message with role, content, SQL summary and timestamp"
+    },
+    {
       "name": "Loan",
-      "description": "Core loan information including ID, amount, rates, and status"
+      "description": "Core loan entity with loan details, amounts, dates and status"
     },
     {
       "name": "LoanAction",
-      "description": "Actions taken on loans like funding or status changes"
+      "description": "Actions performed on loans such as transfers or status changes"
     },
     {
       "name": "Transfer",
-      "description": "Money movements related to loans including interest payments and fees"
-    },
-    {
-      "name": "InterestCalculationMethod",
-      "description": "Methods used to calculate interest for different loan types"
-    },
-    {
-      "name": "Session",
-      "description": "Chat conversation session between user and AI about a specific loan"
+      "description": "Financial transfers related to loans including interest payments and fees"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "SSE streaming",
-      "description": "Server-Sent Events for streaming AI responses to clients"
+      "name": "SSE (Server-Sent Events)",
+      "description": "Real-time streaming of AI responses to the client with token-by-token updates"
     }
   ],
   "integrations": [
@@ -92,63 +86,65 @@
     },
     {
       "system": "AWS DynamoDB",
-      "direction": "downstream",
-      "protocol": "AWS SDK"
+      "direction": "bidirectional",
+      "protocol": "SDK"
     },
     {
       "system": "AWS Secrets Manager",
       "direction": "downstream",
-      "protocol": "AWS SDK"
+      "protocol": "SDK"
     },
     {
-      "system": "Identity Server",
-      "direction": "upstream",
-      "protocol": "OAuth2"
+      "system": "COS Lending Selling Database",
+      "direction": "downstream",
+      "protocol": "PostgreSQL"
     }
   ],
   "architecturePatterns": [
     "Microservice",
-    "Event-driven",
-    "API Gateway",
-    "OAuth2 Authentication",
-    "LLM-based Query Understanding",
-    "Session Management"
+    "Streaming API",
+    "Chain of Responsibility",
+    "LLM Prompt Engineering",
+    "Repository Pattern",
+    "Singleton Pattern"
   ],
   "techStack": [
-    "Python",
+    "Python 3.11",
     "FastAPI",
-    "SQLAlchemy",
-    "PostgreSQL",
     "AWS Bedrock",
-    "AWS DynamoDB",
-    "AWS Secrets Manager",
-    "Claude 3 Sonnet (Anthropic)",
-    "Docker"
+    "Claude LLM",
+    "PostgreSQL",
+    "DynamoDB",
+    "Docker",
+    "Poetry",
+    "SQLModel",
+    "Server-Sent Events",
+    "HTTPX"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Insecure token validation in streaming endpoint",
-      "description": "The chat streaming endpoint validates session ownership but doesn't appear to verify token expiration. An expired token could potentially continue accessing streams if the session ID is known.",
+      "title": "Potential SQL injection risk in SQL generator",
+      "description": "The SQL generation functionality using LLM responses could potentially contain SQL injection vulnerabilities. Although there are safeguards like regex checks in _ensure_safe(), the system relies on AI-generated SQL which could produce unexpected results. Implement more robust parameterization and additional validation on generated SQL.",
       "files": [
-        "app/api/routes/chat_stream.py"
+        "app/ai/sql_executor.py"
       ]
     },
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Lack of rate limiting for AI service",
-      "description": "The application doesn't implement rate limiting for AI calls, which could lead to excessive costs and potential abuse. Consider adding a rate limiter for API calls to Bedrock.",
+      "title": "Session data handling inconsistencies",
+      "description": "The session manager uses scan operations to find sessions by ID, which will not scale well. The code mentions this could be a concern as volume grows. Implement a GSI on session_id in DynamoDB to avoid full table scans.",
       "files": [
-        "app/ai/ai_service.py"
+        "app/ai/session_manager.py"
       ]
     },
     {
       "severity": "high",
       "category": "security",
-      "title": "Potential SQL injection vulnerability",
-      "description": "While the application attempts to validate SQL safety with regex patterns, the _apply_required_predicates function in sql_executor.py may be vulnerable to SQL injection as it directly interpolates values into queries.",
+      "title": "Credentials caching without proper expiration",
+      "description": "Database credentials are cached but might not be properly rotated on expiration. The _creds_cache is set to expire after 300 seconds but there's no guarantee that the code properly handles token expiration scenarios. Implement proper credential rotation and expiration handling.",
       "files": [
         "app/ai/sql_executor.py"
       ]

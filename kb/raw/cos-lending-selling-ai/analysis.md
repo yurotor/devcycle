@@ -1,82 +1,82 @@
 # cos-lending-selling-ai
 
 ## Purpose
-The COS Lending Selling AI service provides a conversational AI assistant for loan analysis, allowing users to query loan history, interest calculations, transfers, and other details through natural language. It connects to PostgreSQL databases to execute SQL queries based on user questions and returns summarized responses.
+This repository provides an AI-powered question-answering system for the COS Lending Selling platform. It enables users to query loan data through natural language, translating these questions into SQL queries and generating human-readable responses using AWS Bedrock and Claude LLMs.
 
 ## Business Features
-- Loan history timeline analysis
-- Interest calculation and breakdown
+- Conversational loan data querying
+- Natural language to SQL translation
+- Loan history analysis
 - Transfer history tracking
-- Loan details retrieval
-- Fee configuration analysis
-- Natural language query processing
-- Conversational AI chat interface
-- SQL generation from natural language
+- Interest breakdown analysis
+- Fee details retrieval
+- Session-based conversation management
 
 ## APIs
-- **POST /crb/ai/loan** — Submit a natural language question about a loan
-- **POST /chat/** — Create or resume a chat session for a user+loan pair
-- **GET /chat/{session_id}/history** — Get message history for a chat session
-- **POST /chat/{session_id}/message** — Submit a user message to a chat session
-- **GET /chat/{session_id}/stream** — Stream AI-generated responses as server-sent events
+- **POST /crb/ai/chat/** — Create or resume a chat session for a user+loan pair
+- **GET /crb/ai/chat/{session_id}/history** — Get all messages for a session with validation of ownership
+- **POST /crb/ai/chat/{session_id}/message** — Submit a user message to the session
+- **GET /crb/ai/chat/{session_id}/stream** — SSE stream endpoint that orchestrates the question-answering pipeline
 
 ## Dependencies
 - **aws-bedrock** (http)
-- **lending-selling-database** (database)
-- **dynamodb** (database)
+- **cos-lending-selling-postgres** (database)
+- **aws-dynamodb** (database)
 - **identity-server** (http)
 
 ## Data Entities
-- **Loan** — Core loan information including ID, amount, rates, and status
-- **LoanAction** — Actions taken on loans like funding or status changes
-- **Transfer** — Money movements related to loans including interest payments and fees
-- **InterestCalculationMethod** — Methods used to calculate interest for different loan types
-- **Session** — Chat conversation session between user and AI about a specific loan
+- **Session** — User conversation session with session_id, username, loan_id and messages
+- **Message** — Chat message with role, content, SQL summary and timestamp
+- **Loan** — Core loan entity with loan details, amounts, dates and status
+- **LoanAction** — Actions performed on loans such as transfers or status changes
+- **Transfer** — Financial transfers related to loans including interest payments and fees
 
 ## Messaging Patterns
-- **SSE streaming** (event) — Server-Sent Events for streaming AI responses to clients
+- **SSE (Server-Sent Events)** (event) — Real-time streaming of AI responses to the client with token-by-token updates
 
 ## External Integrations
 - **AWS Bedrock** — downstream via REST
-- **AWS DynamoDB** — downstream via AWS SDK
-- **AWS Secrets Manager** — downstream via AWS SDK
-- **Identity Server** — upstream via OAuth2
+- **AWS DynamoDB** — bidirectional via SDK
+- **AWS Secrets Manager** — downstream via SDK
+- **COS Lending Selling Database** — downstream via PostgreSQL
 
 ## Architecture Patterns
 - Microservice
-- Event-driven
-- API Gateway
-- OAuth2 Authentication
-- LLM-based Query Understanding
-- Session Management
+- Streaming API
+- Chain of Responsibility
+- LLM Prompt Engineering
+- Repository Pattern
+- Singleton Pattern
 
 ## Tech Stack
-- Python
+- Python 3.11
 - FastAPI
-- SQLAlchemy
-- PostgreSQL
 - AWS Bedrock
-- AWS DynamoDB
-- AWS Secrets Manager
-- Claude 3 Sonnet (Anthropic)
+- Claude LLM
+- PostgreSQL
+- DynamoDB
 - Docker
+- Poetry
+- SQLModel
+- Server-Sent Events
+- HTTPX
 
 ## Findings
-### [HIGH] Insecure token validation in streaming endpoint
-
-**Category:** security  
-**Files:** app/api/routes/chat_stream.py
-
-The chat streaming endpoint validates session ownership but doesn't appear to verify token expiration. An expired token could potentially continue accessing streams if the session ID is known.
-### [HIGH] Lack of rate limiting for AI service
-
-**Category:** architecture  
-**Files:** app/ai/ai_service.py
-
-The application doesn't implement rate limiting for AI calls, which could lead to excessive costs and potential abuse. Consider adding a rate limiter for API calls to Bedrock.
-### [HIGH] Potential SQL injection vulnerability
+### [HIGH] Potential SQL injection risk in SQL generator
 
 **Category:** security  
 **Files:** app/ai/sql_executor.py
 
-While the application attempts to validate SQL safety with regex patterns, the _apply_required_predicates function in sql_executor.py may be vulnerable to SQL injection as it directly interpolates values into queries.
+The SQL generation functionality using LLM responses could potentially contain SQL injection vulnerabilities. Although there are safeguards like regex checks in _ensure_safe(), the system relies on AI-generated SQL which could produce unexpected results. Implement more robust parameterization and additional validation on generated SQL.
+### [HIGH] Session data handling inconsistencies
+
+**Category:** architecture  
+**Files:** app/ai/session_manager.py
+
+The session manager uses scan operations to find sessions by ID, which will not scale well. The code mentions this could be a concern as volume grows. Implement a GSI on session_id in DynamoDB to avoid full table scans.
+### [HIGH] Credentials caching without proper expiration
+
+**Category:** security  
+**Files:** app/ai/sql_executor.py
+
+Database credentials are cached but might not be properly rotated on expiration. The _creds_cache is set to expire after 300 seconds but there's no guarantee that the code properly handles token expiration scenarios. Implement proper credential rotation and expiration handling.

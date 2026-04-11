@@ -1,125 +1,127 @@
 {
-  "purpose": "This repository contains Infrastructure as Code (IaC) configurations for Cross River Bank's Cos Lending Selling platform. It automates the provisioning and management of AWS cloud resources including Aurora databases, Airflow workflows, API services, and storage solutions across multiple environments.",
+  "purpose": "This repository contains the Infrastructure as Code (IaC) for Cross River Bank's Lending and Selling platform. It uses Terragrunt to provision and manage AWS cloud resources including databases, APIs, compute resources, and storage services required for loan servicing and selling operations.",
   "businessFeatures": [
-    "Loan servicing and management",
-    "Lending operations",
-    "Loan selling automation",
-    "AI/ML integration for lending decisions",
-    "External database access management",
-    "Workflow orchestration with Airflow"
+    "Loan servicing",
+    "Loan selling",
+    "AI-powered lending analytics",
+    "Database access management",
+    "Workflow orchestration"
   ],
   "apis": [
     {
-      "endpoint": "/web-api/*",
-      "method": "REST",
-      "purpose": "Web application interface for lending services"
+      "endpoint": "/admin-api",
+      "method": "Multiple",
+      "purpose": "Administrative interface for lending platform management"
     },
     {
-      "endpoint": "/admin-api/*",
-      "method": "REST",
-      "purpose": "Administrative interface for lending system management"
+      "endpoint": "/web-api",
+      "method": "Multiple",
+      "purpose": "Customer-facing API for lending services"
     },
     {
-      "endpoint": "/ai-api/*",
-      "method": "REST",
-      "purpose": "AI-powered lending decision interface"
+      "endpoint": "/ai-api",
+      "method": "Multiple",
+      "purpose": "AI-powered lending decision and analytics API"
     }
   ],
   "dependencies": [
     {
-      "target": "aurora-database",
+      "target": "Aurora PostgreSQL",
       "type": "database"
     },
     {
-      "target": "athena-analytics",
-      "type": "database"
-    },
-    {
-      "target": "s3-servicing",
+      "target": "Amazon S3",
       "type": "shared-lib"
     },
     {
-      "target": "selling-x",
+      "target": "Amazon ECS",
+      "type": "http"
+    },
+    {
+      "target": "AWS Lambda",
+      "type": "http"
+    },
+    {
+      "target": "Amazon SQS",
       "type": "messaging"
     },
     {
-      "target": "airflow-mwaa",
+      "target": "Amazon Secrets Manager",
+      "type": "database"
+    },
+    {
+      "target": "Amazon MWAA (Airflow)",
       "type": "http"
     }
   ],
   "dataEntities": [
     {
       "name": "LoanFunding",
-      "description": "Funding details for loan transactions"
+      "description": "Represents loan funding data in the lending platform"
     },
     {
-      "name": "DatabaseCredentials",
-      "description": "Secure access credentials for database connections"
-    },
-    {
-      "name": "ApplicationUser",
-      "description": "User identity and permissions for application access"
+      "name": "DatabaseCredential",
+      "description": "Represents database access credentials for various services"
     }
   ],
   "messagingPatterns": [
     {
       "type": "queue",
-      "name": "SQS Queues",
-      "description": "Message queuing for selling-x service integration"
+      "name": "SQS Queues for Selling-X",
+      "description": "Message queues for loan selling processes"
     },
     {
       "type": "event",
-      "name": "CloudWatch Events",
-      "description": "System monitoring and alerts for platform operations"
+      "name": "Secret Rotation",
+      "description": "Event-driven credential rotation for database access"
     }
   ],
   "integrations": [
     {
-      "system": "AI Decision Service",
-      "direction": "bidirectional",
-      "protocol": "REST"
-    },
-    {
-      "system": "External Database",
+      "system": "External Database Systems",
       "direction": "bidirectional",
       "protocol": "database"
     },
     {
-      "system": "Selling-X Platform",
+      "system": "AWS Secrets Manager",
       "direction": "bidirectional",
-      "protocol": "messaging"
+      "protocol": "REST"
+    },
+    {
+      "system": "AI Service",
+      "direction": "bidirectional",
+      "protocol": "REST"
     }
   ],
   "architecturePatterns": [
     "Infrastructure as Code",
-    "Serverless Functions",
-    "Containerized Services",
-    "Secret Rotation",
-    "Event-driven Architecture",
-    "Microservices"
+    "Serverless",
+    "Microservices",
+    "Event-driven",
+    "Container-based deployment",
+    "Workflow orchestration"
   ],
   "techStack": [
-    "AWS",
-    "Terraform",
     "Terragrunt",
-    "ECS Fargate",
-    "Aurora PostgreSQL",
+    "Terraform",
+    "AWS",
+    "Docker",
+    "Python",
+    "PostgreSQL",
+    "Airflow",
     "Lambda",
+    "ECS",
     "S3",
     "SQS",
-    "Airflow",
-    "Python",
     "DynamoDB",
-    "CloudWatch",
-    "ALB",
-    "Secrets Manager"
+    "CloudWatch"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded SQL permissions in rotation scripts",
-      "description": "The database credential rotation scripts (ai-api and db-external-access modules) contain hardcoded SQL permissions that are granted to users. These should be parameterized based on environment to prevent potential privilege escalation.",
+      "title": "Hardcoded root database access in Lambda functions",
+      "description": "The secret rotation Lambda functions reference a root secret ARN for database access, creating a potential security risk if compromised. Consider using a more restricted service account or IAM role-based authentication.",
       "files": [
         "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
         "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
@@ -127,11 +129,12 @@
     },
     {
       "severity": "high",
-      "category": "architecture",
-      "title": "State bucket name generation creates potential collision risk",
-      "description": "The terraform state bucket name is generated based on branch names, which could lead to collisions or unauthorized access. Consider using a more robust naming strategy with additional entropy and access controls.",
+      "category": "security",
+      "title": "Direct SQL query construction using f-strings",
+      "description": "Direct SQL query construction using f-strings in Lambda functions could lead to SQL injection vulnerabilities. While most SQL is properly parameterized, the grant permission statements use f-strings. Switch to parameterized queries for all SQL operations.",
       "files": [
-        "README.md"
+        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
+        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
       ]
     }
   ]

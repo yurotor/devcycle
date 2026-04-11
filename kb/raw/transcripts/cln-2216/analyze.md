@@ -1,6 +1,6 @@
 # Analysis Transcript — CLN-2216: Moment/LTHFS process.  Difference in money and loans
 
-*Generated: 2026-04-11T18:56:49.197Z*
+*Generated: 2026-04-11T19:12:30.944Z*
 
 ---
 
@@ -12,41 +12,31 @@ Here's the ticket: "Moment/LTHFS process.  Difference in money and loans". Hi.  
 
 **AI Analyst**:
 
-I need to understand more about this ticket regarding using loan amount instead of adjusted loan amount for draws in the Moment/LTHFS process.
+I'll help you analyze this ticket which appears to be about using loan amount instead of adjusted loan amount for draws in the Moment/LTHFS process.
 
-First, I'd like to clarify which specific system or repository is affected by this change.
+First, I need to understand which specific part of the system this change affects. Looking at the ticket, it mentions "purchase" and draws, which suggests this is related to the loan selling process.
 
-My recommendation: This likely involves the COS.Lending.Selling.WebApi repository since it handles loan acquisition workflows and funding transfers.
+My recommendation: This likely affects the purchase process in the COS.Lending.Selling.WebApi repository, specifically where draw amounts are calculated.
 
----
-
-**User**:
-
-COS.Lending.Selling.WebApi
-
----
-
-**AI Analyst**:
-
-Thank you for confirming it's in COS.Lending.Selling.WebApi. Now I need to understand the specific part of the loan purchase process that needs modification.
-
-Based on the ticket, this appears to be related to the Moment/LTHFS process where we're currently using adjusted loan amount for draws instead of the raw loan amount.
-
-My recommendation: This likely involves changing the purchase calculation logic in a service or handler related to loan draws.
+Which specific system component handles the draw calculation for Moment/LTHFS purchases?
 
 ---
 
 **User**:
 
-PurchaseService.cs
+COS.Lending.Selling.WebApi PurchaseService
 
 ---
 
 **AI Analyst**:
 
-Thank you for identifying PurchaseService.cs. Now I need to understand what specific calculation or method needs to be modified to use loan amount instead of adjusted loan amount.
+Thank you for confirming it's in the PurchaseService within COS.Lending.Selling.WebApi. Now I need to understand the specific calculation that needs to be changed.
 
-My recommendation: We likely need to modify a method that calculates the draw amount during the purchase process.
+Based on the ticket, there's a distinction between "loan amount" and "adjusted loan amount" that's causing a discrepancy with Moment/LTHFS numbers. We need to use the former instead of the latter for draws.
+
+My recommendation: We should modify the draw calculation logic in PurchaseService to use the base loan amount rather than any adjusted version.
+
+Can you confirm what specific method or function in the PurchaseService is calculating the draw amount currently?
 
 ---
 
@@ -58,50 +48,70 @@ CalculatePurchaseAmount
 
 **AI Analyst**:
 
-Thank you for confirming it's the CalculatePurchaseAmount method. I need to understand the current implementation and what exactly needs to be changed.
+Thank you. Now I understand we need to modify the CalculatePurchaseAmount method in the PurchaseService. 
 
-The ticket mentions we should use the loan amount instead of the adjusted loan amount for the draw. This would affect how we calculate the purchase amount for Moment/LTHFS loans.
+Let's clarify exactly what field needs to be used instead of the current one. The ticket mentions "loan amount" instead of "adjusted loan amount".
 
-My recommendation: We need to modify CalculatePurchaseAmount to use Loan.LoanAmount instead of Loan.AdjustedLoanAmount when calculating for Moment/LTHFS partners.
+My recommendation: We should update the CalculatePurchaseAmount method to use the LoanAmount property instead of AdjustedLoanAmount (or similar field).
 
-Would this change need to be conditional based on the partner type?
-
----
-
-**User**:
-
-Yes, only change calculation for Moment/LTHFS partners
-
----
-
-**AI Analyst**:
-
-Thank you for the clarification. To ensure we implement this correctly, I need to confirm the appropriate way to identify Moment/LTHFS partners in the code.
-
-My recommendation: Add a conditional check for Moment/LTHFS partners using the partner's identifier or type, then use Loan.LoanAmount instead of Loan.AdjustedLoanAmount for those specific partners.
-
-Are there any test cases we should update to reflect this change in calculation?
+Which specific field or property should be used instead of the current one in the calculation?
 
 ---
 
 **User**:
 
-Yes, update existing tests for Moment/LTHFS purchases
+Yes
 
 ---
 
 **AI Analyst**:
 
-Based on our discussion, I can summarize the requirements for this ticket:
+I need to be more specific about the code change. Since we confirmed it's the CalculatePurchaseAmount method in the PurchaseService that needs updating, let me clarify the exact change needed.
 
-1. We need to modify the CalculatePurchaseAmount method in PurchaseService.cs within the COS.Lending.Selling.WebApi repository.
+My recommendation: The method should use the base LoanAmount property instead of AdjustedLoanAmount for Moment/LTHFS purchases specifically.
 
-2. The change involves using the loan amount (Loan.LoanAmount) instead of the adjusted loan amount (Loan.AdjustedLoanAmount) specifically for Moment/LTHFS partner purchases.
+Does this change need to apply only to Moment/LTHFS partners, or should it be applied to all partners in the system?
 
-3. The implementation should include a conditional check to only apply this change to Moment/LTHFS partners, leaving the calculation unchanged for other partners.
+---
 
-4. Existing unit tests for Moment/LTHFS purchases will need to be updated to reflect this calculation change.
+**User**:
 
-5. The purpose of this change is to align our calculations more closely with the numbers expected by Moment/LTHFS, as referenced in the original ticket.
+Only for Moment/LTHFS partners
 
-This change should help resolve the discrepancies mentioned in the ticket and improve the accuracy of purchase calculations for these specific partners.
+---
+
+**AI Analyst**:
+
+Thank you for confirming this change is specific to Moment/LTHFS partners only. This helps clarify the scope of the change.
+
+Since we need to make a partner-specific modification, we'll need to add conditional logic in the CalculatePurchaseAmount method to use the loan amount instead of adjusted loan amount only for Moment/LTHFS.
+
+My recommendation: Add a condition in CalculatePurchaseAmount that checks if the partner is Moment/LTHFS and uses LoanAmount instead of AdjustedLoanAmount only for those partners.
+
+Are there any tests that will need to be updated to reflect this change in behavior?
+
+---
+
+**User**:
+
+Yes, unit tests for PurchaseService
+
+---
+
+**AI Analyst**:
+
+## Analysis Summary
+
+Based on our discussion, I understand the following about ticket CLN-2216:
+
+1. **Issue**: There's a discrepancy in calculations for Moment/LTHFS partners because the system is currently using the adjusted loan amount for draws instead of the base loan amount.
+
+2. **Solution**: We need to modify the `CalculatePurchaseAmount` method in the `PurchaseService` class within the `COS.Lending.Selling.WebApi` repository.
+
+3. **Specific Change**: Add conditional logic to check if the partner is Moment/LTHFS, and if so, use the `LoanAmount` property instead of `AdjustedLoanAmount` for calculating the draw amount.
+
+4. **Scope**: This change applies only to Moment/LTHFS partners and should not affect calculations for other partners.
+
+5. **Testing**: Unit tests for the PurchaseService will need to be updated to reflect this partner-specific behavior change.
+
+This change should help the system's calculations more closely match the numbers expected by Moment/LTHFS, as mentioned in the ticket.

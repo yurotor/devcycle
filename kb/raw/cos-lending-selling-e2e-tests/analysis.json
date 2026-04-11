@@ -1,31 +1,27 @@
 {
-  "purpose": "This repository contains end-to-end tests for Cross River Bank's loan selling system, simulating the entire lending-selling environment to test loan origination, seasoning, interest calculation, fee collection, and loan purchase workflows in a controlled environment.",
+  "purpose": "This repository contains end-to-end testing infrastructure for Cross River Bank's lending and selling platform, simulating the entire selling environment with mock services and automated tests to validate loan origination, processing, interest accrual, and purchasing workflows.",
   "businessFeatures": [
-    "Loan ingestion from source systems",
-    "Loan curation and status management",
-    "Interest calculation and accrual",
-    "Volume fee calculation",
-    "Loan purchase processing",
-    "Fee collection and sweeping",
-    "Loan type changes (grooming)",
-    "Investor changes",
-    "Servicing data ingestion",
-    "True-up volume fee processing",
-    "Pass-through interest calculations",
-    "Auto-purchase functionality",
-    "Merchant fee processing",
-    "Purchase date adjustment"
+    "Loan origination and purchase flow testing",
+    "Interest and fee calculation validation",
+    "Contract management and volume fee processing",
+    "Loan seasoning and curation processes",
+    "Servicing data ingestion and validation",
+    "True-up volume fee calculation",
+    "Pass-through interest processing",
+    "Loan type grooming and change approval workflows",
+    "Investor change management",
+    "Batch purchase automation"
   ],
   "apis": [
     {
       "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
       "method": "POST",
-      "purpose": "Get account information for loan actions"
+      "purpose": "Get accounts for loan actions based on MPL, bank and loan type"
     },
     {
       "endpoint": "/Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts",
       "method": "POST",
-      "purpose": "Get accounts for loan type changes"
+      "purpose": "Get accounts for changing loan type"
     },
     {
       "endpoint": "/core/v1/dda/accounts/{account_number}",
@@ -38,6 +34,11 @@
       "purpose": "Get subaccount balance"
     },
     {
+      "endpoint": "/payment",
+      "method": "POST",
+      "purpose": "Process payment transactions"
+    },
+    {
       "endpoint": "/init/{mpl_id}/{issuing_bank_id}/{loan_type}/{objective}/{account_number}/{is_subaccount}",
       "method": "GET",
       "purpose": "Initialize account configuration"
@@ -45,136 +46,140 @@
     {
       "endpoint": "/set_delay_transfers",
       "method": "POST",
-      "purpose": "Control transfer delays in the COS mock service"
-    },
-    {
-      "endpoint": "/payment",
-      "method": "POST",
-      "purpose": "Process payment transfers"
+      "purpose": "Enable or disable transfer delays in the COS mock service"
     }
   ],
   "dependencies": [
     {
-      "target": "selling-db",
-      "type": "database"
-    },
-    {
-      "target": "arix-db",
-      "type": "database"
-    },
-    {
-      "target": "web-api",
+      "target": "selling-web-api",
       "type": "http"
     },
     {
-      "target": "dbt",
+      "target": "selling-hooks-service",
+      "type": "messaging"
+    },
+    {
+      "target": "dbt-e2e",
       "type": "shared-lib"
-    },
-    {
-      "target": "cos-simulator",
-      "type": "http"
     },
     {
       "target": "accounts-resolver",
       "type": "http"
     },
     {
-      "target": "hooks",
-      "type": "messaging"
+      "target": "arix-db",
+      "type": "database"
+    },
+    {
+      "target": "selling-db",
+      "type": "database"
+    },
+    {
+      "target": "cos-simulator",
+      "type": "http"
     },
     {
       "target": "rabbitmq",
       "type": "messaging"
     },
     {
-      "target": "aws-s3",
-      "type": "file"
-    },
-    {
       "target": "aws-sqs",
       "type": "messaging"
+    },
+    {
+      "target": "aws-s3",
+      "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan entity with funding details, status, and purchase information"
+      "description": "Core loan entity with sale status, origination data, and financial details"
     },
     {
       "name": "Contract",
-      "description": "Defines relationship between MPL, bank, and investor with fee structures"
+      "description": "Configuration for interest calculation, timing, and fee structures"
     },
     {
-      "name": "LoanAction",
-      "description": "Represents actions performed on loans like purchase or interest accrual"
-    },
-    {
-      "name": "Transfer",
-      "description": "Financial transfer between accounts for loan operations"
+      "name": "AccountConfig",
+      "description": "Bank account configuration for different transaction types"
     },
     {
       "name": "Batch",
       "description": "Group of loans processed together for purchase"
     },
     {
-      "name": "AccountConfig",
-      "description": "Configuration for different account types used in loan transactions"
+      "name": "LoanAction",
+      "description": "Actions performed on loans like purchase, interest accrual"
+    },
+    {
+      "name": "Transfer",
+      "description": "Financial transaction between accounts"
+    },
+    {
+      "name": "FeeSweep",
+      "description": "Configuration for periodic fee collection"
     },
     {
       "name": "TrueUpVolumeFee",
-      "description": "Volume fee adjustments based on contract terms"
+      "description": "Monthly minimum fee adjustment calculations"
     }
   ],
   "messagingPatterns": [
     {
       "type": "queue",
-      "name": "SQS Payment Processing",
-      "description": "Processes payment messages for transfers"
+      "name": "SQS Payment Queue",
+      "description": "Queue for processing payment completion events"
     },
     {
       "type": "event",
-      "name": "Loan Sale Status Changed",
-      "description": "Publishes events when loan sale status changes"
+      "name": "LoanSaleStatusChanged",
+      "description": "Event published when loan sale status changes"
     },
     {
       "type": "event",
-      "name": "Batch Purchase Completed",
-      "description": "Publishes events when batch purchase is completed"
+      "name": "BatchCompleted",
+      "description": "Event published when batch purchase completes"
     },
     {
       "type": "event",
-      "name": "True Up Volume Fee Charged",
-      "description": "Publishes events when true-up volume fees are charged"
+      "name": "TrueUpCharged",
+      "description": "Event published when true-up volume fee is charged"
     },
     {
       "type": "event",
-      "name": "Investor Changed",
-      "description": "Publishes events when loan investor changes"
+      "name": "InvestorChanged",
+      "description": "Event published when loan investor changes"
     },
     {
       "type": "event",
-      "name": "Loan Type Changed",
-      "description": "Publishes events when loan type changes"
+      "name": "LoanTypeChanged",
+      "description": "Event published when loan type is changed"
     },
     {
       "type": "outbox",
-      "name": "Transfer Outbox",
-      "description": "Ensures reliable delivery of transfer messages"
+      "name": "TransferOutbox",
+      "description": "Outbox pattern for transfer events"
+    },
+    {
+      "type": "outbox",
+      "name": "DailyInterestOutbox",
+      "description": "Outbox pattern for interest accrual"
     }
   ],
   "integrations": [
     {
       "system": "COS (Core Operating System)",
-      "direction": "downstream",
+      "direction": "bidirectional",
       "protocol": "REST"
     },
     {
-      "system": "Arix",
+      "system": "Arix DB",
       "direction": "upstream",
       "protocol": "database"
     },
     {
-      "system": "LendingAccounting",
+      "system": "Lending Accounting",
       "direction": "downstream",
       "protocol": "REST"
     },
@@ -184,13 +189,8 @@
       "protocol": "file"
     },
     {
-      "system": "AWS SQS",
-      "direction": "bidirectional",
-      "protocol": "messaging"
-    },
-    {
-      "system": "RabbitMQ",
-      "direction": "bidirectional",
+      "system": "Hooks Service",
+      "direction": "downstream",
       "protocol": "messaging"
     }
   ],
@@ -199,35 +199,41 @@
     "Event-driven architecture",
     "Outbox pattern",
     "Mock services",
-    "Orchestration",
-    "Time travel testing",
-    "Message-based communication",
-    "Transactional outbox",
-    "Container-based testing"
+    "Container orchestration",
+    "Time travel simulation"
   ],
   "techStack": [
     "Python",
+    "FastAPI",
     "Docker",
     "PostgreSQL",
     "MS SQL Server",
-    "FastAPI",
-    "SQLAlchemy",
+    "DBT",
     "RabbitMQ",
     "AWS SQS",
     "AWS S3",
-    "pytest",
-    "DBT (Data Build Tool)",
-    "Docker Compose"
+    "Pytest"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Excessive use of sleep() for synchronization",
-      "description": "The codebase uses numerous sleep() calls to wait for asynchronous operations to complete. This creates brittle tests that may fail intermittently or take longer than necessary to run. Replace with proper synchronization mechanisms like polling with timeouts or event listeners.",
+      "title": "Hard-coded secrets and credentials",
+      "description": "Several files contain hard-coded credentials or references to injecting AWS credentials directly in scripts. This is a security risk. Implement a secure secret management solution or use environment variables consistently.",
       "files": [
-        "modules/e2e/src/assertions/batch_assertions.py",
-        "modules/e2e/src/assertions/grooming_assertions.py"
+        "scripts/run.sh",
+        "modules/cos/src/sqs.py",
+        "modules/e2e/src/loader.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Insufficient error handling in payment processing",
+      "description": "The COS simulator does not properly handle transaction failures and always returns success responses. This could mask real payment processing issues in tests. Add error simulation capabilities and verify error handling paths.",
+      "files": [
+        "modules/cos/src/main.py",
+        "modules/cos/src/sqs.py"
       ]
     }
   ]

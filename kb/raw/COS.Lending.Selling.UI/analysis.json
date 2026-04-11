@@ -1,61 +1,57 @@
 {
-  "purpose": "COS.Lending.Selling.UI is a React-based frontend application for CrossRiver Bank's lending and selling platform. It provides interfaces for loan management, selling, and tracking with various user role-specific features across different environments (development, QA, staging, production).",
+  "purpose": "COS.Lending.Selling.UI is a React-based web application that provides a front-end interface for managing and monitoring loans within Cross River Bank's lending and selling system. It enables users with different roles to view, filter, sort, and manage loan details, pending approvals, and loan history.",
   "businessFeatures": [
-    "Loan management and tracking",
-    "Loan history and details viewing",
-    "Long-term hold for sale (LTHFS) loan management",
+    "Loan management dashboard",
+    "Loan details viewing",
+    "Loan filtering and searching",
+    "Loan history tracking and AI-powered queries",
     "Pending loan approvals management",
-    "AI-assisted loan history insights",
-    "Loan searching, filtering and sorting",
+    "Long-term held for sale (LTHFS) loan management",
     "Role-based access control"
   ],
   "apis": [
     {
       "endpoint": "/selling/api/loans/HFS",
       "method": "GET",
-      "purpose": "Retrieve loans held for sale data"
+      "purpose": "Retrieve list of loans held for sale"
     },
     {
       "endpoint": "/selling/api/loans/{id}",
       "method": "GET",
-      "purpose": "Retrieve details of a specific loan"
+      "purpose": "Get detailed information for a specific loan"
     },
     {
       "endpoint": "/crb/ai/session",
       "method": "POST",
-      "purpose": "Create or get an AI chat session for loan history analysis"
+      "purpose": "Create or get a chat session for loan history AI analysis"
     },
     {
       "endpoint": "/crb/ai/session/{sessionId}/history",
       "method": "GET",
-      "purpose": "Get history of AI chat sessions"
+      "purpose": "Retrieve chat history for a loan session"
     },
     {
-      "endpoint": "/crb/ai/session/{sessionId}/chat",
+      "endpoint": "/crb/ai/chat/stream",
       "method": "POST",
-      "purpose": "Send a message to the AI chat session"
+      "purpose": "Stream AI responses for loan history analysis"
     },
     {
-      "endpoint": "/crb/ai/session/{sessionId}/stream",
-      "method": "GET",
-      "purpose": "Stream AI chat responses for real-time updates"
+      "endpoint": "/crb/ai/session/{sessionId}/message",
+      "method": "POST",
+      "purpose": "Send a message in the loan history chat"
     }
   ],
   "dependencies": [
     {
-      "target": "CosLendingSellingApi",
+      "target": "COS.Lending.Selling.API",
       "type": "http"
     },
     {
-      "target": "crb-ui",
-      "type": "shared-lib"
-    },
-    {
-      "target": "identity-provider",
+      "target": "CRB.AI",
       "type": "http"
     },
     {
-      "target": "CRB AI Service",
+      "target": "Identity Provider (idptest.crbcos.com)",
       "type": "http"
     },
     {
@@ -66,68 +62,68 @@
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan entity with detailed loan information including status, amounts, and dates"
+      "description": "Represents a loan in the system with its details like loan number, status, and sale information"
     },
     {
-      "name": "LoanDetails",
-      "description": "Extended information about a specific loan including sale status and borrower info"
+      "name": "LoanHistory",
+      "description": "History of interactions and changes related to a specific loan"
     },
     {
       "name": "PendingApproval",
-      "description": "Loan approval requests awaiting management decision"
+      "description": "Represents a loan waiting for approval in the system"
     },
     {
-      "name": "ChatSession",
-      "description": "AI conversation session about loan history and data analysis"
-    },
-    {
-      "name": "ChatMessage",
-      "description": "Individual message in an AI conversation session with loan data insights"
+      "name": "LTHFS",
+      "description": "Long-term held for sale loans that have specific handling requirements"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "SSE (Server-Sent Events)",
-      "description": "Used for streaming real-time AI chat responses for loan history analysis"
+      "name": "Server-Sent Events",
+      "description": "Used for streaming AI responses in the loan history chat feature"
     }
   ],
   "integrations": [
     {
       "system": "Identity Provider",
-      "direction": "bidirectional",
-      "protocol": "REST"
+      "direction": "upstream",
+      "protocol": "OAuth"
     },
     {
-      "system": "CRB AI Service",
+      "system": "CosLendingMenu",
       "direction": "bidirectional",
-      "protocol": "REST"
+      "protocol": "Web Components"
     },
     {
-      "system": "COS Lending Menu",
+      "system": "New Relic",
       "direction": "downstream",
-      "protocol": "web-component"
+      "protocol": "HTTP"
+    },
+    {
+      "system": "TestRail",
+      "direction": "downstream",
+      "protocol": "HTTP"
     }
   ],
   "architecturePatterns": [
+    "Single Page Application",
     "Component-based architecture",
-    "REST API client",
-    "Server-Sent Events (SSE)",
-    "Single Page Application (SPA)",
+    "Store pattern (Zustand)",
     "Role-based access control",
-    "Micro frontend"
+    "Environment configuration"
   ],
   "techStack": [
     "React",
     "TypeScript",
-    "Styled Components",
     "Vite",
-    "Cypress",
+    "Styled Components",
     "Zustand",
-    "React Router",
-    "Dayjs",
+    "crb-ui (internal UI library)",
+    "Cypress",
+    "ReactMarkdown",
     "OAuth/OIDC",
-    "CRB UI component library",
+    "Server-Sent Events",
     "Docker",
     "Nginx"
   ],
@@ -135,30 +131,35 @@
     {
       "severity": "high",
       "category": "security",
-      "title": "Disabled CORS in development documentation",
-      "description": "The README recommends disabling CORS through a browser extension for local development, which could lead to security vulnerabilities if developers forget to re-enable it or become accustomed to working with disabled CORS. A better approach would be to properly configure CORS on the development backend.",
+      "title": "Hardcoded credentials in configuration files",
+      "description": "The configuration files contain placeholders for New Relic credentials. While these appear to be dummy values ('111'), any hardcoded credentials in source code pose a security risk. These should be moved to secure environment variables or secrets management.",
       "files": [
-        "README.md"
+        "public/assets/app-settings-dev.js",
+        "public/assets/app-settings-qa.js",
+        "public/assets/app-settings-stg.js",
+        "public/assets/app-settings-prd.js"
       ]
     },
     {
       "severity": "high",
       "category": "security",
-      "title": "Potential exposure of user credentials in environment variables",
-      "description": "User passwords and test credentials appear to be stored in environment variables that might be exposed in CI/CD pipelines or logs. Credentials should be stored in secure credential stores and accessed only during runtime.",
+      "title": "OAuth client credentials potentially exposed",
+      "description": "The application contains OAuth client ID and redirect URIs in public configuration files. While client IDs are typically not sensitive alone, they should ideally be managed through a more secure configuration mechanism to prevent information disclosure.",
       "files": [
-        "cypress/config/cypress.base.config.ts"
+        "public/assets/app-settings.js",
+        "public/assets/app-settings-dev.js",
+        "public/assets/app-settings-qa.js",
+        "public/assets/app-settings-stg.js",
+        "public/assets/app-settings-prd.js"
       ]
     },
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Inconsistent environment configuration approach",
-      "description": "The application uses multiple environment configuration mechanisms (app-settings-*.js files, .env files, and hardcoded config in code), making it difficult to maintain consistent configuration across environments. A unified configuration approach should be implemented.",
+      "title": "CORS issues requiring extension workaround",
+      "description": "The README mentions using a Chrome extension to disable CORS, which is a serious architectural flaw. This approach is highly insecure for development and could lead to security vulnerabilities if the habit carries to production. The application should properly handle CORS through server configuration.",
       "files": [
-        "public/assets/app-settings-dev.js",
-        "public/assets/app-settings.js",
-        "cypress/config/cypress.base.config.ts"
+        "README.md"
       ]
     }
   ]

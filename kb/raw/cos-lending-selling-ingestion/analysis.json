@@ -1,85 +1,93 @@
 {
-  "purpose": "This repository manages data ingestion for CrossRiver Bank's lending and selling operations. It ingests loan data from various Marketplace Lending (MPL) partners, SOFR rates, and servicing data into a central database, while also providing metrics and reporting capabilities for monitoring loan statuses and financial transactions.",
+  "purpose": "This repository provides data ingestion services for the Cross River Bank lending and selling platform. It handles ETL processes for loan data, contracts, and financial rates (SOFR) from various sources into a centralized database for reporting and operational use.",
   "businessFeatures": [
-    "Loan data ingestion from marketplace lending partners",
-    "Secured Overnight Financing Rate (SOFR) ingestion from Federal Reserve API",
-    "Servicing data ingestion from CSV files stored in S3",
+    "Loan data ingestion from MPL (Marketplace Lending) partners",
+    "Contract data bootstrapping from contract management system",
+    "SOFR (Secured Overnight Financing Rate) rates ingestion from Federal Reserve API",
+    "Servicing data ingestion from S3 CSV files",
     "Loan status synchronization between Arix and Selling databases",
-    "Financial metrics collection and reporting to CloudWatch",
-    "Contract data management and bootstrapping"
+    "CloudWatch metrics reporting for operational monitoring"
   ],
   "apis": [
     {
       "endpoint": "Federal Reserve API",
       "method": "GET",
-      "purpose": "Fetch SOFR (Secured Overnight Financing Rate) data"
+      "purpose": "Fetches SOFR rates for financial calculations"
     }
   ],
   "dependencies": [
     {
-      "target": "selling-database",
+      "target": "selling-db",
       "type": "database"
     },
     {
-      "target": "loans-database",
+      "target": "loans-db",
       "type": "database"
     },
     {
-      "target": "contracts-database",
+      "target": "contracts-db",
       "type": "database"
     },
     {
-      "target": "volume-database",
+      "target": "volume-db",
       "type": "database"
     },
     {
-      "target": "vampire-database",
+      "target": "vampire-db",
       "type": "database"
     },
     {
-      "target": "S3",
+      "target": "aws-s3",
+      "type": "file"
+    },
+    {
+      "target": "aws-athena",
       "type": "database"
     },
     {
-      "target": "Athena",
-      "type": "database"
+      "target": "aws-cloudwatch",
+      "type": "messaging"
     },
     {
-      "target": "cos-lending-selling",
-      "type": "http"
+      "target": "aws-secrets-manager",
+      "type": "shared-lib"
+    },
+    {
+      "target": "aws-ssm",
+      "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Contract",
-      "description": "Represents loan contract terms including MPL ID, effective/expiration dates, and seasoning info"
+      "description": "Represents loan contracts between Cross River and MPL partners with effective dates and terms"
     },
     {
       "name": "Loan",
-      "description": "Core loan data with loan ID, loan number, MPL ID and statuses"
+      "description": "Core loan entity containing loan identifiers, status, and origination information"
     },
     {
       "name": "MplBootstrapping",
-      "description": "Configuration for enabled marketplace lending partners"
+      "description": "Configuration for enabled MPL (Marketplace Lending) partners"
     },
     {
       "name": "Sofr",
-      "description": "Secured Overnight Financing Rate data with values, types and timestamps"
+      "description": "Secured Overnight Financing Rate data from Federal Reserve"
     },
     {
       "name": "ServicingTimestamp",
-      "description": "Tracking last ingestion timestamp for each MPL's servicing data"
+      "description": "Records of when servicing data was ingested by MPL"
     },
     {
       "name": "ServicingValue",
-      "description": "Servicing data values for loans including amounts and interest"
+      "description": "Loan servicing data with payment and interest information"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "CloudWatch metrics",
-      "description": "Collects and reports metrics about loan transactions and statuses to CloudWatch"
+      "name": "CloudWatch Metrics",
+      "description": "Publishes operational metrics to CloudWatch for monitoring loan volumes, transfers, and processing status"
     }
   ],
   "integrations": [
@@ -95,45 +103,66 @@
     },
     {
       "system": "AWS Athena",
-      "direction": "upstream",
-      "protocol": "file"
+      "direction": "bidirectional",
+      "protocol": "SQL"
     },
     {
       "system": "AWS CloudWatch",
       "direction": "downstream",
       "protocol": "messaging"
+    },
+    {
+      "system": "Arix Database",
+      "direction": "upstream",
+      "protocol": "SQL"
     }
   ],
   "architecturePatterns": [
-    "Repository pattern",
     "ETL (Extract, Transform, Load)",
-    "Metrics reporting",
-    "Data synchronization"
+    "Microservice",
+    "Event-driven metrics",
+    "Data synchronization",
+    "Container-based deployment"
   ],
   "techStack": [
     "Python",
     "SQLAlchemy",
     "Pandas",
-    "AWS (S3, CloudWatch, Athena)",
+    "Docker",
     "PostgreSQL",
-    "Microsoft SQL Server",
-    "Docker"
+    "MS SQL Server",
+    "AWS S3",
+    "AWS CloudWatch",
+    "AWS Secrets Manager",
+    "AWS SSM",
+    "AWS Athena",
+    "Pydantic",
+    "PyTest"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded credentials in README",
-      "description": "The README.md file contains hardcoded database credentials (MSSQL_SA_PASSWORD=P4ssw0rd) which should be removed and replaced with environment variables or secure credential management.",
+      "title": "Hardcoded credentials in Docker examples",
+      "description": "README.md contains hardcoded sample credentials (P4ssw0rd) for MS SQL Server. While these appear to be for local testing purposes, hardcoded credentials should never appear in repositories as they can be accidentally used in production or create poor security practices.",
       "files": [
         "README.md"
       ]
     },
     {
       "severity": "high",
+      "category": "architecture",
+      "title": "Lack of error handling in SOFR data ingestion",
+      "description": "When SOFR data ingestion fails, there is minimal retry logic and error recovery. Given this is a critical financial rate for loan calculations, the system should have more robust error handling and alerting when rate ingestion fails.",
+      "files": [
+        "modules/src/ingestion/sofr.py"
+      ]
+    },
+    {
+      "severity": "high",
       "category": "security",
-      "title": "TrustServerCertificate set to yes",
-      "description": "Database connection is configured to trust server certificates without verification in db_utils.py, potentially allowing man-in-the-middle attacks. This should be removed in production environments and proper certificate validation implemented.",
+      "title": "TrustServerCertificate set to 'yes' in database connections",
+      "description": "SQL Server connections have 'TrustServerCertificate' set to 'yes' which bypasses certificate validation. This creates a vulnerability to man-in-the-middle attacks and should be fixed by properly configuring trusted certificates.",
       "files": [
         "modules/src/utils/db_utils.py"
       ]

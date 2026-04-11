@@ -1,23 +1,23 @@
 {
-  "purpose": "COS.Lending.Selling.Hooks provides a centralized notification service for loan selling operations in the COS Lending system. It processes various business events related to loan sales and investor activities, transforming them into standardized messages and publishing them to downstream systems through a hooks pattern.",
+  "purpose": "COS.Lending.Selling.Hooks is a service that acts as a notification gateway for loan-selling related events in the CRB Cos Lending platform. It receives notifications about loan sale status changes, batch purchases, and other lending events, and publishes them to a central hooks system to trigger downstream processes.",
   "businessFeatures": [
     "Loan sale status change notifications",
     "Batch purchase completion notifications",
-    "True-up volume fee charge tracking",
-    "Loan type change tracking",
+    "True-up volume fee charge notifications",
+    "Loan type change notifications",
     "Investor change notifications",
-    "Overdue loans alerting"
+    "Overdue loans alert notifications"
   ],
   "apis": [
     {
       "endpoint": "/selling/hooks/health",
       "method": "GET",
-      "purpose": "Health check endpoint for service monitoring"
+      "purpose": "Health check endpoint for the service"
     },
     {
       "endpoint": "/selling/hooks/api/sendNotification",
       "method": "POST",
-      "purpose": "Accepts various notification types and publishes them as standardized events"
+      "purpose": "Publishes various types of loan selling notifications to the hooks system"
     }
   ],
   "dependencies": [
@@ -30,34 +30,22 @@
       "type": "messaging"
     },
     {
-      "target": "CRB.Framework.Logging",
-      "type": "shared-lib"
-    },
-    {
-      "target": "CRB.Hooks",
-      "type": "shared-lib"
-    },
-    {
-      "target": "CRB.CosLending.Common.Messages",
-      "type": "shared-lib"
-    },
-    {
-      "target": "OAuth Authorization Server",
+      "target": "CRB OAuth Service",
       "type": "http"
     }
   ],
   "dataEntities": [
     {
       "name": "LoanSaleStatusChanged",
-      "description": "Represents a change in loan sale status including loan information and sale details"
+      "description": "Represents a change in loan sale status with loan details, investor, and financial amounts"
     },
     {
       "name": "BatchPurchaseCompleted",
-      "description": "Represents a completed batch purchase transaction with financial details and metrics"
+      "description": "Represents a completed batch purchase with totals for principal, interest, fees and count of loans"
     },
     {
       "name": "TrueUpVolumeFeeCharged",
-      "description": "Represents volume fee adjustments charged to loans on a periodic basis"
+      "description": "Represents a true-up volume fee charged for a specific month and year"
     },
     {
       "name": "InvestorChanged",
@@ -65,94 +53,83 @@
     },
     {
       "name": "LoanTypeChanged",
-      "description": "Represents a change in loan type classification"
+      "description": "Represents a change in the loan type for a specific loan"
     },
     {
       "name": "OverdueLoansAlert",
-      "description": "Represents metrics about overdue loans requiring attention"
+      "description": "Represents alerts for overdue loans with counts and sum amounts"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
       "name": "LoanSaleStatusUpdated",
-      "description": "Published when a loan's sale status is updated"
+      "description": "Event published when a loan sale status changes"
     },
     {
       "type": "event",
       "name": "BatchPurchaseCompleted",
-      "description": "Published when a batch purchase transaction is completed"
+      "description": "Event published when a batch purchase is completed"
     },
     {
       "type": "event",
       "name": "TrueUpVolumeFeeCharged",
-      "description": "Published when a true-up volume fee is charged"
+      "description": "Event published when a true-up volume fee is charged"
     },
     {
       "type": "event",
       "name": "LoanTypeChanged",
-      "description": "Published when a loan's type classification changes"
+      "description": "Event published when a loan type is changed"
     },
     {
       "type": "event",
       "name": "InvestorChanged",
-      "description": "Published when a loan's investor assignment changes"
+      "description": "Event published when an investor is changed for a loan"
     },
     {
       "type": "event",
       "name": "OverdueLoansAlert",
-      "description": "Published when metrics about overdue loans need to be reported"
+      "description": "Event published when overdue loans are detected"
     }
   ],
   "integrations": [
     {
-      "system": "NServiceBus",
+      "system": "CosLending.Hooks.Hub",
       "direction": "downstream",
       "protocol": "messaging"
-    },
-    {
-      "system": "CRB.CosLending.Hooks.Hub.Service",
-      "direction": "downstream",
-      "protocol": "messaging"
-    },
-    {
-      "system": "OAuth Authorization Server",
-      "direction": "upstream",
-      "protocol": "REST"
     }
   ],
   "architecturePatterns": [
-    "Microservice",
     "Event-driven architecture",
+    "Notification pattern",
     "Publisher-subscriber pattern",
-    "API Gateway",
-    "Hooks pattern"
+    "API Gateway"
   ],
   "techStack": [
     ".NET 8",
     "ASP.NET Core",
     "NServiceBus",
     "Docker",
-    "JWT Authentication",
-    "Swagger"
+    "Swagger",
+    "OAuth/JWT Authentication"
   ],
   "findings": [
     {
       "severity": "high",
-      "category": "security",
-      "title": "Sensitive configuration in appsettings files",
-      "description": "The application contains sensitive configuration information in appsettings files, with a note that TransportConnectionString is 'taken from aws secrets manager', but the code doesn't show proper secrets management implementation. This could lead to credential leakage. Implement proper secret management using AWS Secrets Manager or similar service.",
+      "category": "architecture",
+      "title": "Missing error handling for failed event publishing",
+      "description": "The NotificationPublisher class does not have robust error handling for failures when publishing events. If the NServiceBus message publishing fails, there's no retry mechanism or error tracking, which could lead to lost notifications. Implement proper error handling with retries and dead-letter queue mechanism.",
       "files": [
-        "src/CRB.Cos.Lending.Selling.Hooks.Host/appsettings.Development.json"
+        "src/CRB.Cos.Lending.Selling.Hooks.Host/NotificationPublisher.cs"
       ]
     },
     {
       "severity": "high",
-      "category": "architecture",
-      "title": "Lack of input validation",
-      "description": "The NotificationPublisher accepts notification objects without validating their content before publishing them as events. This could lead to data integrity issues or system errors downstream. Implement input validation for all notification types.",
+      "category": "security",
+      "title": "Authentication configuration needs safeguards",
+      "description": "The authentication configuration in appsettings.Development.json indicates that OAuth keys are 'taken from aws secrets manager' but there's no validation to ensure these values are actually present before the application starts, which could lead to unauthenticated access if misconfigured.",
       "files": [
-        "src/CRB.Cos.Lending.Selling.Hooks.Host/NotificationPublisher.cs"
+        "src/CRB.Cos.Lending.Selling.Hooks.Host/appsettings.Development.json"
       ]
     }
   ]

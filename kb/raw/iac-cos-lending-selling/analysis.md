@@ -1,76 +1,75 @@
 # iac-cos-lending-selling
 
 ## Purpose
-This repository contains Infrastructure as Code (IaC) configurations for Cross River Bank's Cos Lending Selling platform. It automates the provisioning and management of AWS cloud resources including Aurora databases, Airflow workflows, API services, and storage solutions across multiple environments.
+This repository contains the Infrastructure as Code (IaC) for Cross River Bank's Lending and Selling platform. It uses Terragrunt to provision and manage AWS cloud resources including databases, APIs, compute resources, and storage services required for loan servicing and selling operations.
 
 ## Business Features
-- Loan servicing and management
-- Lending operations
-- Loan selling automation
-- AI/ML integration for lending decisions
-- External database access management
-- Workflow orchestration with Airflow
+- Loan servicing
+- Loan selling
+- AI-powered lending analytics
+- Database access management
+- Workflow orchestration
 
 ## APIs
-- **REST /web-api/*** — Web application interface for lending services
-- **REST /admin-api/*** — Administrative interface for lending system management
-- **REST /ai-api/*** — AI-powered lending decision interface
+- **Multiple /admin-api** — Administrative interface for lending platform management
+- **Multiple /web-api** — Customer-facing API for lending services
+- **Multiple /ai-api** — AI-powered lending decision and analytics API
 
 ## Dependencies
-- **aurora-database** (database)
-- **athena-analytics** (database)
-- **s3-servicing** (shared-lib)
-- **selling-x** (messaging)
-- **airflow-mwaa** (http)
+- **Aurora PostgreSQL** (database)
+- **Amazon S3** (shared-lib)
+- **Amazon ECS** (http)
+- **AWS Lambda** (http)
+- **Amazon SQS** (messaging)
+- **Amazon Secrets Manager** (database)
+- **Amazon MWAA (Airflow)** (http)
 
 ## Data Entities
-- **LoanFunding** — Funding details for loan transactions
-- **DatabaseCredentials** — Secure access credentials for database connections
-- **ApplicationUser** — User identity and permissions for application access
+- **LoanFunding** — Represents loan funding data in the lending platform
+- **DatabaseCredential** — Represents database access credentials for various services
 
 ## Messaging Patterns
-- **SQS Queues** (queue) — Message queuing for selling-x service integration
-- **CloudWatch Events** (event) — System monitoring and alerts for platform operations
+- **SQS Queues for Selling-X** (queue) — Message queues for loan selling processes
+- **Secret Rotation** (event) — Event-driven credential rotation for database access
 
 ## External Integrations
-- **AI Decision Service** — bidirectional via REST
-- **External Database** — bidirectional via database
-- **Selling-X Platform** — bidirectional via messaging
+- **External Database Systems** — bidirectional via database
+- **AWS Secrets Manager** — bidirectional via REST
+- **AI Service** — bidirectional via REST
 
 ## Architecture Patterns
 - Infrastructure as Code
-- Serverless Functions
-- Containerized Services
-- Secret Rotation
-- Event-driven Architecture
+- Serverless
 - Microservices
+- Event-driven
+- Container-based deployment
+- Workflow orchestration
 
 ## Tech Stack
-- AWS
-- Terraform
 - Terragrunt
-- ECS Fargate
-- Aurora PostgreSQL
+- Terraform
+- AWS
+- Docker
+- Python
+- PostgreSQL
+- Airflow
 - Lambda
+- ECS
 - S3
 - SQS
-- Airflow
-- Python
 - DynamoDB
 - CloudWatch
-- ALB
-- Secrets Manager
 
 ## Findings
-### [HIGH] Hardcoded SQL permissions in rotation scripts
+### [HIGH] Hardcoded root database access in Lambda functions
 
 **Category:** security  
 **Files:** orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py, orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py
 
-The database credential rotation scripts (ai-api and db-external-access modules) contain hardcoded SQL permissions that are granted to users. These should be parameterized based on environment to prevent potential privilege escalation.
-### [HIGH] State bucket name generation creates potential collision risk
+The secret rotation Lambda functions reference a root secret ARN for database access, creating a potential security risk if compromised. Consider using a more restricted service account or IAM role-based authentication.
+### [HIGH] Direct SQL query construction using f-strings
 
-**Category:** architecture  
-**Files:** README.md
+**Category:** security  
+**Files:** orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py, orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py
 
-The terraform state bucket name is generated based on branch names, which could lead to collisions or unauthorized access. Consider using a more robust naming strategy with additional entropy and access controls.
+Direct SQL query construction using f-strings in Lambda functions could lead to SQL injection vulnerabilities. While most SQL is properly parameterized, the grant permission statements use f-strings. Switch to parameterized queries for all SQL operations.

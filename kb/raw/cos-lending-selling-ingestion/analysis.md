@@ -1,71 +1,87 @@
 # cos-lending-selling-ingestion
 
 ## Purpose
-This repository manages data ingestion for CrossRiver Bank's lending and selling operations. It ingests loan data from various Marketplace Lending (MPL) partners, SOFR rates, and servicing data into a central database, while also providing metrics and reporting capabilities for monitoring loan statuses and financial transactions.
+This repository provides data ingestion services for the Cross River Bank lending and selling platform. It handles ETL processes for loan data, contracts, and financial rates (SOFR) from various sources into a centralized database for reporting and operational use.
 
 ## Business Features
-- Loan data ingestion from marketplace lending partners
-- Secured Overnight Financing Rate (SOFR) ingestion from Federal Reserve API
-- Servicing data ingestion from CSV files stored in S3
+- Loan data ingestion from MPL (Marketplace Lending) partners
+- Contract data bootstrapping from contract management system
+- SOFR (Secured Overnight Financing Rate) rates ingestion from Federal Reserve API
+- Servicing data ingestion from S3 CSV files
 - Loan status synchronization between Arix and Selling databases
-- Financial metrics collection and reporting to CloudWatch
-- Contract data management and bootstrapping
+- CloudWatch metrics reporting for operational monitoring
 
 ## APIs
-- **GET Federal Reserve API** — Fetch SOFR (Secured Overnight Financing Rate) data
+- **GET Federal Reserve API** — Fetches SOFR rates for financial calculations
 
 ## Dependencies
-- **selling-database** (database)
-- **loans-database** (database)
-- **contracts-database** (database)
-- **volume-database** (database)
-- **vampire-database** (database)
-- **S3** (database)
-- **Athena** (database)
-- **cos-lending-selling** (http)
+- **selling-db** (database)
+- **loans-db** (database)
+- **contracts-db** (database)
+- **volume-db** (database)
+- **vampire-db** (database)
+- **aws-s3** (file)
+- **aws-athena** (database)
+- **aws-cloudwatch** (messaging)
+- **aws-secrets-manager** (shared-lib)
+- **aws-ssm** (shared-lib)
 
 ## Data Entities
-- **Contract** — Represents loan contract terms including MPL ID, effective/expiration dates, and seasoning info
-- **Loan** — Core loan data with loan ID, loan number, MPL ID and statuses
-- **MplBootstrapping** — Configuration for enabled marketplace lending partners
-- **Sofr** — Secured Overnight Financing Rate data with values, types and timestamps
-- **ServicingTimestamp** — Tracking last ingestion timestamp for each MPL's servicing data
-- **ServicingValue** — Servicing data values for loans including amounts and interest
+- **Contract** — Represents loan contracts between Cross River and MPL partners with effective dates and terms
+- **Loan** — Core loan entity containing loan identifiers, status, and origination information
+- **MplBootstrapping** — Configuration for enabled MPL (Marketplace Lending) partners
+- **Sofr** — Secured Overnight Financing Rate data from Federal Reserve
+- **ServicingTimestamp** — Records of when servicing data was ingested by MPL
+- **ServicingValue** — Loan servicing data with payment and interest information
 
 ## Messaging Patterns
-- **CloudWatch metrics** (event) — Collects and reports metrics about loan transactions and statuses to CloudWatch
+- **CloudWatch Metrics** (event) — Publishes operational metrics to CloudWatch for monitoring loan volumes, transfers, and processing status
 
 ## External Integrations
 - **Federal Reserve API** — upstream via REST
 - **AWS S3** — upstream via file
-- **AWS Athena** — upstream via file
+- **AWS Athena** — bidirectional via SQL
 - **AWS CloudWatch** — downstream via messaging
+- **Arix Database** — upstream via SQL
 
 ## Architecture Patterns
-- Repository pattern
 - ETL (Extract, Transform, Load)
-- Metrics reporting
+- Microservice
+- Event-driven metrics
 - Data synchronization
+- Container-based deployment
 
 ## Tech Stack
 - Python
 - SQLAlchemy
 - Pandas
-- AWS (S3, CloudWatch, Athena)
-- PostgreSQL
-- Microsoft SQL Server
 - Docker
+- PostgreSQL
+- MS SQL Server
+- AWS S3
+- AWS CloudWatch
+- AWS Secrets Manager
+- AWS SSM
+- AWS Athena
+- Pydantic
+- PyTest
 
 ## Findings
-### [HIGH] Hardcoded credentials in README
+### [HIGH] Hardcoded credentials in Docker examples
 
 **Category:** security  
 **Files:** README.md
 
-The README.md file contains hardcoded database credentials (MSSQL_SA_PASSWORD=P4ssw0rd) which should be removed and replaced with environment variables or secure credential management.
-### [HIGH] TrustServerCertificate set to yes
+README.md contains hardcoded sample credentials (P4ssw0rd) for MS SQL Server. While these appear to be for local testing purposes, hardcoded credentials should never appear in repositories as they can be accidentally used in production or create poor security practices.
+### [HIGH] Lack of error handling in SOFR data ingestion
+
+**Category:** architecture  
+**Files:** modules/src/ingestion/sofr.py
+
+When SOFR data ingestion fails, there is minimal retry logic and error recovery. Given this is a critical financial rate for loan calculations, the system should have more robust error handling and alerting when rate ingestion fails.
+### [HIGH] TrustServerCertificate set to 'yes' in database connections
 
 **Category:** security  
 **Files:** modules/src/utils/db_utils.py
 
-Database connection is configured to trust server certificates without verification in db_utils.py, potentially allowing man-in-the-middle attacks. This should be removed in production environments and proper certificate validation implemented.
+SQL Server connections have 'TrustServerCertificate' set to 'yes' which bypasses certificate validation. This creates a vulnerability to man-in-the-middle attacks and should be fixed by properly configuring trusted certificates.

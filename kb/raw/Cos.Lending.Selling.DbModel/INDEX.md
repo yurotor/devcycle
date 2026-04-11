@@ -1,6 +1,6 @@
 # Cos.Lending.Selling.DbModel — Raw Analysis
 
-Generated: 2026-04-11T18:56:49.729Z
+Generated: 2026-04-11T19:12:36.637Z
 
 ## Files
 - [analysis.json](./analysis.json) — structured analysis data

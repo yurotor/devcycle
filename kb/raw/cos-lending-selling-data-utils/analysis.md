@@ -1,65 +1,65 @@
 # cos-lending-selling-data-utils
 
 ## Purpose
-This repository provides a data utility tool for the COS Lending and Selling system that resolves and maps various account numbers for loans from different banking systems, primarily fetching account information from the Lending Accounting API and updating the Selling database with the appropriate account mappings.
+This repository contains a data utility service for the Cross-River Bank Lending & Selling platform that resolves and maps loan accounts between different systems. It retrieves loan account information from various sources, including a Lending Accounting API and MPL Consumer Loan Operations database, and updates the Selling database with the correct account mappings.
 
 ## Business Features
-- Loan accounts resolution and mapping
+- Loan account resolution for loan selling operations
+- Custom purchase account mapping based on loan attributes
 - Fee sweep account resolution
-- Custom purchase account mapping
-- Loan source (LS) account resolution
-- Account data cleanup and validation
+- Integration with loan source (LS) accounts from MPL Consumer Loans Operations
+- Account validation and cleanup
 
 ## APIs
-- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Fetches loan account information from the Lending Accounting API
+- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Retrieves loan account information from the CRB.CosLending.Accounting.Api
 
 ## Dependencies
-- **Crb.CosLending.Accounting.Api** (http)
+- **CRB.CosLending.Accounting.Api** (http)
+- **MPLConsumerLoansOperationsProd** (database)
+- **sellingdb** (database)
 - **CRB.Framework.Logging** (shared-lib)
 - **CRB.Authorization** (shared-lib)
-- **CRB.Cos.Lending.Selling.DbContext** (shared-lib)
-- **SellingDB** (database)
-- **MPLConsumerLoansOperationsProd** (database)
 
 ## Data Entities
-- **Loan** — Represents a loan with essential information like ID, MPL ID, issuing bank, loan type, and origination status
-- **LoanAccount** — Associates a loan with various account numbers for different purposes (purchase, income, etc.)
-- **ObjectiveAccount** — An account with a specific business purpose like purchase, return, or interest income
-- **FeeSweep** — Represents fee sweep information with source and destination accounts
+- **Loan** — Represents a loan record with key attributes for account resolution
+- **LoanAccount** — Represents an account associated with a loan and its objective type
+- **FeeSweep** — Represents a fee sweep transaction with associated accounts
+- **ObjectiveAccount** — Represents an account with a specific business purpose/objective within the system
+- **LsAccount** — Represents a Loan Source account from the MPL Consumer system
 
 ## External Integrations
-- **Lending Accounting API** — downstream via REST
-- **MPL Consumer Loans Operations DB** — downstream via database
-- **SellingDB** — bidirectional via database
-- **OAuth Token Provider** — downstream via REST
+- **OAuth Service** — upstream via REST
+- **CRB.CosLending.Accounting.Api** — upstream via REST
+- **MPL Consumer Loan Operations DB** — upstream via SQL
 
 ## Architecture Patterns
-- Batch processing
-- Repository pattern
-- Dependency injection
-- Microservice
-- Command line application
+- Command Line Application
+- Repository Pattern
+- Data Mapper Pattern
+- Service Pattern
+- Dependency Injection
 
 ## Tech Stack
-- .NET Core 7.0
+- .NET 7.0
+- C#
 - Entity Framework Core
 - PostgreSQL
 - SQL Server
-- Npgsql.Bulk
+- Npgsql
 - Docker
-- Azure DevOps
-- OAuth
+- Xunit
+- Moq
 
 ## Findings
-### [HIGH] Credentials in Configuration Files
+### [HIGH] Hardcoded Database Connection Strings
 
 **Category:** security  
 **Files:** accounts-resolver/appsettings.json
 
-The appsettings.json file contains database connection string information including username fields. Although the password fields appear to be empty in the checked-in files, this pattern suggests that actual passwords might be supplied in environment-specific configuration files. Credentials should be stored in a secure vault and accessed via a secret management service.
-### [HIGH] Inefficient Batch Processing
+The appsettings.json file contains potentially sensitive database connection strings. While passwords appear to be placeholders, connection strings for production-like environments should not be committed to source control and should be managed through secure configuration or environment variables.
+### [HIGH] Lack of Error Handling in Account Processing
 
 **Category:** architecture  
 **Files:** accounts-resolver/AccountsResolver/AccountsProcessor.cs, accounts-resolver/Handlers/LoansAccountsService.cs
 
-The application loads all loans with missing accounts into memory before processing, which could cause memory issues with large datasets. Consider implementing a streaming approach with a cursor-based pagination to process loans in smaller batches while maintaining performance.
+In several places, bulk batch operations might fail but only log errors without proper retry mechanisms. For critical loan processing, there should be robust error handling and retry logic to ensure data integrity.
