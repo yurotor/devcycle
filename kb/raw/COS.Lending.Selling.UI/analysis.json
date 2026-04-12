@@ -128,5 +128,6 @@
     "The specific business rules for loan approvals and the complete approval workflow are not fully documented in the code",
     "The exact schema of loan entities and their relationships is not fully defined in the frontend code",
     "The role of external parties (MPLs, Investors, Issuing Banks) and their specific interactions with the system"
-  ]
+  ],
+  "keyFiles": []
 }

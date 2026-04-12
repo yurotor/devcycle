@@ -47,4 +47,4 @@ When batch purchases complete, account mapping occurs and notifications are sent
 
 > See also: [System Overview](../architecture/system-overview.md)
 
-*Generated: 2026-04-12T12:35:48.600Z*
+*Generated: 2026-04-12T14:23:22.320Z*

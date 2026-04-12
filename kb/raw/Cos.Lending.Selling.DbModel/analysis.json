@@ -162,5 +162,6 @@
     "Integration points with external systems for loan origination are implied but not explicit in the model",
     "The relationship between SellingContext and any API layer is not defined in the available files",
     "Payment processing systems that might integrate with this database model are not clearly identified"
-  ]
+  ],
+  "keyFiles": []
 }

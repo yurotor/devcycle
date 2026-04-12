@@ -4,10 +4,6 @@
 
 This repository defines data contracts for a loan selling and management system in the lending domain. It contains type definitions for loan entities, purchase processes, interest calculations, and account management, serving as a shared contract library between different services.
 
-## Communicates With
-
-[loan-origination-service](../repos/loan-origination-service.md), [lending-service](../repos/lending-service.md), [investor-management-system](../repos/investor-management-system.md)
-
 ## Business Features
 
 - Loan selling and purchasing between financial institutions
@@ -55,4 +51,4 @@ This repository defines data contracts for a loan selling and management system 
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

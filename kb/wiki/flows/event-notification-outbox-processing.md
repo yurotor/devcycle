@@ -43,4 +43,4 @@ The flow spans multiple repositories with the WebApi initiating business transac
 
 > See also: [System Overview](../architecture/system-overview.md) | [Data Model](../data-model/entities.md)
 
-*Generated: 2026-04-12T12:35:48.598Z*
+*Generated: 2026-04-12T14:23:22.318Z*

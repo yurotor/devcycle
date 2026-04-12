@@ -106,5 +106,6 @@
   "messagingPatterns": [],
   "integrations": [],
   "architecturePatterns": [],
-  "techStack": []
+  "techStack": [],
+  "keyFiles": []
 }

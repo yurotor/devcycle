@@ -1,6 +1,6 @@
 # DevCycle Knowledge Base
 
-Cross River Bank's Loan Selling and Servicing Platform is a multi-tenant system that enables marketplace lenders (MPLs) to sell consumer loans to investors through the bank. The system manages the complete loan lifecycle from origination through purchase, servicing, interest accrual, fee collection, and reporting. It provides web interfaces for loan management, AI-powered chat for loan history queries, automated batch processing workflows, and integrations with CRB's core banking system (COS). The platform handles financial operations including transfers, interest calculations using SOFR rates, volume fees, and reconciliation between multiple systems.
+The COS Lending Selling Platform is a comprehensive loan management and secondary market system for Cross River Bank. Its business purpose is to enable Marketplace Lenders (MPLs) to purchase consumer loans originated through issuing banks, manage the complete loan lifecycle including servicing transfers, and handle all associated financial operations. The system orchestrates loan sales from Cross River Bank to MPLs, tracks loan ownership and servicing rights, automates daily interest accruals using simple or SOFR-based calculations, collects various fees (servicing, volume, origination), manages investor relationships for loan participations, and provides regulatory reporting and reconciliation capabilities. The platform supports multi-tenant operations with role-based access for internal administrators, MPLs, issuing banks, servicing banks, and investors. Key workflows include automated batch purchasing of loans, daily interest calculation and pass-through to investors, monthly fee collection with true-up processing, loan grooming and type changes based on seasoning periods, and real-time event notifications to downstream systems. The architecture follows microservices patterns with a React frontend (UI), .NET/F# backend API (WebApi), Python-based AI query service, Airflow data orchestration (DAGs), data ingestion services, and event notification service (Hooks). All services share a common PostgreSQL database schema (DbModel) and type definitions (Contracts). The system integrates with Cross River Bank's core systems (COS Transaction Service, COS Accounting Service, COS Storage Service) for financial operations, external MPL servicing systems via S3 CSV imports, Federal Reserve for SOFR rate data, and AWS services (S3, SQS, DynamoDB, Bedrock) for cloud capabilities.
 
 ## Wiki Sections
 
@@ -27,6 +27,6 @@ Cross River Bank's Loan Selling and Servicing Platform is a multi-tenant system 
 - [cos-lending-selling-ingestion](wiki/repos/cos-lending-selling-ingestion.md)
 - [iac-cos-lending-selling](wiki/repos/iac-cos-lending-selling.md)
 
-Total wiki pages: 65
+Total wiki pages: 68
 
-*Generated: 2026-04-12T12:37:55.014Z*
+*Generated: 2026-04-12T14:26:15.925Z*

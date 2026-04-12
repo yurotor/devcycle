@@ -6,7 +6,11 @@ This repository contains end-to-end testing infrastructure for Cross River Bank'
 
 ## Communicates With
 
-[COS simulator](../repos/cos-simulator.md), [RabbitMQ](../repos/rabbitmq.md), [accounts-resolver](../repos/accounts-resolver.md), [web-api](../repos/web-api.md), [hooks](../repos/hooks.md), [PostgreSQL](../repos/postgresql.md), [AWS S3](../repos/aws-s3.md)
+[COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [AWS S3](../repos/aws-s3.md), [RabbitMQ](../repos/rabbitmq.md), [PostgreSQL](../repos/postgresql.md), [MSSQL](../repos/mssql.md)
+
+## Features Implemented
+
+- [Batch Loan Processing](../features/batch-loan-processing.md)
 
 ## Business Features
 
@@ -108,4 +112,4 @@ The tests rely on manual orchestration of multiple dependent services with fragi
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

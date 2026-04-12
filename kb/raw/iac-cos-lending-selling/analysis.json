@@ -1,108 +1,463 @@
 {
-  "_headHash": "34d11d8be9150a951a55f9706a126fac1f83d810",
-  "purpose": "This repository contains Infrastructure as Code (IaC) for the Cross River Bank Lending and Selling platform, provisioning and managing AWS cloud resources including Aurora databases, Airflow workflows, ECS Fargate tasks, S3 buckets, and other supporting services across multiple environments.",
-  "businessFeatures": [
-    "Loan servicing infrastructure",
-    "AI-based loan processing",
-    "Data processing workflows via Airflow",
-    "Loan selling functionality",
-    "Database access management",
-    "Monitoring and alerting"
+  "_headHash": "a96f29de0adb7d283b56fe84bd9fcbdbc5c99bf4",
+  "ambiguities": [
+    "References 'Claude Code CLI' with flags like --dangerously-skip-permissions and --bare but the specific environment requirements and installation method are unclear",
+    "ENV vars BEDROCK_URL and BEDROCK_API_KEY suggest custom AWS API Gateway but the actual infrastructure setup is not documented in the repo",
+    "Database initialization logic uses idempotent migrations with error suppression, but the migration ordering/versioning strategy is unclear for production deploys",
+    "The scan engine caches analysis using git HEAD hashes but the cache invalidation strategy for force-pushed branches is unclear",
+    "Task dependencies (dependsOn field) are stored as JSON but the dependency resolution and task ordering algorithm is not implemented in the visible code"
   ],
-  "apis": [],
-  "dependencies": [
+  "apis": [
     {
-      "target": "admin-api",
-      "type": "http"
+      "endpoint": "/api/workspace",
+      "method": "GET",
+      "purpose": "Check if workspace exists, used for setup flow routing"
     },
     {
-      "target": "web-api",
-      "type": "http"
+      "endpoint": "/api/workspace",
+      "method": "POST",
+      "purpose": "Create workspace with Azure DevOps and Jira configuration"
     },
     {
-      "target": "ai-api",
-      "type": "http"
+      "endpoint": "/api/azure/connect",
+      "method": "POST",
+      "purpose": "Validate and store Azure DevOps PAT, list repositories"
     },
     {
-      "target": "Aurora PostgreSQL",
-      "type": "database"
+      "endpoint": "/api/jira/connect",
+      "method": "POST",
+      "purpose": "Validate and store Jira credentials (Cloud or Server)"
     },
     {
-      "target": "SQS queues",
-      "type": "messaging"
-    }
-  ],
-  "dataEntities": [
-    {
-      "name": "Loans",
-      "description": "Core loan data stored in Aurora database"
+      "endpoint": "/api/jira/sync",
+      "method": "POST",
+      "purpose": "Sync tickets from Jira to local database"
     },
     {
-      "name": "LoanFunding",
-      "description": "Data related to loan funding process in dbt_temp schema"
-    }
-  ],
-  "messagingPatterns": [
-    {
-      "type": "queue",
-      "name": "SQS queues for selling-x",
-      "description": "Message queues for loan selling processes"
-    }
-  ],
-  "integrations": [
-    {
-      "system": "External data consumers",
-      "direction": "downstream",
-      "protocol": "database"
+      "endpoint": "/api/scan/start",
+      "method": "POST",
+      "purpose": "Start background repository scanning job"
     },
     {
-      "system": "Amazon Athena",
-      "direction": "bidirectional",
-      "protocol": "file"
+      "endpoint": "/api/scan/status",
+      "method": "GET",
+      "purpose": "Get status of running scan jobs"
+    },
+    {
+      "endpoint": "/api/scan/stream",
+      "method": "GET",
+      "purpose": "Server-sent events stream for scan progress"
+    },
+    {
+      "endpoint": "/api/tickets",
+      "method": "GET",
+      "purpose": "List all tickets for workspace"
+    },
+    {
+      "endpoint": "/api/tickets/:id",
+      "method": "GET",
+      "purpose": "Get ticket details with tasks and waves"
+    },
+    {
+      "endpoint": "/api/tickets/:id",
+      "method": "PATCH",
+      "purpose": "Update ticket phase or metadata"
+    },
+    {
+      "endpoint": "/api/tickets/:id/chat",
+      "method": "GET",
+      "purpose": "Get chat messages for analyze/plan phases"
+    },
+    {
+      "endpoint": "/api/tickets/:id/chat",
+      "method": "POST",
+      "purpose": "Send chat message in analyze phase, AI responds"
+    },
+    {
+      "endpoint": "/api/tickets/:id/plan/generate",
+      "method": "POST",
+      "purpose": "AI generates implementation plan/PRD"
+    },
+    {
+      "endpoint": "/api/tickets/:id/plan/approve",
+      "method": "POST",
+      "purpose": "Move ticket to design phase after plan approval"
+    },
+    {
+      "endpoint": "/api/tickets/:id/design/generate",
+      "method": "POST",
+      "purpose": "Generate wave/task breakdown from PRD"
+    },
+    {
+      "endpoint": "/api/tickets/:id/implement",
+      "method": "POST",
+      "purpose": "Start AI implementation, mark manual, or create PR"
+    },
+    {
+      "endpoint": "/api/tickets/:id/implement",
+      "method": "GET",
+      "purpose": "Get implementation status or diff for a task"
+    },
+    {
+      "endpoint": "/api/tickets/:id/review",
+      "method": "GET",
+      "purpose": "Get review comments for a task"
+    },
+    {
+      "endpoint": "/api/tickets/:id/review",
+      "method": "POST",
+      "purpose": "Add review comment to task"
+    },
+    {
+      "endpoint": "/api/tickets/:id/pr",
+      "method": "POST",
+      "purpose": "Create pull request in Azure DevOps"
+    },
+    {
+      "endpoint": "/api/tickets/:id/tasks",
+      "method": "GET",
+      "purpose": "Get tasks for ticket"
+    },
+    {
+      "endpoint": "/api/tickets/:id/tasks",
+      "method": "PATCH",
+      "purpose": "Update task status, repo, or metadata"
+    },
+    {
+      "endpoint": "/api/suggestions",
+      "method": "GET",
+      "purpose": "Get scan findings/suggestions from scan_suggestions table"
+    },
+    {
+      "endpoint": "/api/suggestions/:id/dismiss",
+      "method": "POST",
+      "purpose": "Dismiss a scan finding"
+    },
+    {
+      "endpoint": "/api/suggestions/:id/promote",
+      "method": "POST",
+      "purpose": "Convert scan finding to Jira ticket"
+    },
+    {
+      "endpoint": "/api/kb/tree",
+      "method": "GET",
+      "purpose": "Get knowledge base directory tree"
+    },
+    {
+      "endpoint": "/api/kb/file",
+      "method": "GET",
+      "purpose": "Read knowledge base file contents"
+    },
+    {
+      "endpoint": "/api/kb/interview",
+      "method": "POST",
+      "purpose": "Process interview transcript and re-synthesize knowledge base"
     }
   ],
   "architecturePatterns": [
-    "Infrastructure as Code",
-    "Microservices",
-    "Secret rotation pattern",
-    "Lambda for database credential management",
-    "Multi-environment deployment"
+    "Single-page application with Next.js App Router and client-side state management",
+    "Server-sent events (SSE) for real-time scan progress streaming",
+    "Background job processing with status polling (jobs table tracks async operations)",
+    "Multi-phase workflow state machine (analyze → plan → design → implement → done) with phase locking",
+    "Knowledge base generation as code - markdown wiki compiled from JSON analysis",
+    "Repo-level locking using in-memory mutex (Map<string, Promise<void>>) to prevent concurrent git operations",
+    "Dual AI integration strategy - prefers Claude Code CLI for file-reading capabilities, falls back to API with file stuffing",
+    "Encrypted credential storage using AES-256-GCM with per-credential IVs",
+    "Wave-based task decomposition with dependency tracking (stored as JSON arrays)",
+    "Git-based caching using HEAD commit hashes to avoid re-analysis of unchanged repos",
+    "Retry logic with exponential backoff for Azure DevOps and Bedrock API calls",
+    "Native HTTPS via curl/execFile to bypass Next.js fetch patching"
   ],
-  "techStack": [
-    "Terraform",
-    "Terragrunt",
-    "AWS (ECS, Aurora, Lambda, S3, SQS, MWAA, Athena)",
-    "Python",
-    "PostgreSQL",
-    "Airflow",
-    "Docker"
+  "businessFeatures": [
+    "Automated codebase scanning and analysis using Claude to understand repository purpose, architecture, and dependencies",
+    "Cross-repository system synthesis to map service relationships and data flows",
+    "Knowledge base generation with bidirectional wiki links organized by architecture, features, flows, clusters, data model, and repos",
+    "Jira ticket synchronization supporting both Cloud and Server/Data Center deployments",
+    "AI-powered ticket analysis with conversational refinement (choice-based chat interface)",
+    "PRD (Product Requirements Document) generation from ticket analysis",
+    "Wave-based task decomposition with automatic repo assignment",
+    "Automated code implementation using Claude Code CLI to edit files directly in git branches",
+    "Pull request creation and management in Azure DevOps",
+    "Code review workflow with inline comments and priority levels",
+    "Scan findings/suggestions with dismiss and promote-to-ticket actions",
+    "Interview-based knowledge enrichment - user provides context that supplements automated analysis",
+    "PAT (Personal Access Token) encryption and secure storage",
+    "Multi-repo workspace management",
+    "Repository selection and branch override configuration",
+    "Unified diff parsing and visualization for code changes"
+  ],
+  "dataEntities": [
+    {
+      "name": "workspace",
+      "description": "Top-level configuration container storing Azure DevOps org URL, Jira URL, project key, and done status mappings"
+    },
+    {
+      "name": "pats",
+      "description": "Encrypted Personal Access Tokens for Azure DevOps and Jira, with AES-256-GCM encryption and per-record IVs"
+    },
+    {
+      "name": "repos",
+      "description": "Repositories synced from Azure DevOps with selection status, branch overrides, and last scan timestamps"
+    },
+    {
+      "name": "tickets",
+      "description": "Jira issues synced locally with workflow phase tracking (analyze/plan/design/implement/done) and phase locking"
+    },
+    {
+      "name": "waves",
+      "description": "Ordered groups of related tasks within a ticket, implementing wave-based rollout strategy"
+    },
+    {
+      "name": "tasks",
+      "description": "Individual implementation units with repo assignments, branch names, PR URLs, diffs, and dependency chains"
+    },
+    {
+      "name": "jobs",
+      "description": "Background job tracker for long-running operations (scan, implement) with progress percentage and status"
+    },
+    {
+      "name": "scanSuggestions",
+      "description": "Critical and high-severity findings from codebase analysis with dismiss and promote-to-ticket capabilities"
+    },
+    {
+      "name": "chatMessages",
+      "description": "Conversational AI interactions during analyze and plan phases with optional choice buttons"
+    },
+    {
+      "name": "interviewNotes",
+      "description": "User-provided context transcripts with extracted structured facts for knowledge base enrichment"
+    },
+    {
+      "name": "reviewComments",
+      "description": "Code review feedback on tasks with file/line references, priority, and status tracking"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "next",
+      "type": "http"
+    },
+    {
+      "target": "react",
+      "type": "http"
+    },
+    {
+      "target": "react-dom",
+      "type": "http"
+    },
+    {
+      "target": "drizzle-orm",
+      "type": "shared-lib"
+    },
+    {
+      "target": "better-sqlite3",
+      "type": "database"
+    },
+    {
+      "target": "@anthropic-ai/bedrock-sdk",
+      "type": "http"
+    },
+    {
+      "target": "tailwindcss",
+      "type": "shared-lib"
+    },
+    {
+      "target": "framer-motion",
+      "type": "shared-lib"
+    },
+    {
+      "target": "lucide-react",
+      "type": "shared-lib"
+    },
+    {
+      "target": "react-markdown",
+      "type": "shared-lib"
+    },
+    {
+      "target": "@dnd-kit/core",
+      "type": "shared-lib"
+    },
+    {
+      "target": "class-variance-authority",
+      "type": "shared-lib"
+    },
+    {
+      "target": "claude CLI",
+      "type": "http"
+    },
+    {
+      "target": "git",
+      "type": "http"
+    },
+    {
+      "target": "curl",
+      "type": "http"
+    }
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hard-coded certificate in repository",
-      "description": "A certificate file (crb.pem) is stored in the repository under docker/certs/. Certificates should never be stored in repositories and should instead be managed through secure certificate management solutions.",
+      "title": "Credentials stored in .env.local file",
+      "description": "The .env.local file contains plaintext Azure DevOps PATs, Jira tokens, and API keys. While this file is gitignored, it represents a security risk if the file is backed up, logged, or accessed by unauthorized processes. Consider using a secrets manager or at minimum document rotation procedures.",
       "files": [
-        "docker/certs/crb.pem"
+        ".env.local"
       ]
     },
     {
       "severity": "high",
-      "category": "architecture",
-      "title": "Database credentials rotated but no integration tests",
-      "description": "The Lambda rotation functions change database passwords but don't have comprehensive tests to verify application functionality continues after rotation. This could lead to service disruption if applications can't connect with new credentials.",
+      "category": "security",
+      "title": "Dangerous Claude CLI flags in production code",
+      "description": "The claudeExec function uses --dangerously-skip-permissions flag which bypasses sandboxing. While documented in the code, this could allow arbitrary file system access during AI-driven code generation if the prompt injection attack surface is not carefully managed.",
       "files": [
-        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
-        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
+        "src/lib/claude-cli.ts",
+        "src/lib/scan/engine.ts",
+        "src/app/api/tickets/[id]/implement/route.ts"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "bug",
+      "title": "Git operations lack error recovery for detached HEAD states",
+      "description": "The implement phase performs git checkout/branch operations but if the repo is in a detached HEAD state or has merge conflicts, the error handling may leave the repo in an inconsistent state. The cleanup logic in catch blocks attempts branch deletion but doesn't verify starting state.",
+      "files": [
+        "src/app/api/tickets/[id]/implement/route.ts"
+      ]
+    },
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "No database migrations or schema versioning",
+      "description": "The database uses idempotent DDL with try/catch on ALTER TABLE statements. This works for column additions but cannot handle column renames, type changes, or data migrations. Production deployments could fail or corrupt data if schema changes require more complex migrations.",
+      "files": [
+        "src/lib/db/index.ts"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "optimization",
+      "title": "Unbounded git clone operations can exhaust disk space",
+      "description": "The scan engine clones repositories with --depth 1 but never prunes old clones. For large monorepos or many repositories, the kb/repos directory could grow to consume all available disk. No cleanup or LRU eviction strategy is implemented.",
+      "files": [
+        "src/lib/scan/engine.ts"
       ]
     }
   ],
-  "ambiguities": [
-    "The exact purpose and functionality of the 'selling-x' component that uses SQS queues",
-    "The specific data models and schemas in the Aurora database beyond the mentioned 'app' and 'dbt_temp' schemas",
-    "The flow and interaction patterns between the various APIs (admin-api, web-api, ai-api)",
-    "What AI functionality is implemented in the ai-api Lambda functions",
-    "How the Airflow workflows integrate with the rest of the system beyond the sample DAG"
+  "integrations": [
+    {
+      "system": "Azure DevOps",
+      "direction": "bidirectional",
+      "protocol": "REST API v7.1 with Basic auth (PAT)"
+    },
+    {
+      "system": "Jira Cloud",
+      "direction": "bidirectional",
+      "protocol": "REST API v3 with Basic auth (email:token)"
+    },
+    {
+      "system": "Jira Server/Data Center",
+      "direction": "bidirectional",
+      "protocol": "REST API v2 with Bearer auth (PAT)"
+    },
+    {
+      "system": "Amazon Bedrock Converse API",
+      "direction": "upstream",
+      "protocol": "HTTPS with API key (custom gateway wrapper)"
+    },
+    {
+      "system": "Anthropic Claude API",
+      "direction": "upstream",
+      "protocol": "HTTPS with API key"
+    },
+    {
+      "system": "Claude Code CLI",
+      "direction": "upstream",
+      "protocol": "Local process execution via execFile with JSON output"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/lib/db/schema.ts",
+      "purpose": "Drizzle ORM schema definitions for all database tables - central data model"
+    },
+    {
+      "path": "src/lib/db/index.ts",
+      "purpose": "Database initialization, DDL execution, and migration logic with singleton pattern"
+    },
+    {
+      "path": "src/lib/scan/engine.ts",
+      "purpose": "Core scanning orchestration - clones repos, runs Claude analysis, synthesizes cross-repo knowledge"
+    },
+    {
+      "path": "src/lib/scan/kb-manager.ts",
+      "purpose": "Compiles raw scan output into organized wiki with bidirectional links across architecture/features/data model"
+    },
+    {
+      "path": "src/lib/claude-cli.ts",
+      "purpose": "Wrapper for Claude Code CLI and git operations with JSON schema support and repo locking"
+    },
+    {
+      "path": "src/lib/anthropic.ts",
+      "purpose": "Claude API client supporting both Bedrock Converse and direct Anthropic API with retry logic"
+    },
+    {
+      "path": "src/lib/azure-devops/client.ts",
+      "purpose": "Azure DevOps REST API client for repos, PRs, file trees - uses native HTTPS to bypass Next.js proxy"
+    },
+    {
+      "path": "src/lib/jira/client.ts",
+      "purpose": "Jira REST API client supporting both Cloud and Server with JQL search and pagination"
+    },
+    {
+      "path": "src/lib/crypto.ts",
+      "purpose": "AES-256-GCM encryption/decryption for PAT storage with key derivation from ENCRYPTION_KEY env var"
+    },
+    {
+      "path": "src/app/api/tickets/[id]/implement/route.ts",
+      "purpose": "Background implementation job - uses Claude CLI to edit code, creates git branches, generates diffs"
+    },
+    {
+      "path": "src/app/api/tickets/[id]/design/generate/route.ts",
+      "purpose": "Wave and task decomposition endpoint - breaks PRD into waves with repo assignments"
+    },
+    {
+      "path": "src/app/api/scan/stream/route.ts",
+      "purpose": "Server-sent events endpoint for streaming scan progress with repo-level granularity"
+    },
+    {
+      "path": "src/components/ticket-detail.tsx",
+      "purpose": "Main ticket UI orchestrator - renders phase-specific components (analyze/plan/design/implement) with progress tracking"
+    },
+    {
+      "path": "src/components/phases/implement-phase.tsx",
+      "purpose": "Implementation phase UI - task list with status, diff viewer, PR creation, manual implementation toggle"
+    },
+    {
+      "path": "package.json",
+      "purpose": "Dependencies and scripts - Next.js 16, React 19, Drizzle ORM, better-sqlite3, Tailwind"
+    }
+  ],
+  "messagingPatterns": [],
+  "purpose": "DevCycle is an AI-powered software development workflow automation tool that integrates with Azure DevOps and Jira to streamline the entire development lifecycle. It automatically scans codebases to build a comprehensive knowledge base, then uses Claude AI to analyze tickets, generate implementation plans, write code, and create pull requests - all within a structured multi-phase workflow (analyze → plan → design → implement → done). The system combines codebase understanding with ticket management to accelerate development while maintaining code quality through automated analysis and review workflows.",
+  "techStack": [
+    "Next.js 16.2.3 (App Router)",
+    "React 19.2.4",
+    "TypeScript 5",
+    "Tailwind CSS 4",
+    "Drizzle ORM 0.45.2",
+    "better-sqlite3 12.8.0 (SQLite database)",
+    "Node.js crypto (AES-256-GCM encryption)",
+    "Framer Motion 12 (animations)",
+    "Lucide React (icons)",
+    "react-markdown 10 (markdown rendering)",
+    "@dnd-kit (drag and drop)",
+    "Claude AI via AWS Bedrock Converse API",
+    "Claude AI via Anthropic API",
+    "Claude Code CLI (local AI agent)",
+    "Azure DevOps REST API v7.1",
+    "Jira REST API v2/v3",
+    "Git (via child_process.execFile)",
+    "curl (for HTTP requests bypassing Next.js)",
+    "Vitest 4 (testing)"
   ]
 }

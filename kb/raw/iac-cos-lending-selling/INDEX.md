@@ -1,6 +1,6 @@
 # iac-cos-lending-selling — Raw Analysis
 
-Generated: 2026-04-12T12:31:39.976Z
+Generated: 2026-04-12T14:20:40.246Z
 
 ## Files
 - [analysis.json](./analysis.json) — structured analysis data

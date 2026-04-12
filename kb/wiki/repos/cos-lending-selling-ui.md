@@ -6,12 +6,14 @@ COS.Lending.Selling.UI is a React-based frontend application for Cross River Ban
 
 ## Communicates With
 
-[COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [CRB Identity Provider](../repos/crb-identity-provider.md), [CRB Menu Service](../repos/crb-menu-service.md)
+[COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [CRB Identity Provider](../repos/crb-identity-provider.md), [CRB AI Service](../repos/crb-ai-service.md), [CRB Menu Service](../repos/crb-menu-service.md)
 
 ## Features Implemented
 
-- [Loan Purchase and Selling](../features/loan-purchase-and-selling.md)
-- [AI Loan History Chat](../features/ai-loan-history-chat.md)
+- [Automated Loan Purchasing](../features/automated-loan-purchasing.md)
+- [Batch Loan Processing](../features/batch-loan-processing.md)
+- [Natural Language Loan Queries](../features/natural-language-loan-queries.md)
+- [Loan Inventory Management](../features/loan-inventory-management.md)
 
 ## Business Features
 
@@ -93,4 +95,4 @@ The README instructs users to disable CORS in Chrome for development, which is a
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.010Z*
+*Generated: 2026-04-12T14:26:15.921Z*

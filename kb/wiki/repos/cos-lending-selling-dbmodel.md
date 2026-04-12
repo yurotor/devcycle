@@ -6,18 +6,7 @@ This repository serves as the database model and context for the Cos.Lending.Sel
 
 ## Communicates With
 
-[PostgreSQL](../repos/postgresql.md)
-
-## Features Implemented
-
-- [Loan Purchase and Selling](../features/loan-purchase-and-selling.md)
-- [Interest Accrual](../features/interest-accrual.md)
-- [Volume Fee Processing](../features/volume-fee-processing.md)
-- [Loan Servicing Data Sync](../features/loan-servicing-data-sync.md)
-- [AI Loan History Chat](../features/ai-loan-history-chat.md)
-- [Loan Grooming and Type Changes](../features/loan-grooming-and-type-changes.md)
-- [Batch Reporting](../features/batch-reporting.md)
-- [Auto Purchase Flow](../features/auto-purchase-flow.md)
+[PostgreSQL Database](../repos/postgresql-database.md)
 
 ## Business Features
 
@@ -98,4 +87,4 @@ The system has a multi-tenant architecture with different tenant types (SellingI
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

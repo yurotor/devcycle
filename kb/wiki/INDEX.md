@@ -1,6 +1,6 @@
 # Knowledge Base — Index
 
-65 pages across 7 sections.
+68 pages across 7 sections.
 
 ## Architecture
 
@@ -56,14 +56,17 @@
 
 ## Features
 
-- [Loan Purchase and Selling](features/loan-purchase-and-selling.md)
-- [Interest Accrual](features/interest-accrual.md)
-- [Volume Fee Processing](features/volume-fee-processing.md)
-- [Loan Servicing Data Sync](features/loan-servicing-data-sync.md)
-- [AI Loan History Chat](features/ai-loan-history-chat.md)
-- [Loan Grooming and Type Changes](features/loan-grooming-and-type-changes.md)
-- [Batch Reporting](features/batch-reporting.md)
-- [Auto Purchase Flow](features/auto-purchase-flow.md)
+- [Automated Loan Purchasing](features/automated-loan-purchasing.md)
+- [Batch Loan Processing](features/batch-loan-processing.md)
+- [Interest Accrual and Pass-Through](features/interest-accrual-and-pass-through.md)
+- [Fee Collection and Management](features/fee-collection-and-management.md)
+- [Loan Grooming and Seasoning](features/loan-grooming-and-seasoning.md)
+- [Natural Language Loan Queries](features/natural-language-loan-queries.md)
+- [Real-Time Event Notifications](features/real-time-event-notifications.md)
+- [Loan Inventory Management](features/loan-inventory-management.md)
+- [Servicing Data Ingestion](features/servicing-data-ingestion.md)
+- [Reconciliation and Reporting](features/reconciliation-and-reporting.md)
+- [Account Resolution and Mapping](features/account-resolution-and-mapping.md)
 
 ## Integrations
 
@@ -88,4 +91,4 @@
 - [cos-lending-selling-ingestion](repos/cos-lending-selling-ingestion.md)
 - [iac-cos-lending-selling](repos/iac-cos-lending-selling.md)
 
-*Generated: 2026-04-12T12:37:55.014Z*
+*Generated: 2026-04-12T14:26:15.925Z*

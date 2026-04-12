@@ -4,79 +4,64 @@ Consolidated data entities across the system.
 
 ### Loan
 
-Core entity representing consumer loan with loan_id, loan_number, loan_type, loan_amount, interest_rate, status, mpl_id, issuing_bank_id, servicing_bank_id, investor_id, origination_date, maturity_date
+Core entity representing a consumer loan with loan_id, loan_number, mpl_id, issuing_bank_id, servicing_bank_id, investor_id, loan_type, loan_amount, interest_rate, status, origination_date, maturity_date, and sale_date. Tracks the complete loan lifecycle from origination through sale and servicing.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
 ### Contract
 
-Agreement between MPL and bank defining purchase terms, fees, interest calculation methods, seasoning periods, volume minimums
+Defines legal and financial terms between Cross River Bank and MPLs, including fee structures (servicing fees, volume fees, interest calculations), seasoning periods, auto-purchase rules, and effective date ranges. Represents the master agreement governing loan transactions.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
-### Batch
-
-Group of loans processed together with batch_id, status, creation_date, mpl_id, total_amount, loan_count, progress statistics
-
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
-### Transfer
-
-Financial transaction between accounts with transfer_id, amount, from_account, to_account, status, type, loan_id, created_date
-
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
 ### LoanAction
 
-Audit trail of actions on loans (purchase, interest_accrual, fee_collection) with action_type, amount, timestamp, user_id
+Audit trail of actions performed on loans including purchases, status changes, interest accruals, fee collections, and loan type changes. Each action has action_type, action_date, amount, and references to related entities. Provides complete history for regulatory compliance.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
-### InterestHistory
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
+### Transfer
 
-Interest calculations over time with interest_date, principal_balance, interest_rate, sofr_rate, interest_amount, loan_id
+Represents financial transfers between accounts with transfer_type (purchase, interest, fee), amount, source_account, destination_account, status (pending, completed, failed), and external_transfer_id. Links loan operations to actual money movement via COS Transaction Service.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md)
-### Fee
-
-Fee structures and charges with fee_type, amount, percentage, frequency, mpl_id, contract_id, collection_date
-
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
 ### Account
 
-Banking accounts for transfers with account_number, account_type, is_subaccount, objective (purchase/return/interest/fee), mpl_id
+Financial account entity with account_number, account_type, owner (MPL, Bank, or Investor), and purpose/objective (purchase, return, interest income, interest expense, fee income, fee sweep). Maps loans to specific GL accounts for accounting.
 
 **Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
-### Mpl (Marketplace Lender)
+### Batch
 
-Partner organizations purchasing loans with mpl_id, name, enabled status, contract terms
+Groups multiple loans for bulk purchase processing with batch_id, mpl_id, batch_date, status, total_amount, loan_count, and progress tracking. Enables atomic multi-loan transactions with rollback capabilities.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
+### InterestHistory
+
+Time-series record of interest calculations with loan_id, calculation_date, principal_balance, interest_rate, SOFR_rate (if applicable), daily_interest_amount, and cumulative_interest. Supports pass-through interest to investors and regulatory reporting.
+
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md)
+### Fee
+
+Fee configuration and collection records with fee_type (servicing, volume, origination), rate/amount, collection_frequency, mpl_id, contract_id, and calculation_method. Supports both fixed and percentage-based fees with minimum thresholds.
+
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
 ### Investor
 
-Organizations investing in loan portfolios with investor_id, name, allocation rules
+Entity representing organizations that purchase loan participation interests, with investor_id, name, account configurations, and allocation rules. Investors receive pass-through interest and may have specific loan type preferences.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
+### MPL (Marketplace Lender)
+
+Marketplace lending platform entity with mpl_id, name, contract references, account configurations, and auto-purchase settings. MPLs originate loans through issuing banks and purchase them through the platform.
+
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-e2e-tests](../repos/cos-lending-selling-e2e-tests.md)
 ### Bank
 
-Financial institutions (issuing or servicing) with bank_id, name, type
+Financial institution entity (issuing or servicing banks) with bank_id, name, and account configurations. Issuing banks originate loans on behalf of MPLs, while servicing banks handle ongoing loan administration.
 
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
-### SofrRate
-
-Secured Overnight Financing Rate with rate_date, rate_value, 30day_average from Federal Reserve
-
-**Defined in:** [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
-### ServicingValues
-
-MPL-provided loan servicing data with adjusted_loan_amount, interest_paid, last_payment_date, servicing_timestamp
-
-**Defined in:** [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
+**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
 ### ChatSession
 
-AI chat conversation with session_id, user_id, loan_id, created_date, last_activity
+Represents conversation sessions for querying loan history within the UI
 
-**Defined in:** [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md)
-### VolumeFeeMonthlyMinimum
-
-Monthly fee minimums per MPL with month, year, minimum_amount, actual_amount, true_up_amount
-
-**Defined in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
+**Defined in:** [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md)
 ### Mpl
 
 Marketplace lender entity that purchases loans from banks, defined in Contracts and stored in DbModel
@@ -162,4 +147,4 @@ Chat messages exchanged between users and AI assistant, created in AI service an
 
 > See also: [System Overview](../architecture/system-overview.md)
 
-*Generated: 2026-04-12T12:37:55.010Z*
+*Generated: 2026-04-12T14:26:15.921Z*

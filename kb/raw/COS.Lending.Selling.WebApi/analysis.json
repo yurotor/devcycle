@@ -225,5 +225,6 @@
     "Specifics around the auto-purchase configuration and eligibility criteria",
     "Exact contract model with MPLs and how terms are enforced",
     "How reconciliation with external systems is managed and resolved when discrepancies are found"
-  ]
+  ],
+  "keyFiles": []
 }

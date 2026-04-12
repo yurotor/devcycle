@@ -1,316 +1,439 @@
 {
   "ambiguities": [
-    "cos-lending-selling-dags references 'Vampire system' for bidirectional data exchange but Vampire's purpose and API contract are undefined",
-    "cos-lending-selling-ingestion references 'Vampire DB' requiring data export/import but the system's role in loan lifecycle is unclear",
-    "Cos.Lending.Selling.Contracts defines 'field1' through 'field21' properties on LoanInfo with no business meaning documented",
-    "COS.Lending.Selling.WebApi references 'GroomingRecovery' process but implementation details and business rules are not defined",
-    "cos-lending-selling-ingestion uses loan 'status >= 5' threshold for sync but status code meanings are not documented",
-    "Cos.Lending.Selling.Contracts shows issuingBankId vs servicingBankId relationship but their distinct roles are unclear",
-    "COS.Lending.Selling.WebApi mentions auto-purchase eligibility criteria but specific rules are not documented"
+    "cos-lending-selling-dags and cos-lending-selling-ingestion reference 'Vampire system' and 'Vampire DB' but the purpose and API contract of this system are unclear",
+    "Cos.Lending.Selling.Contracts defines 'field1' through 'field21' properties on LoanInfo but their business purpose is not documented",
+    "Cos.Lending.Selling.Contracts references 'GroomingRecovery' process but implementation details are unclear",
+    "Cos.Lending.Selling.Contracts references 'COS transfer system' in AddTransferRequest but the exact nature of this system is unclear",
+    "cos-lending-selling-ingestion uses loan status codes (e.g., 'status >= 5') without explanation of their business meaning",
+    "cos-lending-selling-ingestion widely uses 'mpl_id' field but the list of valid MPLs is not explicitly defined in code",
+    "cos-lending-selling-ingestion references 'Arix' system relationship to 'Selling' system but the relationship is not fully explained"
   ],
-  "systemOverview": "Cross River Bank's Loan Selling and Servicing Platform is a multi-tenant system that enables marketplace lenders (MPLs) to sell consumer loans to investors through the bank. The system manages the complete loan lifecycle from origination through purchase, servicing, interest accrual, fee collection, and reporting. It provides web interfaces for loan management, AI-powered chat for loan history queries, automated batch processing workflows, and integrations with CRB's core banking system (COS). The platform handles financial operations including transfers, interest calculations using SOFR rates, volume fees, and reconciliation between multiple systems.",
-  "serviceMap": [
+  "architecturePatterns": [
     {
-      "repo": "COS.Lending.Selling.UI",
-      "role": "React frontend providing loan inventory management, filtering, pending approvals, and AI chat interface",
-      "communicatesWith": [
+      "pattern": "Event-Driven Architecture with Outbox Pattern",
+      "description": "WebApi uses multiple outbox tables (TransferOutbox, FeeOutbox, NotificationOutbox, etc.) to ensure reliable event publishing to downstream systems. The outbox processors poll these tables and dispatch events via SQS and HTTP, guaranteeing at-least-once delivery semantics.",
+      "repos": [
         "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "Microservices with Domain Separation",
+      "description": "System is decomposed into focused services: WebApi for business logic, Hooks for notifications, AI for natural language queries, Ingestion for data synchronization, and DAGs for orchestration. Each service owns its domain and communicates via REST APIs and messaging.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "COS.Lending.Selling.Hooks",
         "cos-lending-selling-ai",
-        "CRB Identity Provider",
-        "CRB Menu Service"
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags"
       ]
     },
     {
-      "repo": "COS.Lending.Selling.WebApi",
-      "role": ".NET backend API managing loan operations, purchases, transfers, interest accrual, fee processing, and batch operations",
-      "communicatesWith": [
+      "pattern": "Multi-Tenant Architecture with Tenant Isolation",
+      "description": "System supports multiple tenant types (SellingITAdmin, InternalTenant, MplTenant, BankTenant, InvestorTenant) with application-level tenant filtering applied to database queries. Each user session is scoped to a specific tenant context.",
+      "repos": [
         "Cos.Lending.Selling.DbModel",
-        "COS.Lending.Contracts",
-        "COS.Lending.Hooks",
-        "COS.Lending.Accounting",
-        "COS Storage Service",
-        "COS Transaction Service",
-        "AWS SQS"
+        "COS.Lending.Selling.WebApi"
       ]
     },
     {
-      "repo": "COS.Lending.Selling.Hooks",
-      "role": "Event notification service publishing loan selling events to hooks hub",
-      "communicatesWith": [
-        "CRB.CosLending.Hooks.Hub.Service",
-        "NServiceBus",
-        "OAuth Identity Provider"
+      "pattern": "Functional Core, Imperative Shell",
+      "description": "WebApi implements business logic in F# (functional core) for interest calculations, fee processing, and loan operations, while C# handles API layer, infrastructure, and I/O (imperative shell). This separates pure business rules from side effects.",
+      "repos": [
+        "COS.Lending.Selling.WebApi"
       ]
     },
     {
-      "repo": "Cos.Lending.Selling.Contracts",
-      "role": "Shared contract library defining data types and entities used across services",
-      "communicatesWith": [
-        "loan-origination-service",
-        "lending-service",
-        "investor-management-system"
+      "pattern": "Extract-Load-Transform (ELT) Data Pipeline",
+      "description": "Airflow DAGs orchestrate data movement from source systems (Arix, Contracts, Volume, SOFR) into PostgreSQL warehouse, then transform using DBT. Raw data is loaded first, then transformed in-database for performance.",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
       ]
     },
     {
-      "repo": "Cos.Lending.Selling.DbModel",
-      "role": "Database schema and Entity Framework context for PostgreSQL persistence layer",
-      "communicatesWith": [
-        "PostgreSQL"
+      "pattern": "Contract-First Design with Shared Libraries",
+      "description": "Cos.Lending.Selling.Contracts defines canonical data types in F# that are shared across all services, ensuring type safety and consistent domain modeling across the distributed system.",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
       ]
     },
     {
-      "repo": "cos-lending-selling-ai",
-      "role": "Python AI service providing natural language querying of loan data using AWS Bedrock",
-      "communicatesWith": [
+      "pattern": "Repository Pattern with Entity Framework",
+      "description": "Data access is abstracted through repository interfaces, with Entity Framework Core providing ORM capabilities. This allows business logic to remain database-agnostic and facilitates testing.",
+      "repos": [
         "Cos.Lending.Selling.DbModel",
-        "AWS Bedrock",
-        "DynamoDB",
-        "Identity Server"
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-data-utils"
+      ]
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Purchase Flow",
+      "description": "MPL purchases loans from Cross River Bank through automated or manual workflows, triggering financial transfers and accounting entries.",
+      "steps": [
+        "MPL initiates purchase request via UI or auto-purchase configuration",
+        "WebApi validates contract terms and loan eligibility",
+        "Batch is created grouping multiple loans for processing",
+        "WebApi generates Invoice and writes to BatchInitOutbox",
+        "Outbox processor triggers transfer requests to COS Transaction Service",
+        "Accounting API is called to retrieve account configurations via data-utils",
+        "Financial transfers execute (purchase price from MPL account to bank)",
+        "Receipt is generated confirming purchase completion",
+        "Hooks service publishes BatchPurchaseCompleted notification",
+        "UI displays updated loan ownership and batch status"
       ]
     },
     {
-      "repo": "cos-lending-selling-dags",
-      "role": "Airflow DAGs orchestrating ETL workflows for loan data ingestion, interest accrual, fee collection, and reporting",
-      "communicatesWith": [
+      "name": "Daily Interest Accrual Flow",
+      "description": "Automated process calculates and records interest on all active loans daily, with pass-through interest calculations for investors.",
+      "steps": [
+        "Airflow DAG triggers daily interest calculation job",
+        "WebApi identifies all active loans requiring interest accrual",
+        "F# business logic calculates interest based on loan type, rate, and SOFR data",
+        "Interest records written to InterestHistory table",
+        "DailyInterestOutbox entries created for each accrual",
+        "Outbox processor triggers transfer requests for interest collection",
+        "COS Transaction Service executes transfers (interest from MPL to bank)",
+        "InterestHistory updated with transfer confirmations",
+        "Datatools exports interest data to S3 for reporting",
+        "CloudWatch metrics updated with daily interest totals"
+      ]
+    },
+    {
+      "name": "Data Ingestion and Synchronization Flow",
+      "description": "External data sources are ingested, transformed, and synchronized into the Selling database to maintain current loan and contract information.",
+      "steps": [
+        "Airflow DAG schedules ingestion tasks on regular intervals",
+        "Ingestion service fetches SOFR rates from Federal Reserve API",
+        "CSV files from MPL servicing systems uploaded to S3",
+        "Ingestion service reads S3 files and parses servicing data",
+        "Loan status synchronized from Arix database to Selling database",
+        "Contract data imported from Contracts database",
+        "Volume data imported from Volume database",
+        "DBT transformations run to curate and denormalize data",
+        "Flyway migrations applied to update schema if needed",
+        "Data-utils resolves accounts for newly ingested loans",
+        "CloudWatch metrics published for data freshness monitoring"
+      ]
+    },
+    {
+      "name": "Fee Collection Flow",
+      "description": "Various fees (servicing, volume, true-up) are calculated and collected from MPL accounts according to contract terms.",
+      "steps": [
+        "WebApi identifies fees due based on contract configuration",
+        "Volume fee calculation triggered monthly based on loan volume",
+        "True-up volume fee calculated if monthly minimum not met",
+        "Fee records created with amount, type, and due date",
+        "FeeOutbox and VolumeFeeOutbox entries created",
+        "Outbox processor calls Accounting API for fee account mapping",
+        "Transfer requests generated for fee collection",
+        "COS Transaction Service executes transfers (fee from MPL to bank)",
+        "Transfer status monitored and updated in database",
+        "Hooks service publishes TrueUpVolumeFeeCharged notifications",
+        "Reporting exports include fee collection summaries"
+      ]
+    },
+    {
+      "name": "Loan Type Change and Grooming Flow",
+      "description": "Loans are reclassified or groomed based on seasoning periods and business rules, potentially changing investor allocation.",
+      "steps": [
+        "Airflow DAG triggers grooming job based on loan age",
+        "WebApi identifies loans meeting seasoning criteria",
+        "Loan type change business logic evaluates eligibility",
+        "Investor allocation rules applied based on new loan type",
+        "LoanTypeChanged event created with old/new type details",
+        "Accounting API called to determine new account mappings",
+        "Transfer requests generated if investor change required",
+        "Database updated with new loan type and investor",
+        "Hooks service publishes LoanTypeChanged notification",
+        "Hooks service publishes InvestorChanged notification if applicable",
+        "UI reflects updated loan classification"
+      ]
+    },
+    {
+      "name": "AI-Powered Loan Query Flow",
+      "description": "Users query loan history and details using natural language, with AI generating SQL and synthesizing human-readable responses.",
+      "steps": [
+        "User submits natural language question via UI chat interface",
+        "UI calls AI service /chat endpoint to create or resume session",
+        "AI service retrieves loan context from PostgreSQL Selling database",
+        "User message sent to /chat/{session_id}/message endpoint",
+        "AI service constructs prompt with database schema and loan context",
+        "AWS Bedrock (Claude) generates SQL query to answer question",
+        "AI service validates SQL is SELECT-only and executes against database",
+        "Query results formatted and sent back to Claude for summarization",
+        "AI streams response via Server-Sent Events to UI",
+        "Message history stored in DynamoDB for context retention",
+        "UI displays formatted answer with follow-up query capability"
+      ]
+    }
+  ],
+  "dataModel": [
+    {
+      "entity": "Loan",
+      "description": "Core entity representing a consumer loan with loan_id, loan_number, mpl_id, issuing_bank_id, servicing_bank_id, investor_id, loan_type, loan_amount, interest_rate, status, origination_date, maturity_date, and sale_date. Tracks the complete loan lifecycle from origination through sale and servicing.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "cos-lending-selling-ai",
         "cos-lending-selling-ingestion",
         "cos-lending-selling-datatools",
-        "AWS ECS",
-        "PostgreSQL",
-        "Vampire system",
-        "External SOFR API"
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "repo": "cos-lending-selling-ingestion",
-      "role": "Python ETL service ingesting servicing data from MPLs via S3, synchronizing loan status, importing SOFR rates",
-      "communicatesWith": [
-        "AWS S3",
-        "Selling DB PostgreSQL",
-        "Arix MSSQL",
-        "Contracts MSSQL",
-        "Volume MSSQL",
-        "Vampire MSSQL",
-        "Federal Reserve API",
-        "AWS Athena"
+      "entity": "Contract",
+      "description": "Defines legal and financial terms between Cross River Bank and MPLs, including fee structures (servicing fees, volume fees, interest calculations), seasoning periods, auto-purchase rules, and effective date ranges. Represents the master agreement governing loan transactions.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "repo": "cos-lending-selling-data-utils",
-      "role": ".NET utility resolving and mapping accounts for loans from accounting and operations databases",
-      "communicatesWith": [
-        "CRB.CosLending.Accounting.Api",
-        "MPLConsumerLoansOperations DB",
-        "Selling DB",
-        "OAuth Authorization Server"
+      "entity": "LoanAction",
+      "description": "Audit trail of actions performed on loans including purchases, status changes, interest accruals, fee collections, and loan type changes. Each action has action_type, action_date, amount, and references to related entities. Provides complete history for regulatory compliance.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-ai",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "repo": "cos-lending-selling-datatools",
-      "role": "dbt-based data warehouse providing analytics transformations for loans, contracts, fees, and volume data",
-      "communicatesWith": [
-        "cos-lending-selling-web-api DB",
-        "AWS S3",
-        "AWS Secrets Manager",
-        "AWS ECS"
+      "entity": "Transfer",
+      "description": "Represents financial transfers between accounts with transfer_type (purchase, interest, fee), amount, source_account, destination_account, status (pending, completed, failed), and external_transfer_id. Links loan operations to actual money movement via COS Transaction Service.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-ai",
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "repo": "cos-lending-selling-e2e-tests",
-      "role": "End-to-end testing framework simulating complete loan lifecycle with mocked external services",
-      "communicatesWith": [
-        "COS simulator",
-        "RabbitMQ",
-        "accounts-resolver",
-        "web-api",
-        "hooks",
-        "PostgreSQL",
-        "AWS S3"
+      "entity": "Account",
+      "description": "Financial account entity with account_number, account_type, owner (MPL, Bank, or Investor), and purpose/objective (purchase, return, interest income, interest expense, fee income, fee sweep). Maps loans to specific GL accounts for accounting.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-data-utils",
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "repo": "iac-cos-lending-selling",
-      "role": "Terraform/Terragrunt infrastructure provisioning AWS resources (Aurora, MWAA, ECS, Lambda, SQS)",
-      "communicatesWith": [
-        "Aurora PostgreSQL",
-        "AWS MWAA",
-        "AWS ECS",
-        "AWS Lambda",
-        "AWS SQS",
-        "AWS S3"
+      "entity": "Batch",
+      "description": "Groups multiple loans for bulk purchase processing with batch_id, mpl_id, batch_date, status, total_amount, loan_count, and progress tracking. Enables atomic multi-loan transactions with rollback capabilities.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "entity": "InterestHistory",
+      "description": "Time-series record of interest calculations with loan_id, calculation_date, principal_balance, interest_rate, SOFR_rate (if applicable), daily_interest_amount, and cumulative_interest. Supports pass-through interest to investors and regulatory reporting.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "entity": "Fee",
+      "description": "Fee configuration and collection records with fee_type (servicing, volume, origination), rate/amount, collection_frequency, mpl_id, contract_id, and calculation_method. Supports both fixed and percentage-based fees with minimum thresholds.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "entity": "Investor",
+      "description": "Entity representing organizations that purchase loan participation interests, with investor_id, name, account configurations, and allocation rules. Investors receive pass-through interest and may have specific loan type preferences.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "cos-lending-selling-dags"
+      ]
+    },
+    {
+      "entity": "MPL (Marketplace Lender)",
+      "description": "Marketplace lending platform entity with mpl_id, name, contract references, account configurations, and auto-purchase settings. MPLs originate loans through issuing banks and purchase them through the platform.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "entity": "Bank",
+      "description": "Financial institution entity (issuing or servicing banks) with bank_id, name, and account configurations. Issuing banks originate loans on behalf of MPLs, while servicing banks handle ongoing loan administration.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "cos-lending-selling-dags"
       ]
     }
   ],
   "features": [
     {
-      "name": "Loan Purchase and Selling",
-      "description": "End-to-end workflow for MPLs to sell loans to investors through batch processing",
+      "name": "Automated Loan Purchasing",
+      "description": "MPLs can configure auto-purchase rules to automatically acquire eligible loans based on criteria like loan type, issuing bank, and contract terms. Reduces manual intervention and accelerates loan acquisition.",
       "repos": [
+        "COS.Lending.Selling.WebApi",
+        "COS.Lending.Selling.UI"
+      ],
+      "dataFlow": "Loan Purchase Flow"
+    },
+    {
+      "name": "Batch Loan Processing",
+      "description": "Enables grouping multiple loans into batches for atomic bulk purchase operations. Provides progress tracking, rollback on failure, and consolidated financial reporting for large transactions.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
         "COS.Lending.Selling.UI",
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
-        "Cos.Lending.Selling.DbModel"
+        "cos-lending-selling-e2e-tests"
       ],
-      "dataFlow": "User selects loans in UI → WebApi creates batch → Outbox processor initiates transfer requests → COS Transaction Service processes transfers → Batch completion triggers hooks notification → Status updated in DB"
+      "dataFlow": "Loan Purchase Flow"
     },
     {
-      "name": "Interest Accrual",
-      "description": "Daily interest calculation on loans based on SOFR rates and contract terms",
+      "name": "Interest Accrual and Pass-Through",
+      "description": "Automated daily calculation of interest on loans using simple or SOFR-based rates. Supports pass-through interest allocation to investors and generates accounting entries for interest income/expense.",
       "repos": [
         "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-ingestion",
-        "Cos.Lending.Selling.DbModel"
-      ],
-      "dataFlow": "Ingestion fetches SOFR rates from Federal Reserve → Airflow DAG triggers daily interest job → WebApi calculates interest per loan using DailyInterestOutbox → Interest posted to accounting → History recorded in InterestHistory table"
-    },
-    {
-      "name": "Volume Fee Processing",
-      "description": "Monthly minimum fee calculations and true-up adjustments for MPLs",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
-        "Cos.Lending.Selling.DbModel",
-        "COS.Lending.Selling.Hooks"
-      ],
-      "dataFlow": "Airflow triggers volume fee DAG → WebApi calculates fees against monthly minimums via VolumeFeeOutbox → True-up charges calculated via TrueUpVolumeFeeOutbox → Fees collected via accounting → Hooks publishes TrueUpVolumeFeeCharged event"
-    },
-    {
-      "name": "Loan Servicing Data Sync",
-      "description": "Regular ingestion of servicing updates from MPLs to track loan status and payments",
-      "repos": [
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-dags",
-        "Cos.Lending.Selling.DbModel"
-      ],
-      "dataFlow": "MPLs upload CSV files to S3 → Airflow triggers servicing DAG → Ingestion service reads S3 files → Servicing values updated in Selling DB → Timestamps recorded per MPL → Status synchronized from Arix DB"
-    },
-    {
-      "name": "AI Loan History Chat",
-      "description": "Natural language interface for querying loan history, interest, and fees",
-      "repos": [
-        "COS.Lending.Selling.UI",
-        "cos-lending-selling-ai",
-        "Cos.Lending.Selling.DbModel"
-      ],
-      "dataFlow": "User asks question in UI → UI creates/resumes chat session → AI service queries loan DB using AWS Bedrock LLM → SQL generated and executed → Results formatted as natural language → Streamed via SSE to UI → Chat history stored in DynamoDB"
-    },
-    {
-      "name": "Loan Grooming and Type Changes",
-      "description": "Changing loan types and investor assignments after seasoning periods",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
-        "Cos.Lending.Selling.DbModel",
-        "COS.Lending.Selling.Hooks"
-      ],
-      "dataFlow": "Seasoning period completed → WebApi grooming process changes loan type → Account mappings updated via data-utils → LoanTypeChanged event published via hooks → Investor assignments updated if applicable"
-    },
-    {
-      "name": "Batch Reporting",
-      "description": "Pre-sale and post-sale loan reports generation for compliance and operations",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-datatools",
-        "Cos.Lending.Selling.DbModel"
-      ],
-      "dataFlow": "Report request submitted via API → ReportingOutbox queues generation → Report data extracted from DB → Data transformed via dbt models → CSV/Excel generated → Uploaded to S3 storage → Download link returned"
-    },
-    {
-      "name": "Auto Purchase Flow",
-      "description": "Automated loan purchasing based on contract eligibility criteria",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
         "cos-lending-selling-dags"
       ],
-      "dataFlow": "New loans ingested → Eligibility evaluated against contract terms → Auto-purchase flag triggers batch creation → Batch initialization via BatchInitOutbox → Purchase processed automatically → Completion notification sent"
-    }
-  ],
-  "dataFlows": [
-    {
-      "name": "Loan Origination to Purchase",
-      "description": "Complete flow from loan creation through purchase by MPL",
-      "steps": [
-        "Loan originated in external system and ingested via cos-lending-selling-ingestion",
-        "Loan data synchronized to Selling DB from Arix",
-        "Account mappings resolved via cos-lending-selling-data-utils from Accounting API",
-        "Loan appears in COS.Lending.Selling.UI inventory",
-        "MPL selects loans and creates batch via WebApi",
-        "WebApi validates loan eligibility and creates batch record",
-        "BatchInitOutbox processes batch and initiates transfers",
-        "TransferOutbox creates transfer requests to COS Transaction Service",
-        "COS processes transfers between accounts",
-        "Batch status updated to completed",
-        "Hooks service publishes BatchPurchaseCompleted event",
-        "Loan ownership transferred to MPL"
-      ]
+      "dataFlow": "Daily Interest Accrual Flow"
     },
     {
-      "name": "Daily Interest Accrual",
-      "description": "Automated daily interest calculation and posting",
-      "steps": [
-        "Airflow DAG triggers at scheduled time",
-        "cos-lending-selling-ingestion ensures latest SOFR rates available",
-        "WebApi DailyInterestOutbox processor runs",
-        "For each active loan, calculate interest based on contract terms and SOFR",
-        "Interest amount calculated using loan balance and rate",
-        "Interest posted to accounting system via COS.Lending.Accounting API",
-        "InterestHistory record created in DB",
-        "Transfer created for interest payment",
-        "Metrics published to CloudWatch",
-        "Completion logged"
-      ]
+      "name": "Fee Collection and Management",
+      "description": "Configurable fee structures including servicing fees, volume fees, and origination fees. Automatic calculation and collection with monthly minimums and true-up processing when volume thresholds aren't met.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-dags"
+      ],
+      "dataFlow": "Fee Collection Flow"
     },
     {
-      "name": "Servicing Data Pipeline",
-      "description": "MPL servicing data ingestion and processing",
-      "steps": [
-        "MPL uploads CSV servicing file to designated S3 bucket",
-        "Airflow servicing DAG detects new file",
-        "cos-lending-selling-ingestion downloads and parses CSV",
-        "Servicing values (adjusted_loan_amount, interest_paid) extracted",
-        "Data validated against loan records in DB",
-        "Servicing table updated with new values",
-        "Servicing timestamp recorded for MPL",
-        "File moved to processed folder in S3",
-        "Metrics updated for monitoring dashboard",
-        "dbt models refresh analytics tables"
-      ]
+      "name": "Loan Grooming and Seasoning",
+      "description": "Automatic loan reclassification based on aging and seasoning rules defined in contracts. Loans mature through defined periods and may change type or investor allocation based on business rules.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-dags"
+      ],
+      "dataFlow": "Loan Type Change and Grooming Flow"
     },
     {
-      "name": "End-to-End Loan Query via AI",
-      "description": "User question answered by AI service with database context",
-      "steps": [
-        "User enters question in COS.Lending.Selling.UI chat interface",
-        "UI calls cos-lending-selling-ai /chat endpoint with user_id and loan_id",
-        "AI service creates or retrieves session from DynamoDB",
-        "User message posted to /chat/{session_id}/message",
-        "AI service constructs prompt with loan schema and history",
-        "AWS Bedrock (Claude) LLM processes question",
-        "If data needed, AI generates SQL query",
-        "SQL executed against Selling DB via SQLAlchemy",
-        "Results formatted into natural language response",
-        "Response streamed via SSE to UI",
-        "Message history persisted to DynamoDB",
-        "UI displays formatted response with citations"
-      ]
+      "name": "Natural Language Loan Queries",
+      "description": "AI-powered chat interface allows users to ask questions about loans in natural language. Claude generates SQL queries, retrieves data, and synthesizes human-readable answers about loan history, interest calculations, and transfers.",
+      "repos": [
+        "cos-lending-selling-ai",
+        "COS.Lending.Selling.UI"
+      ],
+      "dataFlow": "AI-Powered Loan Query Flow"
+    },
+    {
+      "name": "Real-Time Event Notifications",
+      "description": "Hooks service publishes notifications for critical events including loan sale status changes, batch completions, investor changes, loan type changes, fee charges, and overdue loan alerts. Enables downstream system integration.",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "dataFlow": "Loan Purchase Flow"
+    },
+    {
+      "name": "Loan Inventory Management",
+      "description": "Frontend provides comprehensive views of loan portfolios with filtering, sorting, and searching. Tracks HFS (Held For Sale) loans, pending approvals, and LTHF (Loans To Be Held For Sale) categories.",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "dataFlow": "Loan Purchase Flow"
+    },
+    {
+      "name": "Servicing Data Ingestion",
+      "description": "Imports loan servicing data from MPL systems via S3 CSV files. Includes adjusted loan amounts, interest paid, and status updates from external servicing platforms.",
+      "repos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags"
+      ],
+      "dataFlow": "Data Ingestion and Synchronization Flow"
+    },
+    {
+      "name": "Reconciliation and Reporting",
+      "description": "Generates pre-sale and post-sale reports for regulatory compliance and business intelligence. Exports data to S3 for consumption by downstream analytics systems. Tracks discrepancies between systems.",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-dags"
+      ],
+      "dataFlow": "Data Ingestion and Synchronization Flow"
+    },
+    {
+      "name": "Account Resolution and Mapping",
+      "description": "Resolves appropriate GL accounts for loan actions (purchase, return, interest, fees) by querying Accounting API and applying custom mapping rules based on loan attributes.",
+      "repos": [
+        "cos-lending-selling-data-utils",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "dataFlow": "Loan Purchase Flow"
     }
   ],
   "integrations": [
     {
-      "system": "CRB Core Operating System (COS)",
-      "direction": "bidirectional",
+      "system": "COS Transaction Service",
+      "direction": "downstream",
+      "protocol": "REST",
+      "repos": [
+        "COS.Lending.Selling.WebApi"
+      ]
+    },
+    {
+      "system": "COS Lending Accounting Service",
+      "direction": "upstream",
       "protocol": "REST",
       "repos": [
         "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-data-utils",
         "cos-lending-selling-e2e-tests"
       ]
     },
     {
-      "system": "CRB Identity Provider (OAuth)",
-      "direction": "upstream",
+      "system": "COS Storage Service",
+      "direction": "downstream",
       "protocol": "REST",
+      "repos": [
+        "COS.Lending.Selling.WebApi"
+      ]
+    },
+    {
+      "system": "CRB.CosLending.Hooks.Hub.Service",
+      "direction": "downstream",
+      "protocol": "NServiceBus",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "system": "CRB Identity Provider",
+      "direction": "upstream",
+      "protocol": "OAuth/REST",
       "repos": [
         "COS.Lending.Selling.UI",
         "COS.Lending.Selling.Hooks",
@@ -319,32 +442,15 @@
       ]
     },
     {
-      "system": "CRB Lending Accounting Service",
-      "direction": "bidirectional",
-      "protocol": "REST",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-data-utils"
-      ]
-    },
-    {
-      "system": "CRB Lending Contracts Service",
+      "system": "CRB AI Service",
       "direction": "upstream",
       "protocol": "REST",
       "repos": [
-        "COS.Lending.Selling.WebApi"
+        "COS.Lending.Selling.UI"
       ]
     },
     {
-      "system": "CRB Hooks Hub (NServiceBus)",
-      "direction": "downstream",
-      "protocol": "messaging",
-      "repos": [
-        "COS.Lending.Selling.Hooks"
-      ]
-    },
-    {
-      "system": "AWS Bedrock (Claude LLM)",
+      "system": "AWS Bedrock (Claude)",
       "direction": "upstream",
       "protocol": "REST",
       "repos": [
@@ -357,8 +463,8 @@
       "protocol": "REST",
       "repos": [
         "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-dags",
         "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags",
         "cos-lending-selling-datatools",
         "cos-lending-selling-e2e-tests"
       ]
@@ -369,8 +475,7 @@
       "protocol": "messaging",
       "repos": [
         "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-e2e-tests",
-        "iac-cos-lending-selling"
+        "cos-lending-selling-e2e-tests"
       ]
     },
     {
@@ -382,20 +487,44 @@
       ]
     },
     {
-      "system": "Federal Reserve SOFR API",
+      "system": "Federal Reserve API",
       "direction": "upstream",
       "protocol": "REST",
       "repos": [
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-dags"
+        "cos-lending-selling-ingestion"
       ]
     },
     {
-      "system": "Arix Loan System",
+      "system": "Arix Database",
       "direction": "upstream",
-      "protocol": "database",
+      "protocol": "MSSQL",
+      "repos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "system": "Contracts Database",
+      "direction": "upstream",
+      "protocol": "MSSQL",
       "repos": [
         "cos-lending-selling-ingestion"
+      ]
+    },
+    {
+      "system": "Volume Database",
+      "direction": "upstream",
+      "protocol": "MSSQL",
+      "repos": [
+        "cos-lending-selling-ingestion"
+      ]
+    },
+    {
+      "system": "MPLConsumerLoansOperations Database",
+      "direction": "upstream",
+      "protocol": "MSSQL",
+      "repos": [
+        "cos-lending-selling-data-utils"
       ]
     },
     {
@@ -406,264 +535,124 @@
         "cos-lending-selling-dags",
         "cos-lending-selling-ingestion"
       ]
-    },
-    {
-      "system": "MPL S3 Buckets (Servicing Files)",
-      "direction": "upstream",
-      "protocol": "file",
-      "repos": [
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-dags"
-      ]
     }
   ],
-  "dataModel": [
+  "serviceMap": [
     {
-      "entity": "Loan",
-      "description": "Core entity representing consumer loan with loan_id, loan_number, loan_type, loan_amount, interest_rate, status, mpl_id, issuing_bank_id, servicing_bank_id, investor_id, origination_date, maturity_date",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
+      "repo": "COS.Lending.Selling.WebApi",
+      "role": "Core business logic and transaction orchestration service. Handles loan purchases, interest accruals, fee processing, batch operations, and transfer management. Implements outbox pattern for reliable event publishing.",
+      "communicatesWith": [
+        "Cos.Lending.Selling.DbModel",
         "Cos.Lending.Selling.Contracts",
+        "COS.Lending.Selling.Hooks",
+        "COS Transaction Service",
+        "COS Lending Accounting Service",
+        "COS Storage Service",
+        "AWS SQS"
+      ]
+    },
+    {
+      "repo": "COS.Lending.Selling.UI",
+      "role": "React-based frontend providing loan inventory management, search/filtering, approval workflows, and AI-powered chat interface for loan queries. Primary user interface for MPLs, banks, and internal users.",
+      "communicatesWith": [
+        "COS.Lending.Selling.WebApi",
+        "CRB Identity Provider",
+        "CRB AI Service",
+        "CRB Menu Service"
+      ]
+    },
+    {
+      "repo": "COS.Lending.Selling.Hooks",
+      "role": "Event notification service that converts domain events into standardized hooks notifications. Publishes loan status changes, batch completions, investor changes, fee charges, and overdue alerts to downstream consumers via NServiceBus.",
+      "communicatesWith": [
+        "CRB.CosLending.Hooks.Hub.Service",
+        "OAuth Identity Provider"
+      ]
+    },
+    {
+      "repo": "cos-lending-selling-ai",
+      "role": "AI-powered question-answering service using Claude via AWS Bedrock. Enables natural language queries about loan history, interest calculations, and transfers. Generates SQL from user questions and synthesizes human-readable responses.",
+      "communicatesWith": [
         "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-ingestion",
+        "AWS Bedrock",
+        "AWS DynamoDB",
+        "Identity Server"
+      ]
+    },
+    {
+      "repo": "cos-lending-selling-ingestion",
+      "role": "Data ingestion and synchronization service that imports loan servicing data from S3, SOFR rates from Federal Reserve, and synchronizes loan status between Arix and Selling databases. Publishes CloudWatch metrics.",
+      "communicatesWith": [
+        "Cos.Lending.Selling.DbModel",
+        "AWS S3",
+        "Federal Reserve API",
+        "Arix Database",
+        "Contracts Database",
+        "Volume Database",
+        "Vampire Database",
+        "AWS CloudWatch"
+      ]
+    },
+    {
+      "repo": "cos-lending-selling-dags",
+      "role": "Airflow-based orchestration service managing ETL workflows for data ingestion, transformation, curation, interest accruals, fee processing, and reporting. Schedules and monitors data pipeline execution.",
+      "communicatesWith": [
+        "Cos.Lending.Selling.DbModel",
         "cos-lending-selling-datatools",
-        "cos-lending-selling-e2e-tests"
-      ]
-    },
-    {
-      "entity": "Contract",
-      "description": "Agreement between MPL and bank defining purchase terms, fees, interest calculation methods, seasoning periods, volume minimums",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
         "cos-lending-selling-ingestion",
-        "cos-lending-selling-datatools",
-        "cos-lending-selling-e2e-tests"
+        "AWS ECS",
+        "AWS Athena",
+        "AWS S3",
+        "External loan data APIs",
+        "SOFR data source",
+        "Vampire System"
       ]
     },
     {
-      "entity": "Batch",
-      "description": "Group of loans processed together with batch_id, status, creation_date, mpl_id, total_amount, loan_count, progress statistics",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.Contracts",
+      "repo": "cos-lending-selling-datatools",
+      "role": "Data engineering toolkit providing DBT transformations, data exports, and analytics support. Transforms raw ingested data into curated datasets for reporting and business intelligence.",
+      "communicatesWith": [
         "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-e2e-tests"
+        "AWS S3",
+        "AWS ECS",
+        "AWS Secrets Manager"
       ]
     },
     {
-      "entity": "Transfer",
-      "description": "Financial transaction between accounts with transfer_id, amount, from_account, to_account, status, type, loan_id, created_date",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
+      "repo": "cos-lending-selling-data-utils",
+      "role": "Account resolution utility that maps loans to appropriate GL accounts by querying the Accounting API and applying custom mapping rules. Runs as CLI tool or scheduled job.",
+      "communicatesWith": [
+        "CRB.CosLending.Accounting.Api",
+        "MPLConsumerLoansOperations Database",
         "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-e2e-tests"
+        "OAuth Authorization Server"
       ]
     },
     {
-      "entity": "LoanAction",
-      "description": "Audit trail of actions on loans (purchase, interest_accrual, fee_collection) with action_type, amount, timestamp, user_id",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-dags"
+      "repo": "Cos.Lending.Selling.DbModel",
+      "role": "Shared database model and Entity Framework context defining schema, entities, relationships, and outbox tables. Provides persistence layer for all services accessing the Selling PostgreSQL database.",
+      "communicatesWith": [
+        "PostgreSQL Database"
       ]
     },
     {
-      "entity": "InterestHistory",
-      "description": "Interest calculations over time with interest_date, principal_balance, interest_rate, sofr_rate, interest_amount, loan_id",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-datatools"
-      ]
+      "repo": "Cos.Lending.Selling.Contracts",
+      "role": "Shared F# library defining canonical data types and contracts for loans, accounts, batches, invoices, receipts, and discrepancies. Ensures type safety and consistent domain modeling across all services.",
+      "communicatesWith": []
     },
     {
-      "entity": "Fee",
-      "description": "Fee structures and charges with fee_type, amount, percentage, frequency, mpl_id, contract_id, collection_date",
-      "repos": [
+      "repo": "cos-lending-selling-e2e-tests",
+      "role": "End-to-end testing infrastructure simulating the complete lending environment. Validates loan processing from origination through purchase, including interest, fees, and transfers. Includes mock COS services.",
+      "communicatesWith": [
         "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-datatools"
-      ]
-    },
-    {
-      "entity": "Account",
-      "description": "Banking accounts for transfers with account_number, account_type, is_subaccount, objective (purchase/return/interest/fee), mpl_id",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
         "cos-lending-selling-data-utils",
-        "cos-lending-selling-e2e-tests"
-      ]
-    },
-    {
-      "entity": "Mpl (Marketplace Lender)",
-      "description": "Partner organizations purchasing loans with mpl_id, name, enabled status, contract terms",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.Contracts",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-ingestion"
-      ]
-    },
-    {
-      "entity": "Investor",
-      "description": "Organizations investing in loan portfolios with investor_id, name, allocation rules",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.Contracts",
-        "Cos.Lending.Selling.DbModel"
-      ]
-    },
-    {
-      "entity": "Bank",
-      "description": "Financial institutions (issuing or servicing) with bank_id, name, type",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.Contracts",
-        "Cos.Lending.Selling.DbModel"
-      ]
-    },
-    {
-      "entity": "SofrRate",
-      "description": "Secured Overnight Financing Rate with rate_date, rate_value, 30day_average from Federal Reserve",
-      "repos": [
-        "Cos.Lending.Selling.Contracts",
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-dags"
-      ]
-    },
-    {
-      "entity": "ServicingValues",
-      "description": "MPL-provided loan servicing data with adjusted_loan_amount, interest_paid, last_payment_date, servicing_timestamp",
-      "repos": [
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-dags"
-      ]
-    },
-    {
-      "entity": "ChatSession",
-      "description": "AI chat conversation with session_id, user_id, loan_id, created_date, last_activity",
-      "repos": [
-        "COS.Lending.Selling.UI",
-        "cos-lending-selling-ai"
-      ]
-    },
-    {
-      "entity": "VolumeFeeMonthlyMinimum",
-      "description": "Monthly fee minimums per MPL with month, year, minimum_amount, actual_amount, true_up_amount",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-dags"
+        "cos-lending-selling-datatools",
+        "AWS S3",
+        "RabbitMQ",
+        "PostgreSQL",
+        "MSSQL"
       ]
     }
   ],
-  "architecturePatterns": [
-    {
-      "pattern": "Outbox Pattern",
-      "description": "Reliable event publishing using transactional outbox tables for transfers, fees, batches, interest, notifications, and reporting",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-e2e-tests"
-      ]
-    },
-    {
-      "pattern": "Event-Driven Architecture",
-      "description": "Asynchronous communication via hooks, SQS queues, and NServiceBus for loan events, status changes, and financial operations",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "COS.Lending.Selling.Hooks",
-        "cos-lending-selling-dags"
-      ]
-    },
-    {
-      "pattern": "Multi-Tenant Architecture",
-      "description": "Tenant isolation for MPLs, Banks, and Investors with tenant-specific data access and authorization",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel"
-      ]
-    },
-    {
-      "pattern": "CQRS",
-      "description": "Separation of command operations (purchases, transfers) from query operations (reporting, analytics)",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "cos-lending-selling-datatools"
-      ]
-    },
-    {
-      "pattern": "Repository Pattern",
-      "description": "Data access abstraction layer separating business logic from persistence",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "Cos.Lending.Selling.DbModel",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-data-utils"
-      ]
-    },
-    {
-      "pattern": "ETL/ELT Pipeline",
-      "description": "Extract-Transform-Load workflows orchestrated by Airflow with dbt transformations",
-      "repos": [
-        "cos-lending-selling-dags",
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-datatools"
-      ]
-    },
-    {
-      "pattern": "Functional Core/Imperative Shell",
-      "description": "F# business logic with pure functions wrapped by C# imperative API layer",
-      "repos": [
-        "COS.Lending.Selling.WebApi"
-      ]
-    },
-    {
-      "pattern": "Microservices",
-      "description": "Independently deployable services with clear boundaries: UI, API, AI, Hooks, Ingestion, Data Utils",
-      "repos": [
-        "COS.Lending.Selling.UI",
-        "COS.Lending.Selling.WebApi",
-        "COS.Lending.Selling.Hooks",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-ingestion",
-        "cos-lending-selling-data-utils"
-      ]
-    },
-    {
-      "pattern": "API Gateway Pattern",
-      "description": "FastAPI serving as gateway for AI requests with authentication, streaming, and rate limiting",
-      "repos": [
-        "cos-lending-selling-ai"
-      ]
-    },
-    {
-      "pattern": "Container-Based Deployment",
-      "description": "Docker containers for all services deployed on AWS ECS Fargate",
-      "repos": [
-        "COS.Lending.Selling.WebApi",
-        "COS.Lending.Selling.Hooks",
-        "cos-lending-selling-ai",
-        "cos-lending-selling-dags",
-        "cos-lending-selling-ingestion",
-        "iac-cos-lending-selling"
-      ]
-    },
-    {
-      "pattern": "Infrastructure as Code",
-      "description": "Terraform and Terragrunt managing AWS resources with multi-environment configuration",
-      "repos": [
-        "iac-cos-lending-selling"
-      ]
-    }
-  ]
+  "systemOverview": "The COS Lending Selling Platform is a comprehensive loan management and secondary market system for Cross River Bank. Its business purpose is to enable Marketplace Lenders (MPLs) to purchase consumer loans originated through issuing banks, manage the complete loan lifecycle including servicing transfers, and handle all associated financial operations. The system orchestrates loan sales from Cross River Bank to MPLs, tracks loan ownership and servicing rights, automates daily interest accruals using simple or SOFR-based calculations, collects various fees (servicing, volume, origination), manages investor relationships for loan participations, and provides regulatory reporting and reconciliation capabilities. The platform supports multi-tenant operations with role-based access for internal administrators, MPLs, issuing banks, servicing banks, and investors. Key workflows include automated batch purchasing of loans, daily interest calculation and pass-through to investors, monthly fee collection with true-up processing, loan grooming and type changes based on seasoning periods, and real-time event notifications to downstream systems. The architecture follows microservices patterns with a React frontend (UI), .NET/F# backend API (WebApi), Python-based AI query service, Airflow data orchestration (DAGs), data ingestion services, and event notification service (Hooks). All services share a common PostgreSQL database schema (DbModel) and type definitions (Contracts). The system integrates with Cross River Bank's core systems (COS Transaction Service, COS Accounting Service, COS Storage Service) for financial operations, external MPL servicing systems via S3 CSV imports, Federal Reserve for SOFR rate data, and AWS services (S3, SQS, DynamoDB, Bedrock) for cloud capabilities."
 }

@@ -6,11 +6,11 @@ cos-lending-selling-datatools is a data engineering repository for the Cross Riv
 
 ## Communicates With
 
-[cos-lending-selling-web-api DB](../repos/cos-lending-selling-web-api-db.md), [AWS S3](../repos/aws-s3.md), [AWS Secrets Manager](../repos/aws-secrets-manager.md), [AWS ECS](../repos/aws-ecs.md)
+[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [AWS S3](../repos/aws-s3.md), [AWS ECS](../repos/aws-ecs.md), [AWS Secrets Manager](../repos/aws-secrets-manager.md)
 
 ## Features Implemented
 
-- [Batch Reporting](../features/batch-reporting.md)
+- [Reconciliation and Reporting](../features/reconciliation-and-reporting.md)
 
 ## Business Features
 
@@ -100,4 +100,4 @@ The ingestion task factory in dags/projects/utils/ingestion_task_factory.py has 
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

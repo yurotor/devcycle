@@ -6,12 +6,11 @@
 
 ## Communicates With
 
-[AWS S3](../repos/aws-s3.md), [Selling DB PostgreSQL](../repos/selling-db-postgresql.md), [Arix MSSQL](../repos/arix-mssql.md), [Contracts MSSQL](../repos/contracts-mssql.md), [Volume MSSQL](../repos/volume-mssql.md), [Vampire MSSQL](../repos/vampire-mssql.md), [Federal Reserve API](../repos/federal-reserve-api.md), [AWS Athena](../repos/aws-athena.md)
+[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [AWS S3](../repos/aws-s3.md), [Federal Reserve API](../repos/federal-reserve-api.md), [Arix Database](../repos/arix-database.md), [Contracts Database](../repos/contracts-database.md), [Volume Database](../repos/volume-database.md), [Vampire Database](../repos/vampire-database.md), [AWS CloudWatch](../repos/aws-cloudwatch.md)
 
 ## Features Implemented
 
-- [Interest Accrual](../features/interest-accrual.md)
-- [Loan Servicing Data Sync](../features/loan-servicing-data-sync.md)
+- [Servicing Data Ingestion](../features/servicing-data-ingestion.md)
 
 ## Tech Stack
 
@@ -20,4 +19,4 @@
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

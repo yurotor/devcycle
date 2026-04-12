@@ -6,12 +6,11 @@ This repository implements a hooks service for the CRB.Cos.Lending.Selling domai
 
 ## Communicates With
 
-[CRB.CosLending.Hooks.Hub.Service](../repos/crb-coslending-hooks-hub-service.md), [NServiceBus](../repos/nservicebus.md), [OAuth Identity Provider](../repos/oauth-identity-provider.md)
+[CRB.CosLending.Hooks.Hub.Service](../repos/crb-coslending-hooks-hub-service.md), [OAuth Identity Provider](../repos/oauth-identity-provider.md)
 
 ## Features Implemented
 
-- [Volume Fee Processing](../features/volume-fee-processing.md)
-- [Loan Grooming and Type Changes](../features/loan-grooming-and-type-changes.md)
+- [Real-Time Event Notifications](../features/real-time-event-notifications.md)
 
 ## Business Features
 
@@ -93,4 +92,4 @@ The health check endpoint '/selling/hooks/health' doesn't have authentication re
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.010Z*
+*Generated: 2026-04-12T14:26:15.921Z*

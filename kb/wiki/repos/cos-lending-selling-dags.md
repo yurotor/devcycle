@@ -6,17 +6,15 @@ This repository contains Airflow DAGs for orchestrating data processing workflow
 
 ## Communicates With
 
-[cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [AWS ECS](../repos/aws-ecs.md), [PostgreSQL](../repos/postgresql.md), [Vampire system](../repos/vampire-system.md), [External SOFR API](../repos/external-sofr-api.md)
+[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [AWS ECS](../repos/aws-ecs.md), [AWS Athena](../repos/aws-athena.md), [AWS S3](../repos/aws-s3.md), [External loan data APIs](../repos/external-loan-data-apis.md), [SOFR data source](../repos/sofr-data-source.md), [Vampire System](../repos/vampire-system.md)
 
 ## Features Implemented
 
-- [Loan Purchase and Selling](../features/loan-purchase-and-selling.md)
-- [Interest Accrual](../features/interest-accrual.md)
-- [Volume Fee Processing](../features/volume-fee-processing.md)
-- [Loan Servicing Data Sync](../features/loan-servicing-data-sync.md)
-- [Loan Grooming and Type Changes](../features/loan-grooming-and-type-changes.md)
-- [Batch Reporting](../features/batch-reporting.md)
-- [Auto Purchase Flow](../features/auto-purchase-flow.md)
+- [Interest Accrual and Pass-Through](../features/interest-accrual-and-pass-through.md)
+- [Fee Collection and Management](../features/fee-collection-and-management.md)
+- [Loan Grooming and Seasoning](../features/loan-grooming-and-seasoning.md)
+- [Servicing Data Ingestion](../features/servicing-data-ingestion.md)
+- [Reconciliation and Reporting](../features/reconciliation-and-reporting.md)
 
 ## Business Features
 
@@ -119,4 +117,4 @@ ECS tasks appear to use the same general role across different task types rather
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

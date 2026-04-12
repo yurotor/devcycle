@@ -88,5 +88,6 @@
     "Purpose of the 'field1' through 'field21' properties on LoanInfo",
     "Implementation details of the 'GroomingRecovery' process",
     "Whether PII data is encrypted or specially handled beyond the attribute marking"
-  ]
+  ],
+  "keyFiles": []
 }

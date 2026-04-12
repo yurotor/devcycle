@@ -6,16 +6,19 @@ The repository serves as a backend WebAPI for loan management in a lending platf
 
 ## Communicates With
 
-[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [COS.Lending.Contracts](../repos/cos-lending-contracts.md), [COS.Lending.Hooks](../repos/cos-lending-hooks.md), [COS.Lending.Accounting](../repos/cos-lending-accounting.md), [COS Storage Service](../repos/cos-storage-service.md), [COS Transaction Service](../repos/cos-transaction-service.md), [AWS SQS](../repos/aws-sqs.md)
+[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [COS.Lending.Selling.Hooks](../repos/cos-lending-selling-hooks.md), [COS Transaction Service](../repos/cos-transaction-service.md), [COS Lending Accounting Service](../repos/cos-lending-accounting-service.md), [COS Storage Service](../repos/cos-storage-service.md), [AWS SQS](../repos/aws-sqs.md)
 
 ## Features Implemented
 
-- [Loan Purchase and Selling](../features/loan-purchase-and-selling.md)
-- [Interest Accrual](../features/interest-accrual.md)
-- [Volume Fee Processing](../features/volume-fee-processing.md)
-- [Loan Grooming and Type Changes](../features/loan-grooming-and-type-changes.md)
-- [Batch Reporting](../features/batch-reporting.md)
-- [Auto Purchase Flow](../features/auto-purchase-flow.md)
+- [Automated Loan Purchasing](../features/automated-loan-purchasing.md)
+- [Batch Loan Processing](../features/batch-loan-processing.md)
+- [Interest Accrual and Pass-Through](../features/interest-accrual-and-pass-through.md)
+- [Fee Collection and Management](../features/fee-collection-and-management.md)
+- [Loan Grooming and Seasoning](../features/loan-grooming-and-seasoning.md)
+- [Real-Time Event Notifications](../features/real-time-event-notifications.md)
+- [Loan Inventory Management](../features/loan-inventory-management.md)
+- [Reconciliation and Reporting](../features/reconciliation-and-reporting.md)
+- [Account Resolution and Mapping](../features/account-resolution-and-mapping.md)
 
 ## Business Features
 
@@ -126,4 +129,4 @@ While some outbox processors check for duplicates, others don't implement proper
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T12:37:55.011Z*
+*Generated: 2026-04-12T14:26:15.921Z*

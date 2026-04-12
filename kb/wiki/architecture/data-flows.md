@@ -2,69 +2,97 @@
 
 Major end-to-end data flows through the system.
 
-## Loan Origination to Purchase
+## Loan Purchase Flow
 
-Complete flow from loan creation through purchase by MPL
+MPL purchases loans from Cross River Bank through automated or manual workflows, triggering financial transfers and accounting entries.
 
-1. Loan originated in external system and ingested via cos-lending-selling-ingestion
-2. Loan data synchronized to Selling DB from Arix
-3. Account mappings resolved via cos-lending-selling-data-utils from Accounting API
-4. Loan appears in COS.Lending.Selling.UI inventory
-5. MPL selects loans and creates batch via WebApi
-6. WebApi validates loan eligibility and creates batch record
-7. BatchInitOutbox processes batch and initiates transfers
-8. TransferOutbox creates transfer requests to COS Transaction Service
-9. COS processes transfers between accounts
-10. Batch status updated to completed
-11. Hooks service publishes BatchPurchaseCompleted event
-12. Loan ownership transferred to MPL
-## Daily Interest Accrual
+1. MPL initiates purchase request via UI or auto-purchase configuration
+2. WebApi validates contract terms and loan eligibility
+3. Batch is created grouping multiple loans for processing
+4. WebApi generates Invoice and writes to BatchInitOutbox
+5. Outbox processor triggers transfer requests to COS Transaction Service
+6. Accounting API is called to retrieve account configurations via data-utils
+7. Financial transfers execute (purchase price from MPL account to bank)
+8. Receipt is generated confirming purchase completion
+9. Hooks service publishes BatchPurchaseCompleted notification
+10. UI displays updated loan ownership and batch status
+## Daily Interest Accrual Flow
 
-Automated daily interest calculation and posting
+Automated process calculates and records interest on all active loans daily, with pass-through interest calculations for investors.
 
-1. Airflow DAG triggers at scheduled time
-2. cos-lending-selling-ingestion ensures latest SOFR rates available
-3. WebApi DailyInterestOutbox processor runs
-4. For each active loan, calculate interest based on contract terms and SOFR
-5. Interest amount calculated using loan balance and rate
-6. Interest posted to accounting system via COS.Lending.Accounting API
-7. InterestHistory record created in DB
-8. Transfer created for interest payment
-9. Metrics published to CloudWatch
-10. Completion logged
-## Servicing Data Pipeline
+1. Airflow DAG triggers daily interest calculation job
+2. WebApi identifies all active loans requiring interest accrual
+3. F# business logic calculates interest based on loan type, rate, and SOFR data
+4. Interest records written to InterestHistory table
+5. DailyInterestOutbox entries created for each accrual
+6. Outbox processor triggers transfer requests for interest collection
+7. COS Transaction Service executes transfers (interest from MPL to bank)
+8. InterestHistory updated with transfer confirmations
+9. Datatools exports interest data to S3 for reporting
+10. CloudWatch metrics updated with daily interest totals
+## Data Ingestion and Synchronization Flow
 
-MPL servicing data ingestion and processing
+External data sources are ingested, transformed, and synchronized into the Selling database to maintain current loan and contract information.
 
-1. MPL uploads CSV servicing file to designated S3 bucket
-2. Airflow servicing DAG detects new file
-3. cos-lending-selling-ingestion downloads and parses CSV
-4. Servicing values (adjusted_loan_amount, interest_paid) extracted
-5. Data validated against loan records in DB
-6. Servicing table updated with new values
-7. Servicing timestamp recorded for MPL
-8. File moved to processed folder in S3
-9. Metrics updated for monitoring dashboard
-10. dbt models refresh analytics tables
-## End-to-End Loan Query via AI
+1. Airflow DAG schedules ingestion tasks on regular intervals
+2. Ingestion service fetches SOFR rates from Federal Reserve API
+3. CSV files from MPL servicing systems uploaded to S3
+4. Ingestion service reads S3 files and parses servicing data
+5. Loan status synchronized from Arix database to Selling database
+6. Contract data imported from Contracts database
+7. Volume data imported from Volume database
+8. DBT transformations run to curate and denormalize data
+9. Flyway migrations applied to update schema if needed
+10. Data-utils resolves accounts for newly ingested loans
+11. CloudWatch metrics published for data freshness monitoring
+## Fee Collection Flow
 
-User question answered by AI service with database context
+Various fees (servicing, volume, true-up) are calculated and collected from MPL accounts according to contract terms.
 
-1. User enters question in COS.Lending.Selling.UI chat interface
-2. UI calls cos-lending-selling-ai /chat endpoint with user_id and loan_id
-3. AI service creates or retrieves session from DynamoDB
-4. User message posted to /chat/{session_id}/message
-5. AI service constructs prompt with loan schema and history
-6. AWS Bedrock (Claude) LLM processes question
-7. If data needed, AI generates SQL query
-8. SQL executed against Selling DB via SQLAlchemy
-9. Results formatted into natural language response
-10. Response streamed via SSE to UI
-11. Message history persisted to DynamoDB
-12. UI displays formatted response with citations
+1. WebApi identifies fees due based on contract configuration
+2. Volume fee calculation triggered monthly based on loan volume
+3. True-up volume fee calculated if monthly minimum not met
+4. Fee records created with amount, type, and due date
+5. FeeOutbox and VolumeFeeOutbox entries created
+6. Outbox processor calls Accounting API for fee account mapping
+7. Transfer requests generated for fee collection
+8. COS Transaction Service executes transfers (fee from MPL to bank)
+9. Transfer status monitored and updated in database
+10. Hooks service publishes TrueUpVolumeFeeCharged notifications
+11. Reporting exports include fee collection summaries
+## Loan Type Change and Grooming Flow
+
+Loans are reclassified or groomed based on seasoning periods and business rules, potentially changing investor allocation.
+
+1. Airflow DAG triggers grooming job based on loan age
+2. WebApi identifies loans meeting seasoning criteria
+3. Loan type change business logic evaluates eligibility
+4. Investor allocation rules applied based on new loan type
+5. LoanTypeChanged event created with old/new type details
+6. Accounting API called to determine new account mappings
+7. Transfer requests generated if investor change required
+8. Database updated with new loan type and investor
+9. Hooks service publishes LoanTypeChanged notification
+10. Hooks service publishes InvestorChanged notification if applicable
+11. UI reflects updated loan classification
+## AI-Powered Loan Query Flow
+
+Users query loan history and details using natural language, with AI generating SQL and synthesizing human-readable responses.
+
+1. User submits natural language question via UI chat interface
+2. UI calls AI service /chat endpoint to create or resume session
+3. AI service retrieves loan context from PostgreSQL Selling database
+4. User message sent to /chat/{session_id}/message endpoint
+5. AI service constructs prompt with database schema and loan context
+6. AWS Bedrock (Claude) generates SQL query to answer question
+7. AI service validates SQL is SELECT-only and executes against database
+8. Query results formatted and sent back to Claude for summarization
+9. AI streams response via Server-Sent Events to UI
+10. Message history stored in DynamoDB for context retention
+11. UI displays formatted answer with follow-up query capability
 
 ---
 
 > See also: [System Overview](./system-overview.md) | [Service Map](./service-map.md)
 
-*Generated: 2026-04-12T12:35:48.597Z*
+*Generated: 2026-04-12T14:23:22.318Z*
