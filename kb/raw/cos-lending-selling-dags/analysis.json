@@ -1,48 +1,80 @@
 {
-  "purpose": "This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) that orchestrate various ETL processes for a loan selling and servicing platform. It automates data ingestion, transformation, and synchronization between systems to enable loan management, fee collection, interest accrual, and reporting.",
+  "_headHash": "b6543ad27bfd898d03f0119b7fcaeff609e7ad93",
+  "purpose": "This repository contains Airflow DAGs for orchestrating data processing workflows in a lending and selling system. It manages the ingestion, transformation, and curation of loan data, along with handling fee collections, interest accruals, and reporting for financial operations.",
   "businessFeatures": [
-    "Loan data ingestion and curation from source systems",
-    "Interest accrual calculations for loans",
+    "Loan data ingestion and curation",
+    "Interest accrual calculation",
     "Fee collection and processing",
-    "Data export for reporting and analytics",
-    "Loan servicing data management",
-    "MPL (Marketplace Lender) management",
-    "SOFR rate ingestion for interest calculations",
-    "Pre-sale reporting for loan sales",
-    "Synchronization with vampire (sales data system)",
-    "Account resolution and management"
+    "Export data for reporting",
+    "Servicing data management",
+    "SOFR rate ingestion",
+    "Volume fee true-up processing",
+    "Presale reporting",
+    "Account management and resolution"
   ],
   "apis": [],
   "dependencies": [
     {
-      "target": "dbt-transformations",
-      "type": "shared-lib"
-    },
-    {
-      "target": "flyway-migrations",
-      "type": "shared-lib"
-    },
-    {
-      "target": "ingestion-modules",
-      "type": "shared-lib"
-    },
-    {
-      "target": "postgres-rds",
+      "target": "PostgreSQL database",
       "type": "database"
     },
     {
-      "target": "vampire",
+      "target": "DBT",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Flyway",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS ECS",
+      "type": "http"
+    },
+    {
+      "target": "AWS Athena",
       "type": "database"
     },
     {
-      "target": "athena",
+      "target": "AWS S3",
       "type": "database"
+    },
+    {
+      "target": "AWS Secrets Manager",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS SSM Parameter Store",
+      "type": "shared-lib"
+    },
+    {
+      "target": "External loan data API",
+      "type": "http"
+    },
+    {
+      "target": "External volume data API",
+      "type": "http"
+    },
+    {
+      "target": "External contract data API",
+      "type": "http"
+    },
+    {
+      "target": "External servicing data source",
+      "type": "database"
+    },
+    {
+      "target": "External SOFR data source",
+      "type": "http"
+    },
+    {
+      "target": "Vampire system",
+      "type": "bidirectional"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan data representing originated loans in the system"
+      "description": "Core loan data entity representing loan contracts"
     },
     {
       "name": "Account",
@@ -50,27 +82,27 @@
     },
     {
       "name": "Fee",
-      "description": "Fee data for loan processing and servicing"
+      "description": "Fee structures and collection records"
+    },
+    {
+      "name": "LoanAction",
+      "description": "Actions performed on loans"
+    },
+    {
+      "name": "Batch",
+      "description": "Grouping of loans for processing"
     },
     {
       "name": "MPL",
-      "description": "Marketplace Lender entities that originate loans"
+      "description": "Marketplace Lender entity"
     },
     {
       "name": "Organization",
-      "description": "Issuing banks and investors that participate in the lending ecosystem"
+      "description": "Financial institutions like issuing banks & investors"
     },
     {
-      "name": "SOFR",
-      "description": "Secured Overnight Financing Rate data used for interest calculations"
-    },
-    {
-      "name": "Contract",
-      "description": "Legal contracts associated with loans"
-    },
-    {
-      "name": "FeeTierRange",
-      "description": "Tier-based fee structure definitions"
+      "name": "Interest",
+      "description": "Interest accrual records"
     }
   ],
   "messagingPatterns": [],
@@ -82,13 +114,23 @@
     },
     {
       "system": "Vampire",
-      "direction": "downstream",
+      "direction": "bidirectional",
       "protocol": "database"
     },
     {
-      "system": "Athena",
+      "system": "Loan data source",
       "direction": "upstream",
-      "protocol": "database"
+      "protocol": "REST"
+    },
+    {
+      "system": "Contract data source",
+      "direction": "upstream",
+      "protocol": "REST"
+    },
+    {
+      "system": "Volume data source",
+      "direction": "upstream",
+      "protocol": "REST"
     },
     {
       "system": "Servicing data source",
@@ -97,46 +139,59 @@
     }
   ],
   "architecturePatterns": [
-    "ELT (Extract, Load, Transform)",
-    "Task orchestration",
-    "Container-based processing",
-    "Infrastructure as Code",
-    "Data pipeline"
+    "Extract-Load-Transform (ELT)",
+    "Container-based task execution",
+    "Orchestration workflow",
+    "Parameter-driven execution"
   ],
   "techStack": [
     "Apache Airflow",
     "Python",
-    "AWS ECS",
     "Docker",
+    "AWS ECS",
+    "AWS MWAA",
     "PostgreSQL",
-    "DBT (Data Build Tool)",
+    "DBT",
     "Flyway",
+    "AWS Athena",
+    "AWS S3",
     "AWS Secrets Manager",
     "AWS SSM Parameter Store",
-    "AWS Athena",
-    "AWS CloudWatch"
+    "New Relic"
   ],
   "findings": [
     {
       "severity": "high",
-      "category": "security",
-      "title": "Secret Management Inconsistency",
-      "description": "The repository uses a mix of AWS Secrets Manager and environment variables for credential management. Some credentials like database passwords are properly managed through Secrets Manager ARNs, while others may be exposed through environment files (e.g., selling.env). All secrets should be managed consistently through Secrets Manager to prevent potential credential exposure.",
+      "category": "architecture",
+      "title": "Environment Variable Secrets in MWAA",
+      "description": "The DAGs appear to rely on environment variables for configuration which may include sensitive values. MWAA environment variables are visible to all users with console access. Consider moving all sensitive configurations to AWS Secrets Manager.",
       "files": [
-        ".devcontainer/docker-compose.yml",
+        "dags/projects/utils/ingestion_task_factory.py",
+        "dags/projects/utils/dbt_task_factory.py",
+        "dags/projects/utils/flyway_task_factory.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "title": "Hard-coded AWS region",
+      "description": "AWS region is hard-coded as 'us-east-1' in log configuration which reduces portability and could create issues if deployed to a different region. Region should be retrieved from environment or configuration.",
+      "files": [
+        "dags/projects/utils/flyway_task_factory.py",
+        "dags/projects/utils/dbt_task_factory.py",
         "dags/projects/utils/ingestion_task_factory.py"
       ]
     },
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Missing Error Handling in Dag Tasks",
-      "description": "Many of the DAG tasks have minimal or no error handling, which can lead to silent failures or incomplete executions without clear diagnostics. Tasks should implement proper exception handling with appropriate logging and recovery mechanisms to ensure reliability.",
+      "title": "Excessive IAM permissions for tasks",
+      "description": "ECS tasks appear to use the same general role across different task types rather than least-privilege roles specific to each task's needs. Implement role separation based on task functionality requirements.",
       "files": [
-        "dags/projects/loans_ingestion/loans_ingestion_dag.py",
-        "dags/projects/utils/dbt_task_factory.py",
-        "dags/projects/utils/ingestion_task_factory.py"
+        "dags/projects/utils/ingestion_task_factory.py",
+        "dags/projects/utils/dbt_task_factory.py"
       ]
     }
-  ]
+  ],
+  "ambiguities": []
 }

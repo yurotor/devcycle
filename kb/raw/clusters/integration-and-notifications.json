@@ -1,0 +1,104 @@
+{
+  "clusterName": "Integration and Notifications",
+  "sharedEntities": [
+    {
+      "entity": "LoanSaleStatusChanged",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents loan sale status changes that are captured and published as notifications"
+    },
+    {
+      "entity": "BatchPurchaseCompleted",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents completed batch purchases with financial summaries that are published to notification subscribers"
+    },
+    {
+      "entity": "TrueUpVolumeFeeCharged",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents fee charges that are published as notifications for accounting and reconciliation purposes"
+    },
+    {
+      "entity": "InvestorChanged",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents investor reassignments that are published to notification subscribers"
+    },
+    {
+      "entity": "LoanTypeChanged",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents loan type modifications that are published to notification subscribers"
+    },
+    {
+      "entity": "OverdueLoansAlert",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Represents alerts about overdue loans that are published to notification subscribers"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Selling Event Notification Flow",
+      "description": "Captures loan selling domain events and distributes them to subscribers via the Hooks Hub",
+      "steps": [
+        "Domain event occurs in COS.Lending.Selling domain",
+        "Event is captured by COS.Lending.Selling.Hooks service",
+        "Service transforms event into standardized notification format",
+        "Notification is published to CosLending Hooks Hub via NServiceBus",
+        "Subscribers receive notifications from the Hooks Hub"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.Hooks",
+      "to": "CosLending Hooks Hub",
+      "mechanism": "messaging",
+      "description": "Publishes standardized loan selling notifications that can be consumed by subscribers of the Hooks Hub"
+    },
+    {
+      "from": "OAuth Identity Provider",
+      "to": "COS.Lending.Selling.Hooks",
+      "mechanism": "REST",
+      "description": "Authenticates requests to the hooks service to ensure secure publishing of notifications"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Webhook Publisher",
+      "description": "Implements a hooks pattern where domain events are converted to standardized notifications that can be subscribed to by other systems",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Event-Driven Architecture",
+      "description": "Uses events to decouple the loan selling domain from consumers interested in loan selling activities",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Message-Based Integration",
+      "description": "Uses NServiceBus for reliable message-based integration with the Hooks Hub",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "How subscribers register their interest in specific notification types",
+    "The exact business rules that trigger each type of notification",
+    "Whether notifications include historical data or just current state changes",
+    "How failed notification deliveries are handled and retried",
+    "The complete set of external systems consuming these notifications"
+  ]
+}

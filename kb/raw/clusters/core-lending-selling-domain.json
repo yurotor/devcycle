@@ -1,0 +1,160 @@
+{
+  "clusterName": "Core Lending Selling Domain",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Core domain entity representing loans with attributes like ID, status, and amount; defined in Contracts, persisted in DbModel, and exposed through WebApi"
+    },
+    {
+      "entity": "Investor",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Entity that purchases loans, defined in Contracts and stored in DbModel"
+    },
+    {
+      "entity": "Bank",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Financial institution that originates or services loans, defined in Contracts and stored in DbModel"
+    },
+    {
+      "entity": "Mpl",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Marketplace lender entity that purchases loans from banks, defined in Contracts and stored in DbModel"
+    },
+    {
+      "entity": "Batch",
+      "repos": [
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Groups multiple loans for bulk processing, defined as BatchInfo in Contracts, persisted in DbModel, and managed through WebApi"
+    },
+    {
+      "entity": "Transfer",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Represents movement of loans between entities or accounts, stored in DbModel and exposed through WebApi endpoints"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Purchase Flow",
+      "description": "End-to-end process where an MPL purchases loans from a bank",
+      "steps": [
+        "MPL initiates purchase via WebApi",
+        "System creates Invoice (from Contracts)",
+        "WebApi processes purchase and creates Transfer records",
+        "TransferOutbox ensures reliable processing of transfers",
+        "Receipt (from Contracts) generated to confirm purchase"
+      ]
+    },
+    {
+      "name": "Interest Accrual Flow",
+      "description": "Daily calculation and application of interest to loans",
+      "steps": [
+        "WebApi triggers daily interest calculation",
+        "System calculates interest using SofrRate from Contracts",
+        "Interest is recorded in InterestHistory in DbModel",
+        "DailyInterestOutbox publishes results",
+        "InterestHistory is updated in the database"
+      ]
+    },
+    {
+      "name": "Fee Collection Flow",
+      "description": "Process for collecting various fees related to loan servicing",
+      "steps": [
+        "WebApi identifies fees due",
+        "Fee entities created in DbModel",
+        "FeeOutbox ensures reliable fee processing",
+        "Volume fees are processed via VolumeFeeOutbox",
+        "True-up adjustments handled by TrueUpVolumeFeeOutbox"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "COS.Lending.Selling.DbModel",
+      "mechanism": "Entity Framework Core",
+      "description": "WebApi reads and writes loan, account, and transaction data to the database via DbModel entities"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.Contracts",
+      "mechanism": "Shared Library",
+      "description": "WebApi uses data contracts from Contracts for consistent data exchange with external systems"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cross River Bank COS",
+      "mechanism": "REST API",
+      "description": "WebApi integrates with bank systems for loan origination and servicing information"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "AWS S3",
+      "mechanism": "REST API",
+      "description": "WebApi stores reports and documents in S3 storage"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "External Systems",
+      "mechanism": "Outbox Pattern",
+      "description": "Various outbox tables ensure reliable message delivery to external systems for transfers, fees, batches, and notifications"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Outbox Pattern",
+      "description": "Used for reliable message delivery to external systems, ensuring transactional consistency between database changes and message publishing",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ]
+    },
+    {
+      "pattern": "Shared Contracts",
+      "description": "Common data models defined in a shared contracts library to maintain consistency across services",
+      "repos": [
+        "Cos.Lending.Selling.Contracts"
+      ]
+    },
+    {
+      "pattern": "Repository Pattern",
+      "description": "Encapsulates database access through entity models and contexts",
+      "repos": [
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "REST API",
+      "description": "Exposes domain functionality through RESTful endpoints",
+      "repos": [
+        "COS.Lending.Selling.WebApi"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Cos.Lending.Selling.DbModel: The relationship between LoanAccount and the Account entity is unclear - whether it's a join table or serves another purpose",
+    "COS.Lending.Selling.WebApi: The specific business rules governing when loans can be transferred between accounts are not explicitly defined",
+    "Cos.Lending.Selling.Contracts: The calculation methodology for SofrRate and how it affects interest calculations is not fully documented",
+    "COS.Lending.Selling.WebApi: The exact workflow for resolving Discrepancies identified between loan and reference data is not defined",
+    "Cos.Lending.Selling.DbModel: The lifecycle management of the LoanEvent entity and what triggers various event types is not explicit"
+  ]
+}

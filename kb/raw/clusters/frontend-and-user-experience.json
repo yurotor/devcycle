@@ -1,0 +1,96 @@
+{
+  "clusterName": "Frontend and User Experience",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai",
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Core entity representing a loan in the system with its attributes, flows from UI to AI service for queries and generates events via Hooks for notifications"
+    },
+    {
+      "entity": "ChatSession",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Represents a conversation between user and AI about loans, created in UI and managed by AI service"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan History Query Flow",
+      "description": "User queries loan history through natural language in UI, gets AI-powered responses",
+      "steps": [
+        "User selects loan and asks question in COS.Lending.Selling.UI",
+        "UI creates session via /selling/api/sessions",
+        "Request forwarded to cos-lending-selling-ai via /chat or /crb/ai/loan",
+        "AI service processes question using AWS Bedrock LLM",
+        "Response streamed back to UI via Server-Sent Events",
+        "UI displays response to user"
+      ]
+    },
+    {
+      "name": "Loan Status Change Notification Flow",
+      "description": "System notifies users when loan status changes occur",
+      "steps": [
+        "Loan status change detected in backend system",
+        "COS.Lending.Selling.Hooks receives change via /selling/hooks/api/sendNotification",
+        "Hook service publishes LoanSaleStatusChanged event",
+        "CosLending Hooks Hub distributes notification",
+        "UI potentially receives notification and updates display"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.UI",
+      "to": "cos-lending-selling-ai",
+      "mechanism": "HTTP/REST",
+      "description": "UI sends user questions to AI service and receives responses about loan history and details"
+    },
+    {
+      "from": "COS.Lending.Selling.UI",
+      "to": "COS.Lending.Selling.Hooks",
+      "mechanism": "HTTP/Messaging (indirect)",
+      "description": "UI receives notifications about loan status changes and other events published by the Hooks service"
+    },
+    {
+      "from": "cos-lending-selling-ai",
+      "to": "COS.Lending.Selling.UI",
+      "mechanism": "Server-Sent Events",
+      "description": "AI service streams responses back to the UI token by token for a responsive chat experience"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Observer Pattern",
+      "description": "Used to notify interested parties about loan state changes through a hooks system",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Streaming Response Pattern",
+      "description": "Used to progressively deliver AI responses to improve perceived responsiveness",
+      "repos": [
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "pattern": "Session-based Conversation",
+      "description": "Maintains conversation context across multiple user interactions with the AI",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Exact mechanism for how COS.Lending.Selling.UI consumes notifications published by COS.Lending.Selling.Hooks is not defined",
+    "The specific loan attributes that can be queried via the AI service in cos-lending-selling-ai are not fully enumerated",
+    "How the UI in COS.Lending.Selling.UI displays or processes BatchPurchaseCompleted events from COS.Lending.Selling.Hooks is unclear"
+  ]
+}

@@ -1,49 +1,53 @@
 # COS.Lending.Selling.Hooks
 
 ## Purpose
-COS.Lending.Selling.Hooks is a service that acts as a notification gateway for loan-selling related events in the CRB Cos Lending platform. It receives notifications about loan sale status changes, batch purchases, and other lending events, and publishes them to a central hooks system to trigger downstream processes.
+This repository implements a hooks service for the CRB.Cos.Lending.Selling domain that publishes notifications about loan selling-related events. It acts as an integration point that converts domain events into standardized notifications that can be consumed by other systems via a hooks pattern.
 
 ## Business Features
-- Loan sale status change notifications
+- Loan sale status notifications
 - Batch purchase completion notifications
 - True-up volume fee charge notifications
-- Loan type change notifications
 - Investor change notifications
+- Loan type change notifications
 - Overdue loans alert notifications
 
 ## APIs
 - **GET /selling/hooks/health** — Health check endpoint for the service
-- **POST /selling/hooks/api/sendNotification** — Publishes various types of loan selling notifications to the hooks system
+- **POST /selling/hooks/api/sendNotification** — Publishes loan selling-related notifications to the hooks system
 
 ## Dependencies
 - **CRB.CosLending.Hooks.Hub.Service** (messaging)
 - **NServiceBus** (messaging)
-- **CRB OAuth Service** (http)
+- **CRB.Authorization** (shared-lib)
+- **CRB.Framework.Logging** (shared-lib)
+- **CRB.Hooks** (shared-lib)
+- **CRB.Nsb.Conventions** (shared-lib)
 
 ## Data Entities
-- **LoanSaleStatusChanged** — Represents a change in loan sale status with loan details, investor, and financial amounts
-- **BatchPurchaseCompleted** — Represents a completed batch purchase with totals for principal, interest, fees and count of loans
+- **LoanSaleStatusChanged** — Represents a change in loan sale status with associated loan details
+- **BatchPurchaseCompleted** — Represents completed batch purchase of loans with financial summaries
 - **TrueUpVolumeFeeCharged** — Represents a true-up volume fee charged for a specific month and year
 - **InvestorChanged** — Represents a change in the investor associated with a loan
-- **LoanTypeChanged** — Represents a change in the loan type for a specific loan
-- **OverdueLoansAlert** — Represents alerts for overdue loans with counts and sum amounts
+- **LoanTypeChanged** — Represents a change in loan type for a specific loan
+- **OverdueLoansAlert** — Represents an alert about overdue loans with summary statistics
 
 ## Messaging Patterns
-- **LoanSaleStatusUpdated** (event) — Event published when a loan sale status changes
-- **BatchPurchaseCompleted** (event) — Event published when a batch purchase is completed
-- **TrueUpVolumeFeeCharged** (event) — Event published when a true-up volume fee is charged
-- **LoanTypeChanged** (event) — Event published when a loan type is changed
-- **InvestorChanged** (event) — Event published when an investor is changed for a loan
-- **OverdueLoansAlert** (event) — Event published when overdue loans are detected
+- **LoanSaleStatusChanged** (event) — Publishes event when loan sale status changes
+- **BatchPurchaseCompleted** (event) — Publishes event when batch purchase of loans completes
+- **TrueUpVolumeFeeCharged** (event) — Publishes event when true-up volume fee is charged
+- **InvestorChanged** (event) — Publishes event when investor is changed for a loan
+- **LoanTypeChanged** (event) — Publishes event when loan type is changed
+- **OverdueLoansAlert** (event) — Publishes event for overdue loans alerts
 
 ## External Integrations
-- **CosLending.Hooks.Hub** — downstream via messaging
+- **CosLending Hooks Hub** — downstream via messaging
+- **OAuth Identity Provider** — upstream via REST
 
 ## Architecture Patterns
+- Microservices
 - Event-driven architecture
-- Notification pattern
-- Publisher-subscriber pattern
-- API Gateway
+- Hooks pattern
+- Publish-subscribe
 
 ## Tech Stack
 - .NET 8
@@ -51,18 +55,11 @@ COS.Lending.Selling.Hooks is a service that acts as a notification gateway for l
 - NServiceBus
 - Docker
 - Swagger
-- OAuth/JWT Authentication
 
 ## Findings
-### [HIGH] Missing error handling for failed event publishing
-
-**Category:** architecture  
-**Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/NotificationPublisher.cs
-
-The NotificationPublisher class does not have robust error handling for failures when publishing events. If the NServiceBus message publishing fails, there's no retry mechanism or error tracking, which could lead to lost notifications. Implement proper error handling with retries and dead-letter queue mechanism.
-### [HIGH] Authentication configuration needs safeguards
+### [HIGH] Missing authentication on health check endpoint
 
 **Category:** security  
-**Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/appsettings.Development.json
+**Files:** src/CRB.Cos.Lending.Selling.Hooks.Host/Program.cs
 
-The authentication configuration in appsettings.Development.json indicates that OAuth keys are 'taken from aws secrets manager' but there's no validation to ensure these values are actually present before the application starts, which could lead to unauthenticated access if misconfigured.
+The health check endpoint '/selling/hooks/health' doesn't have authentication requirements, which could potentially leak system information. Consider securing this endpoint or limiting the information it returns.

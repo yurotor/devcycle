@@ -1,55 +1,58 @@
 # Cos.Lending.Selling.DbModel
 
 ## Purpose
-This repository provides data models, entity configurations, and database context for the CRB.Cos.Lending.Selling system. It serves as a central database abstraction layer for managing loans, accounts, fees, transfers, and related entities in a lending and selling system, likely for financial institutions.
+This repository serves as the database model and context for the Cos.Lending.Selling system, defining the data schema and relationships for a financial loan selling and servicing platform. It provides entity models, configurations, and migration capabilities to support the persistence layer of the lending system.
 
 ## Business Features
-- Loan management and servicing
-- Fee calculation and collection
-- Interest calculation and accrual
-- Loan transfers between entities
+- Loan origination and management
+- Interest calculation and tracking
+- Fee processing and management
+- Loan transfers and sales
 - Contract management
-- Multi-tenant authorization
-- Batch processing
-- Investor management
-- True-up volume fee processing
-- Loan discrepancy tracking
+- MPL (Marketplace Lending) program management
+- Investor relationship management
+- Loan grooming and seasoning
+- Volume fee calculations
+- Batch processing of financial transactions
 
 ## Dependencies
-- **EntityFrameworkCore** (shared-lib)
-- **Npgsql.EntityFrameworkCore.PostgreSQL** (database)
+- **Entity Framework Core** (shared-lib)
+- **Npgsql Entity Framework Core Provider** (shared-lib)
+- **PostgreSQL** (database)
 
 ## Data Entities
-- **Loan** — Represents a loan entity with its associated properties
 - **Account** — Represents a financial account in the system
-- **Bank** — Represents a banking institution
-- **Contract** — Represents a contract agreement between parties
-- **Fee** — Represents fee information associated with loans or accounts
-- **Transfer** — Represents transfers of loans between entities
-- **InterestHistory** — Records interest calculations and history for loans
-- **Investor** — Represents investors who purchase or fund loans
-- **Mpl** — Marketplace lender entity and configuration
-- **Batch** — Represents batch processing entities for loans
-- **Servicing** — Represents loan servicing information
-- **TrueUpVolumeFee** — Represents volume-based fee adjustments
+- **Loan** — Core entity representing a loan with its properties and status
+- **Contract** — Represents legal agreements between parties for loan sales or services
+- **Investor** — Entity representing organizations or individuals who invest in loans
+- **Bank** — Financial institution that originates or services loans
+- **Fee** — Represents various fees associated with loan servicing and processing
+- **Transfer** — Represents movement of loans between entities or accounts
+- **Batch** — Groups multiple operations for processing together
+- **InterestHistory** — Tracks interest calculations and changes over time
+- **Mpl** — Marketplace Lending entity representing lending platforms
+- **LoanAccount** — Links loans to specific accounts
+- **LoanEvent** — Captures significant events in a loan's lifecycle
+- **Servicing** — Represents loan servicing details and configurations
 
 ## Messaging Patterns
-- **TransferOutbox** (outbox) — Outbox pattern for reliable transfer events publication
-- **FeeOutbox** (outbox) — Outbox pattern for reliable fee events publication
-- **BatchInitOutbox** (outbox) — Outbox pattern for reliable batch initialization event publication
-- **DailyInterestOutbox** (outbox) — Outbox pattern for reliable daily interest calculation event publication
-- **NotificationOutbox** (outbox) — Outbox pattern for reliable notification event publication
-- **ReportingOutbox** (outbox) — Outbox pattern for reliable reporting event publication
-- **MaturedLoanOutbox** (outbox) — Outbox pattern for reliable matured loan event publication
-- **VolumeFeeOutbox** (outbox) — Outbox pattern for reliable volume fee event publication
-- **TrueUpVolumeFeeOutbox** (outbox) — Outbox pattern for reliable true-up volume fee event publication
+- **TransferOutbox** (outbox) — Ensures reliable delivery of transfer events to other systems
+- **FeeOutbox** (outbox) — Ensures reliable delivery of fee-related events
+- **BatchInitOutbox** (outbox) — Publishes batch initialization events to other systems
+- **DailyInterestOutbox** (outbox) — Publishes daily interest calculation results
+- **NotificationOutbox** (outbox) — Ensures reliable delivery of system notifications
+- **VolumeFeeOutbox** (outbox) — Publishes volume fee calculation events
+- **ReportingOutbox** (outbox) — Ensures reliable delivery of reporting data
+- **MaturedLoanOutbox** (outbox) — Publishes events when loans reach maturity
+- **TrueUpVolumeFeeOutbox** (outbox) — Publishes true-up volume fee adjustments
 
 ## Architecture Patterns
 - Repository Pattern
+- Entity-Relationship Model
 - Outbox Pattern
-- Domain-Driven Design
-- Entity Framework Core
-- Multi-tenancy
+- Fluent API Configuration
+- Code-First Database Migrations
+- Multi-tenant Architecture
 
 ## Tech Stack
 - .NET Core
@@ -59,15 +62,9 @@ This repository provides data models, entity configurations, and database contex
 - C#
 
 ## Findings
-### [HIGH] Dead Letter Queues without processing strategy
+### [HIGH] Lack of consistent tenant isolation
 
 **Category:** architecture  
-**Files:** CRB.Cos.Lending.Selling.DbContext/DbModel/BatchInitOutboxDeadLetter.cs, CRB.Cos.Lending.Selling.DbContext/DbModel/DailyInterestOutboxDeadLetter.cs, CRB.Cos.Lending.Selling.DbContext/DbModel/FeeOutboxDeadLetter.cs, CRB.Cos.Lending.Selling.DbContext/DbModel/NotificationOutboxDeadLetter.cs
+**Files:** CRB.Cos.Lending.Selling.Authorization/Tenant.cs, CRB.Cos.Lending.Selling.Authorization/TenantProvider.cs
 
-The system has numerous DeadLetter tables for failed outbox message processing, but there appears to be no clear strategy or automation for handling these failed messages, which could lead to data inconsistencies if not properly monitored and resolved.
-### [HIGH] Multi-tenant data access control
-
-**Category:** security  
-**Files:** CRB.Cos.Lending.Selling.Authorization/Tenant.cs, CRB.Cos.Lending.Selling.Authorization/TenantProvider.cs, CRB.Cos.Lending.Selling.Authorization/ServiceCollectionExtension.cs
-
-The TenantProvider implementation appears to handle multi-tenancy concerns, but the actual enforcement of tenant-based data isolation at the DbContext level isn't evident. This could potentially lead to tenants accessing other tenants' data if not properly implemented throughout the application.
+The system has a multi-tenant architecture with different tenant types (SellingITAdmin, InternalTenant, MplTenant, BankTenant, InvestorTenant), but the database schema doesn't consistently enforce tenant isolation across all entities. This could lead to data leakage between tenants if application-level security is bypassed.

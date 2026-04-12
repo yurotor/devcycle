@@ -1,0 +1,434 @@
+[
+  {
+    "repo": "COS.Lending.Selling.Hooks",
+    "purpose": "This repository implements a hooks service for the CRB.Cos.Lending.Selling domain that publishes notifications about loan selling-related events. It acts as an integration point that converts domain events into standardized notifications that can be consumed by other systems via a hooks pattern.",
+    "features": [
+      "Loan sale status notifications",
+      "Batch purchase completion notifications",
+      "True-up volume fee charge notifications",
+      "Investor change notifications",
+      "Loan type change notifications",
+      "Overdue loans alert notifications"
+    ],
+    "dependsOn": [
+      "CRB.CosLending.Hooks.Hub.Service",
+      "NServiceBus",
+      "CRB.Authorization",
+      "CRB.Framework.Logging",
+      "CRB.Hooks",
+      "CRB.Nsb.Conventions"
+    ],
+    "entities": [
+      "LoanSaleStatusChanged",
+      "BatchPurchaseCompleted",
+      "TrueUpVolumeFeeCharged",
+      "InvestorChanged",
+      "LoanTypeChanged",
+      "OverdueLoansAlert"
+    ],
+    "externalSystems": [
+      "CosLending Hooks Hub",
+      "OAuth Identity Provider"
+    ],
+    "messagePatterns": [
+      "LoanSaleStatusChanged",
+      "BatchPurchaseCompleted",
+      "TrueUpVolumeFeeCharged",
+      "InvestorChanged",
+      "LoanTypeChanged",
+      "OverdueLoansAlert"
+    ],
+    "ambiguities": []
+  },
+  {
+    "repo": "Cos.Lending.Selling.Contracts",
+    "purpose": "This repository defines data contracts for a loan selling and management system in the lending domain. It contains type definitions for loan entities, purchase processes, interest calculations, and account management, serving as a shared contract library between different services.",
+    "features": [
+      "Loan selling and purchasing between financial institutions",
+      "Loan account management",
+      "Batch loan processing",
+      "Purchase date management",
+      "Interest and fee calculations",
+      "Loan discrepancy detection",
+      "Loan seasoning and investor allocation"
+    ],
+    "dependsOn": [
+      "loan-origination-service",
+      "lending-service",
+      "investor-management-system"
+    ],
+    "entities": [
+      "Loan",
+      "PurchaseAccount",
+      "BatchInfo",
+      "Invoice",
+      "Receipt",
+      "Discrepancy",
+      "SofrRate",
+      "Investor",
+      "Mpl",
+      "Bank"
+    ],
+    "externalSystems": [],
+    "messagePatterns": [],
+    "ambiguities": [
+      "The exact services or applications consuming these contracts are not specified",
+      "Relationship between issuingBankId and servicingBankId is unclear",
+      "The exact nature of the COS transfer system referenced in AddTransferRequest",
+      "How batch operations are triggered or processed",
+      "Purpose of the 'field1' through 'field21' properties on LoanInfo",
+      "Implementation details of the 'GroomingRecovery' process",
+      "Whether PII data is encrypted or specially handled beyond the attribute marking"
+    ]
+  },
+  {
+    "repo": "COS.Lending.Selling.UI",
+    "purpose": "COS.Lending.Selling.UI is a React-based frontend application for Cross River Bank's loan selling platform. It provides interfaces for loan management, tracking loan history, and facilitating loan transactions between different stakeholders in the lending ecosystem.",
+    "features": [
+      "Loan inventory management and tracking",
+      "Loan history and details viewing",
+      "Loan filtering, sorting, and searching",
+      "Pending loan approval workflows",
+      "LTHF (Loans To Be Held For Sale) management",
+      "Chat-based loan history queries"
+    ],
+    "dependsOn": [
+      "COS.Lending.Selling.API",
+      "CRB Identity Provider",
+      "CRB AI Service",
+      "crb-ui"
+    ],
+    "entities": [
+      "Loan",
+      "LoanDetails",
+      "PendingApproval",
+      "ChatSession"
+    ],
+    "externalSystems": [
+      "CRB Identity Provider",
+      "CRB AI Service",
+      "CRB Menu Service"
+    ],
+    "messagePatterns": [],
+    "ambiguities": [
+      "The relationship between loans and LTHFs (Loans To Be Held For Sale) is not clearly defined in the code",
+      "The full authentication flow and token management strategy is not completely visible from the frontend code",
+      "The specific business rules for loan approvals and the complete approval workflow are not fully documented in the code",
+      "The exact schema of loan entities and their relationships is not fully defined in the frontend code",
+      "The role of external parties (MPLs, Investors, Issuing Banks) and their specific interactions with the system"
+    ]
+  },
+  {
+    "repo": "cos-lending-selling-ai",
+    "purpose": "This repository provides an AI-powered question-answering system for the CRB Lending/Selling platform, enabling natural language queries about loans, their history, interest calculations, transfers, and fees. It functions as a backend service that connects to a database containing loan information and uses Amazon Bedrock LLM APIs to process questions and generate insights.",
+    "features": [
+      "Natural language querying of loan data",
+      "Loan history timeline generation",
+      "Interest calculation and breakdown analysis",
+      "Transfer history tracking",
+      "Fee details and configuration retrieval",
+      "Conversational chat interface with context retention",
+      "SQL generation for custom queries"
+    ],
+    "dependsOn": [
+      "PostgreSQL loan database",
+      "DynamoDB",
+      "AWS Bedrock",
+      "Identity Server"
+    ],
+    "entities": [
+      "Session",
+      "Message",
+      "Loan",
+      "LoanAction",
+      "Transfer"
+    ],
+    "externalSystems": [
+      "AWS Bedrock",
+      "AWS DynamoDB",
+      "Identity Server",
+      "AWS Secrets Manager"
+    ],
+    "messagePatterns": [
+      "Server-Sent Events"
+    ],
+    "ambiguities": []
+  },
+  {
+    "repo": "cos-lending-selling-dags",
+    "purpose": "This repository contains Airflow DAGs for orchestrating data processing workflows in a lending and selling system. It manages the ingestion, transformation, and curation of loan data, along with handling fee collections, interest accruals, and reporting for financial operations.",
+    "features": [
+      "Loan data ingestion and curation",
+      "Interest accrual calculation",
+      "Fee collection and processing",
+      "Export data for reporting",
+      "Servicing data management",
+      "SOFR rate ingestion",
+      "Volume fee true-up processing",
+      "Presale reporting",
+      "Account management and resolution"
+    ],
+    "dependsOn": [
+      "PostgreSQL database",
+      "DBT",
+      "Flyway",
+      "AWS ECS",
+      "AWS Athena",
+      "AWS S3",
+      "AWS Secrets Manager",
+      "AWS SSM Parameter Store",
+      "External loan data API",
+      "External volume data API",
+      "External contract data API",
+      "External servicing data source",
+      "External SOFR data source",
+      "Vampire system"
+    ],
+    "entities": [
+      "Loan",
+      "Account",
+      "Fee",
+      "LoanAction",
+      "Batch",
+      "MPL",
+      "Organization",
+      "Interest"
+    ],
+    "externalSystems": [
+      "SOFR data source",
+      "Vampire",
+      "Loan data source",
+      "Contract data source",
+      "Volume data source",
+      "Servicing data source"
+    ],
+    "messagePatterns": [],
+    "ambiguities": []
+  },
+  {
+    "repo": "Cos.Lending.Selling.DbModel",
+    "purpose": "This repository serves as the database model and context for the Cos.Lending.Selling system, defining the data schema and relationships for a financial loan selling and servicing platform. It provides entity models, configurations, and migration capabilities to support the persistence layer of the lending system.",
+    "features": [
+      "Loan origination and management",
+      "Interest calculation and tracking",
+      "Fee processing and management",
+      "Loan transfers and sales",
+      "Contract management",
+      "MPL (Marketplace Lending) program management",
+      "Investor relationship management",
+      "Loan grooming and seasoning",
+      "Volume fee calculations",
+      "Batch processing of financial transactions"
+    ],
+    "dependsOn": [
+      "Entity Framework Core",
+      "Npgsql Entity Framework Core Provider",
+      "PostgreSQL"
+    ],
+    "entities": [
+      "Account",
+      "Loan",
+      "Contract",
+      "Investor",
+      "Bank",
+      "Fee",
+      "Transfer",
+      "Batch",
+      "InterestHistory",
+      "Mpl",
+      "LoanAccount",
+      "LoanEvent",
+      "Servicing"
+    ],
+    "externalSystems": [],
+    "messagePatterns": [
+      "TransferOutbox",
+      "FeeOutbox",
+      "BatchInitOutbox",
+      "DailyInterestOutbox",
+      "NotificationOutbox",
+      "VolumeFeeOutbox",
+      "ReportingOutbox",
+      "MaturedLoanOutbox",
+      "TrueUpVolumeFeeOutbox"
+    ],
+    "ambiguities": [
+      "The exact mechanism for how tenant filtering is applied to database queries is not clear from the model definitions alone",
+      "Integration points with external systems for loan origination are implied but not explicit in the model",
+      "The relationship between SellingContext and any API layer is not defined in the available files",
+      "Payment processing systems that might integrate with this database model are not clearly identified"
+    ]
+  },
+  {
+    "repo": "cos-lending-selling-data-utils",
+    "purpose": "This repository contains utilities for resolving and mapping accounts for loans in a lending and selling system. It queries account information from multiple sources (accounting system, loan operations database) and updates the selling database with the proper account mappings needed for financial operations.",
+    "features": [
+      "Account resolution for loans (purchase, return, interest, fee accounts)",
+      "Custom purchase account mapping based on loan details",
+      "Fee sweep account resolution",
+      "Loan Source (LS) account mapping",
+      "Account cleanup and management"
+    ],
+    "dependsOn": [
+      "CRB.CosLending.Accounting.Api",
+      "MPLConsumerLoansOperations",
+      "SellingDB",
+      "CRB.Framework.Logging",
+      "CRB.Authorization"
+    ],
+    "entities": [
+      "Loan",
+      "LoanAccount",
+      "ObjectiveAccount",
+      "FeeSweep",
+      "CustomPurchaseAccountMapping"
+    ],
+    "externalSystems": [
+      "CRB.CosLending.Accounting.Api",
+      "OAuth Authorization Server"
+    ],
+    "messagePatterns": [],
+    "ambiguities": []
+  },
+  {
+    "repo": "cos-lending-selling-datatools",
+    "purpose": "cos-lending-selling-datatools is a data engineering repository for the Cross River Bank lending and selling platform. It provides tools for data extraction, transformation, and loading (ETL) using dbt, Airflow, and Python to facilitate analytics and reporting for the loan selling business.",
+    "features": [
+      "Loan data extraction and transformation",
+      "Contract and termsheet processing",
+      "Volume and seasoning analysis",
+      "Data export capabilities",
+      "Entity and reference data management"
+    ],
+    "dependsOn": [
+      "cos-lending-selling-web-api",
+      "aws-s3",
+      "aws-secrets-manager",
+      "aws-ssm",
+      "aws-ecs",
+      "postgres-warehouse"
+    ],
+    "entities": [
+      "Loan",
+      "Contract",
+      "Fee",
+      "Termsheet",
+      "Interest",
+      "Seasoning",
+      "Tiering"
+    ],
+    "externalSystems": [
+      "COS Lending Selling Web API",
+      "AWS S3",
+      "AWS ECS",
+      "AWS Secrets Manager"
+    ],
+    "messagePatterns": [
+      "Data Ingestion Events"
+    ],
+    "ambiguities": []
+  },
+  {
+    "repo": "cos-lending-selling-ingestion",
+    "purpose": "This repository handles data ingestion from various sources into a lending/selling system. It processes loan data, servicing information, SOFR rates, and provides monitoring metrics through CloudWatch for a lending and loan selling platform.",
+    "features": [
+      "Loan data ingestion from various marketplace lenders (MPLs)",
+      "Servicing data import from CSV files in S3",
+      "SOFR rate ingestion from Federal Reserve API",
+      "Contract data synchronization between systems",
+      "Sync/comparison between Arix and Selling databases",
+      "CloudWatch metrics collection and reporting"
+    ],
+    "dependsOn": [
+      "sellingdb",
+      "servicing-bucket-s3",
+      "arix-database",
+      "contracts-database",
+      "vampire-database",
+      "cloudwatch"
+    ],
+    "entities": [
+      "Loan",
+      "Contract",
+      "ServicingValue",
+      "ServicingTimestamp",
+      "Sofr",
+      "MplBootstrapping"
+    ],
+    "externalSystems": [
+      "Federal Reserve API",
+      "AWS S3",
+      "AWS CloudWatch",
+      "AWS Athena"
+    ],
+    "messagePatterns": [
+      "CloudWatch Metrics"
+    ],
+    "ambiguities": [
+      "The relationship between this ingestion service and a possible orchestration system (DAGs are mentioned but their implementation is not in this repo)",
+      "The exact structure of the loan selling flow is not clear from the ingestion code alone",
+      "The complete data model for the 'vampire' database referenced in the code",
+      "How contract_repo.py is used within the broader system",
+      "Whether the CloudWatch metrics collection is scheduled or triggered externally"
+    ]
+  },
+  {
+    "repo": "COS.Lending.Selling.WebApi",
+    "purpose": "The repository serves as a backend WebAPI for loan management in a lending platform, specifically handling the selling and purchasing of loans. It enables MPLs (Marketplace Lenders) to purchase loans and manage loan lifecycle operations including transfers, fees, interest accruals, and investor relationship management.",
+    "features": [
+      "Loan purchasing and selling",
+      "Interest accrual and management",
+      "Fee collection and processing",
+      "Batch processing of loans",
+      "Reconciliation and reporting",
+      "Loan grooming and type changes",
+      "Volume fee processing",
+      "Automated loan purchasing",
+      "Transfer management"
+    ],
+    "dependsOn": [
+      "COS.Lending.Contracts",
+      "COS.Lending.Hooks",
+      "COS.Lending.Accounting",
+      "COS Storage Service",
+      "COS Transaction Service",
+      "AWS SQS",
+      "PostgreSQL"
+    ],
+    "entities": [
+      "Loan",
+      "LoanAction",
+      "Transfer",
+      "Contract",
+      "Account",
+      "Batch",
+      "InterestHistory",
+      "VolumeFeeMonthlyMinimum"
+    ],
+    "externalSystems": [
+      "Cross River Bank COS",
+      "AWS S3",
+      "Lending Contracts Service",
+      "Hooks Notification Service",
+      "Lending Accounting Service"
+    ],
+    "messagePatterns": [
+      "TransferOutbox",
+      "NotificationOutbox",
+      "BatchInitOutbox",
+      "FeeOutbox",
+      "VolumeFeeOutbox",
+      "TrueUpVolumeFeeOutbox",
+      "ReportingOutbox",
+      "DailyInterestOutbox",
+      "SQS Message Handling"
+    ],
+    "ambiguities": [
+      "Exact purpose and structure of the MessageDispatcherService and how it relates to the outbox processors",
+      "How loan approval workflow is structured and what triggers state transitions",
+      "Specifics around the auto-purchase configuration and eligibility criteria",
+      "Exact contract model with MPLs and how terms are enforced",
+      "How reconciliation with external systems is managed and resolved when discrepancies are found"
+    ]
+  }
+]

@@ -1,0 +1,50 @@
+{
+  "flowName": "Loan Purchase and Sale Lifecycle",
+  "description": "The Loan Purchase and Sale Lifecycle manages the entire journey of loans from origination through purchase, servicing, and potential sale to investors. This process begins when loans are originated and designated for purchase, then validated for eligibility against business rules. The system processes loan purchases individually or in batches, calculating interest, fees, and managing transfers between accounts.\n\nOnce purchased, loans undergo ongoing servicing including interest accrual, fee calculation, and investor allocation. The lifecycle continues with potential loan grooming (changing loan types), investor reassignment, and eventual sale or maturity. Throughout this process, notifications are generated to keep stakeholders informed of status changes, batch completions, and fee charges.",
+  "steps": [
+    "Loan Origination: Loans are created in the system and marked as available for purchase",
+    "Eligibility Verification: System validates loans against purchase criteria and business rules",
+    "Purchase Processing: Loans are purchased individually or in batches with transfers between accounts",
+    "Interest and Fee Calculation: System calculates interest accruals and applicable fees",
+    "Loan Servicing: Ongoing management including interest updates and fee processing",
+    "Loan Type Changes: Grooming processes may change loan types based on business rules",
+    "Investor Assignment: Loans may be assigned or reassigned to investors",
+    "Status Updates: Notifications are published about loan status changes",
+    "True-up Processing: Volume fees are calculated and charged based on agreements",
+    "Sale or Maturity: Loans are either sold to secondary investors or reach maturity"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "Cos.Lending.Selling.Contracts",
+    "COS.Lending.Selling.Hooks",
+    "COS.Lending.Selling.UI",
+    "cos-lending-selling-e2e-tests"
+  ],
+  "entities": [
+    "Loan",
+    "LoanAccount",
+    "Account",
+    "Transfer",
+    "Batch",
+    "Contract",
+    "InterestHistory",
+    "Fee",
+    "Investor",
+    "Mpl",
+    "Bank"
+  ],
+  "externalSystems": [
+    "Cross River Bank COS",
+    "AWS S3",
+    "Lending Contracts Service",
+    "Hooks Notification Service",
+    "Lending Accounting Service",
+    "CRB Identity Provider"
+  ],
+  "ambiguities": [
+    "The exact criteria that determines when a loan is ready for purchase in Cos.Lending.Selling.Contracts",
+    "Specific reconciliation processes when discrepancies are found in COS.Lending.Selling.WebApi",
+    "How servicing data updates from external systems affect loan status in Cos.Lending.Selling.DbModel"
+  ]
+}

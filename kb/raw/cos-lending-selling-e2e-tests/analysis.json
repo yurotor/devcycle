@@ -1,42 +1,36 @@
 {
-  "purpose": "This repository contains end-to-end testing infrastructure for Cross River Bank's lending and selling platform, simulating the entire selling environment with mock services and automated tests to validate loan origination, processing, interest accrual, and purchasing workflows.",
+  "_headHash": "255cb1316a70529cb9c37d160a5f63de8ff98b00",
+  "purpose": "This repository contains end-to-end testing infrastructure for Cross River Bank's lending and selling services, simulating the entire lending environment to validate loan processing from origination through purchase, including interest calculations, fee processing, and account transfers.",
   "businessFeatures": [
-    "Loan origination and purchase flow testing",
-    "Interest and fee calculation validation",
-    "Contract management and volume fee processing",
-    "Loan seasoning and curation processes",
+    "Loan origination and purchase simulation",
+    "Interest calculation and accrual",
+    "Volume fee processing and true-up calculations",
+    "Loan type grooming and investor changes",
     "Servicing data ingestion and validation",
-    "True-up volume fee calculation",
-    "Pass-through interest processing",
-    "Loan type grooming and change approval workflows",
-    "Investor change management",
-    "Batch purchase automation"
+    "Fee collection on loan origination",
+    "Pass-through interest calculations",
+    "Auto purchase flow testing"
   ],
   "apis": [
     {
       "endpoint": "/Accounting/v1/LoanAccounting/LoanActionsAccounts",
       "method": "POST",
-      "purpose": "Get accounts for loan actions based on MPL, bank and loan type"
+      "purpose": "Get account configurations for loan actions"
     },
     {
       "endpoint": "/Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts",
       "method": "POST",
-      "purpose": "Get accounts for changing loan type"
+      "purpose": "Get accounts for loan type changes"
     },
     {
       "endpoint": "/core/v1/dda/accounts/{account_number}",
       "method": "GET",
-      "purpose": "Get account balance"
+      "purpose": "Get account balance for a standard account"
     },
     {
       "endpoint": "/core/v1/dda/subaccounts/{account_number}",
       "method": "GET",
-      "purpose": "Get subaccount balance"
-    },
-    {
-      "endpoint": "/payment",
-      "method": "POST",
-      "purpose": "Process payment transactions"
+      "purpose": "Get account balance for a sub-account"
     },
     {
       "endpoint": "/init/{mpl_id}/{issuing_bank_id}/{loan_type}/{objective}/{account_number}/{is_subaccount}",
@@ -44,36 +38,12 @@
       "purpose": "Initialize account configuration"
     },
     {
-      "endpoint": "/set_delay_transfers",
+      "endpoint": "/payment",
       "method": "POST",
-      "purpose": "Enable or disable transfer delays in the COS mock service"
+      "purpose": "Process payment transactions"
     }
   ],
   "dependencies": [
-    {
-      "target": "selling-web-api",
-      "type": "http"
-    },
-    {
-      "target": "selling-hooks-service",
-      "type": "messaging"
-    },
-    {
-      "target": "dbt-e2e",
-      "type": "shared-lib"
-    },
-    {
-      "target": "accounts-resolver",
-      "type": "http"
-    },
-    {
-      "target": "arix-db",
-      "type": "database"
-    },
-    {
-      "target": "selling-db",
-      "type": "database"
-    },
     {
       "target": "cos-simulator",
       "type": "http"
@@ -83,95 +53,78 @@
       "type": "messaging"
     },
     {
-      "target": "aws-sqs",
-      "type": "messaging"
+      "target": "accounts-resolver",
+      "type": "http"
     },
     {
-      "target": "aws-s3",
+      "target": "web-api",
+      "type": "http"
+    },
+    {
+      "target": "hooks-e2e",
+      "type": "http"
+    },
+    {
+      "target": "source_db",
+      "type": "database"
+    },
+    {
+      "target": "tests_db",
+      "type": "database"
+    },
+    {
+      "target": "dbt-e2e",
       "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan entity with sale status, origination data, and financial details"
+      "description": "Represents a loan with attributes like loan_id, mpl_id, issuing_bank_id, loan_type, loan_amount, interest_rate, etc."
     },
     {
       "name": "Contract",
-      "description": "Configuration for interest calculation, timing, and fee structures"
-    },
-    {
-      "name": "AccountConfig",
-      "description": "Bank account configuration for different transaction types"
+      "description": "Defines the terms of lending between partners, including fees, interest calculation methods, and timing"
     },
     {
       "name": "Batch",
-      "description": "Group of loans processed together for purchase"
-    },
-    {
-      "name": "LoanAction",
-      "description": "Actions performed on loans like purchase, interest accrual"
+      "description": "Represents a group of loans being processed together during purchase"
     },
     {
       "name": "Transfer",
-      "description": "Financial transaction between accounts"
+      "description": "Represents a financial transaction between accounts"
     },
     {
-      "name": "FeeSweep",
-      "description": "Configuration for periodic fee collection"
+      "name": "LoanAction",
+      "description": "Represents actions performed on loans such as purchase or fee collection"
     },
     {
-      "name": "TrueUpVolumeFee",
-      "description": "Monthly minimum fee adjustment calculations"
+      "name": "AccountConfig",
+      "description": "Configuration of accounts used for various financial operations"
     }
   ],
   "messagingPatterns": [
     {
       "type": "queue",
       "name": "SQS Payment Queue",
-      "description": "Queue for processing payment completion events"
+      "description": "Asynchronous messaging for payment processing from COS simulator to web-api"
     },
     {
       "type": "event",
-      "name": "LoanSaleStatusChanged",
-      "description": "Event published when loan sale status changes"
-    },
-    {
-      "type": "event",
-      "name": "BatchCompleted",
-      "description": "Event published when batch purchase completes"
-    },
-    {
-      "type": "event",
-      "name": "TrueUpCharged",
-      "description": "Event published when true-up volume fee is charged"
-    },
-    {
-      "type": "event",
-      "name": "InvestorChanged",
-      "description": "Event published when loan investor changes"
-    },
-    {
-      "type": "event",
-      "name": "LoanTypeChanged",
-      "description": "Event published when loan type is changed"
+      "name": "RabbitMQ Hooks",
+      "description": "Event-driven notifications for loan status changes, batch completions, and other important system events"
     },
     {
       "type": "outbox",
-      "name": "TransferOutbox",
-      "description": "Outbox pattern for transfer events"
-    },
-    {
-      "type": "outbox",
-      "name": "DailyInterestOutbox",
-      "description": "Outbox pattern for interest accrual"
+      "name": "Transfer Outbox",
+      "description": "Outbox pattern implementation for reliable transfer processing"
     }
   ],
   "integrations": [
     {
-      "system": "COS (Core Operating System)",
+      "system": "AWS S3",
       "direction": "bidirectional",
-      "protocol": "REST"
+      "protocol": "file"
     },
     {
       "system": "Arix DB",
@@ -179,62 +132,62 @@
       "protocol": "database"
     },
     {
-      "system": "Lending Accounting",
+      "system": "COS (Core Operating System)",
       "direction": "downstream",
       "protocol": "REST"
     },
     {
-      "system": "AWS S3",
-      "direction": "bidirectional",
-      "protocol": "file"
-    },
-    {
-      "system": "Hooks Service",
-      "direction": "downstream",
-      "protocol": "messaging"
+      "system": "Test Rail",
+      "direction": "upstream",
+      "protocol": "REST"
     }
   ],
   "architecturePatterns": [
     "Microservices",
     "Event-driven architecture",
     "Outbox pattern",
-    "Mock services",
-    "Container orchestration",
-    "Time travel simulation"
+    "Docker containerization",
+    "Time simulation (time travel)",
+    "Mock services"
   ],
   "techStack": [
     "Python",
     "FastAPI",
     "Docker",
     "PostgreSQL",
-    "MS SQL Server",
-    "DBT",
+    "Microsoft SQL Server",
+    "AWS (SQS, S3)",
     "RabbitMQ",
-    "AWS SQS",
-    "AWS S3",
-    "Pytest"
+    "DBT (Data Build Tool)",
+    "Pandas",
+    "SQLAlchemy"
   ],
   "findings": [
     {
       "severity": "high",
-      "category": "architecture",
-      "title": "Hard-coded secrets and credentials",
-      "description": "Several files contain hard-coded credentials or references to injecting AWS credentials directly in scripts. This is a security risk. Implement a secure secret management solution or use environment variables consistently.",
+      "category": "optimization",
+      "title": "Suboptimal transaction monitoring",
+      "description": "The code uses polling patterns with hardcoded sleep intervals to monitor transaction completion, which could be inefficient and fragile. The application would benefit from an event-driven approach to reduce resource consumption and improve reliability.",
       "files": [
-        "scripts/run.sh",
-        "modules/cos/src/sqs.py",
-        "modules/e2e/src/loader.py"
+        "modules/e2e/src/assertions/batch_assertions.py",
+        "modules/e2e/src/assertions/interest_assertions.py"
       ]
     },
     {
       "severity": "high",
-      "category": "security",
-      "title": "Insufficient error handling in payment processing",
-      "description": "The COS simulator does not properly handle transaction failures and always returns success responses. This could mask real payment processing issues in tests. Add error simulation capabilities and verify error handling paths.",
+      "category": "architecture",
+      "title": "Manual service orchestration",
+      "description": "The tests rely on manual orchestration of multiple dependent services with fragile timing assumptions. Implementing a proper service coordination pattern with health checks would improve test stability and reliability.",
       "files": [
-        "modules/cos/src/main.py",
-        "modules/cos/src/sqs.py"
+        "modules/e2e/src/airflow.py",
+        "modules/e2e/src/runner.py"
       ]
     }
+  ],
+  "ambiguities": [
+    "The exact contract structure between MPLs (Marketplace Lenders) and the bank isn't fully defined in the code",
+    "The criteria for determining when a loan is ready for purchase are not fully documented",
+    "The relationship between the test repository and actual production systems isn't clear",
+    "The complete workflow for loan servicing and how servicing data updates affect loan status"
   ]
 }

@@ -1,0 +1,55 @@
+{
+  "flowName": "Financial Data Processing and Reporting",
+  "description": "The Financial Data Processing and Reporting flow is an end-to-end process that handles the ingestion, processing, and reporting of financial data related to loans in a lending and selling platform. It begins with data collection from various sources including marketplace lenders, servicing data, SOFR rates, and contract information through the ingestion services.\n\nOnce ingested, the data undergoes transformation and curation through Airflow DAGs that handle interest accrual calculations, fee processing, and account management. The processed data is stored in databases and data warehouses where it can be further transformed using dbt models in the datatools repository. This enables the system to generate financial reports, perform volume and seasoning analysis, and prepare data for regulatory compliance.\n\nThe flow concludes with the production of various financial reports including presale reporting, fee collection summaries, and interest accrual statements that are made available through data exports to external systems and downstream consumers.",
+  "steps": [
+    "Data Ingestion: Collection of loan data, servicing information, SOFR rates, and contract data from external sources through cos-lending-selling-ingestion",
+    "Account Resolution: Mapping loans to appropriate accounts using cos-lending-selling-data-utils to ensure proper financial attribution",
+    "Data Transformation: Processing raw data through Airflow DAGs in cos-lending-selling-dags to perform interest calculations and fee processing",
+    "Data Modeling: Creating analytical models using dbt in cos-lending-selling-datatools for further analysis",
+    "Fee and Interest Processing: Calculating fees and accruing interest based on loan characteristics and SOFR rates",
+    "Reporting Generation: Creating financial reports including presale reporting, volume fee true-ups, and interest statements",
+    "Data Export: Exporting processed financial data to downstream systems and stakeholders"
+  ],
+  "repos": [
+    "cos-lending-selling-dags",
+    "cos-lending-selling-data-utils",
+    "cos-lending-selling-datatools",
+    "cos-lending-selling-ingestion"
+  ],
+  "entities": [
+    "Loan",
+    "Account",
+    "Fee",
+    "LoanAction",
+    "Batch",
+    "MPL",
+    "Organization",
+    "Interest",
+    "Contract",
+    "LoanAccount",
+    "ObjectiveAccount",
+    "FeeSweep",
+    "CustomPurchaseAccountMapping",
+    "Termsheet",
+    "ServicingValue",
+    "ServicingTimestamp",
+    "Sofr"
+  ],
+  "externalSystems": [
+    "SOFR data source",
+    "Loan data source",
+    "Contract data source",
+    "Volume data source",
+    "Servicing data source",
+    "CRB.CosLending.Accounting.Api",
+    "AWS S3",
+    "AWS CloudWatch",
+    "AWS Athena",
+    "Federal Reserve API"
+  ],
+  "ambiguities": [
+    "cos-lending-selling-dags references 'Volume fee true-up processing' but the specific calculation logic for true-ups is not clearly defined",
+    "cos-lending-selling-ingestion mentions 'MplBootstrapping' entity but its purpose and relationship to the financial flow is unclear",
+    "cos-lending-selling-data-utils references 'CustomPurchaseAccountMapping' but the rules governing these custom mappings are not explicitly defined"
+  ]
+}

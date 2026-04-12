@@ -1,0 +1,112 @@
+{
+  "clusterName": "User Interface and Experience",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai",
+        "COS.Lending.Selling.Hooks"
+      ],
+      "description": "Core entity representing loan data with status and attributes, shared across all components"
+    },
+    {
+      "entity": "Session",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Represents chat sessions between users and AI about specific loans, maintained in AI service but accessed via UI"
+    },
+    {
+      "entity": "Message",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Chat messages exchanged between users and AI assistant, created in AI service and displayed in UI"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "AI-Assisted Loan Query Flow",
+      "description": "User queries loan information through UI, which connects to AI service for natural language processing and returns insights",
+      "steps": [
+        "User submits loan query through UI (/selling/api/sessions)",
+        "UI sends request to AI service (/chat or /chat/{session_id}/message)",
+        "AI service processes question using AWS Bedrock",
+        "AI response streamed back to UI via Server-Sent Events",
+        "UI displays response to user"
+      ]
+    },
+    {
+      "name": "Loan Status Change Notification Flow",
+      "description": "System detects loan status changes and notifies relevant stakeholders",
+      "steps": [
+        "Loan status change detected in system",
+        "Hooks service publishes LoanSaleStatusChanged event",
+        "Event routed through Hooks Hub to subscribers",
+        "UI potentially updates based on notification"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.UI",
+      "to": "cos-lending-selling-ai",
+      "mechanism": "HTTP REST",
+      "description": "UI sends user queries about loans to AI service and receives natural language responses"
+    },
+    {
+      "from": "cos-lending-selling-ai",
+      "to": "COS.Lending.Selling.UI",
+      "mechanism": "Server-Sent Events",
+      "description": "AI service streams processed responses back to UI for progressive rendering"
+    },
+    {
+      "from": "COS.Lending.Selling.Hooks",
+      "to": "COS.Lending.Selling.UI",
+      "mechanism": "Messaging (indirect)",
+      "description": "Hooks service publishes events that may trigger UI updates through event subscriptions"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Natural Language Query",
+      "description": "Enables users to ask questions about loans in natural language instead of using structured search",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "pattern": "Progressive Loading",
+      "description": "AI responses are streamed token-by-token to improve perceived performance",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "pattern": "Event-Driven Notifications",
+      "description": "System uses event publishing for real-time notifications about loan status changes",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Stateful Conversations",
+      "description": "Chat sessions maintain context across multiple interactions for better user experience",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "How COS.Lending.Selling.UI subscribes to or consumes notifications from COS.Lending.Selling.Hooks is not clearly defined",
+    "The mechanism for how COS.Lending.Selling.UI fetches initial loan data before AI queries is unclear",
+    "How loan actions in cos-lending-selling-ai relate to the events published by COS.Lending.Selling.Hooks is undefined",
+    "The relationship between the LoanDetails entity in UI and the LoanAction entity in AI service is not specified"
+  ]
+}

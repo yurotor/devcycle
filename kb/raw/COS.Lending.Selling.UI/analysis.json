@@ -1,44 +1,34 @@
 {
-  "purpose": "COS.Lending.Selling.UI is a React-based web application that provides a front-end interface for managing and monitoring loans within Cross River Bank's lending and selling system. It enables users with different roles to view, filter, sort, and manage loan details, pending approvals, and loan history.",
+  "_headHash": "4627b70e0e6c3987fae171d01eb2fe1b3626ed07",
+  "purpose": "COS.Lending.Selling.UI is a React-based frontend application for Cross River Bank's loan selling platform. It provides interfaces for loan management, tracking loan history, and facilitating loan transactions between different stakeholders in the lending ecosystem.",
   "businessFeatures": [
-    "Loan management dashboard",
-    "Loan details viewing",
-    "Loan filtering and searching",
-    "Loan history tracking and AI-powered queries",
-    "Pending loan approvals management",
-    "Long-term held for sale (LTHFS) loan management",
-    "Role-based access control"
+    "Loan inventory management and tracking",
+    "Loan history and details viewing",
+    "Loan filtering, sorting, and searching",
+    "Pending loan approval workflows",
+    "LTHF (Loans To Be Held For Sale) management",
+    "Chat-based loan history queries"
   ],
   "apis": [
     {
-      "endpoint": "/selling/api/loans/HFS",
+      "endpoint": "/selling/api/loans/HFS/*",
       "method": "GET",
-      "purpose": "Retrieve list of loans held for sale"
+      "purpose": "Retrieve HFS (Held For Sale) loans data"
     },
     {
-      "endpoint": "/selling/api/loans/{id}",
-      "method": "GET",
-      "purpose": "Get detailed information for a specific loan"
-    },
-    {
-      "endpoint": "/crb/ai/session",
+      "endpoint": "/selling/api/sessions",
       "method": "POST",
-      "purpose": "Create or get a chat session for loan history AI analysis"
+      "purpose": "Create or retrieve a chat session for loan history queries"
     },
     {
-      "endpoint": "/crb/ai/session/{sessionId}/history",
+      "endpoint": "/selling/api/sessions/{sessionId}/history",
       "method": "GET",
       "purpose": "Retrieve chat history for a loan session"
     },
     {
-      "endpoint": "/crb/ai/chat/stream",
-      "method": "POST",
-      "purpose": "Stream AI responses for loan history analysis"
-    },
-    {
-      "endpoint": "/crb/ai/session/{sessionId}/message",
-      "method": "POST",
-      "purpose": "Send a message in the loan history chat"
+      "endpoint": "/selling/api/loans/{id}",
+      "method": "GET",
+      "purpose": "Fetch detailed information about a specific loan"
     }
   ],
   "dependencies": [
@@ -47,120 +37,96 @@
       "type": "http"
     },
     {
-      "target": "CRB.AI",
+      "target": "CRB Identity Provider",
       "type": "http"
     },
     {
-      "target": "Identity Provider (idptest.crbcos.com)",
+      "target": "CRB AI Service",
       "type": "http"
     },
     {
-      "target": "CosLendingMenu",
-      "type": "http"
+      "target": "crb-ui",
+      "type": "shared-lib"
     }
   ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Represents a loan in the system with its details like loan number, status, and sale information"
+      "description": "Core entity representing a loan in the system with its attributes"
     },
     {
-      "name": "LoanHistory",
-      "description": "History of interactions and changes related to a specific loan"
+      "name": "LoanDetails",
+      "description": "Extended details for a specific loan"
     },
     {
       "name": "PendingApproval",
-      "description": "Represents a loan waiting for approval in the system"
+      "description": "Represents loans awaiting approval in the workflow"
     },
     {
-      "name": "LTHFS",
-      "description": "Long-term held for sale loans that have specific handling requirements"
+      "name": "ChatSession",
+      "description": "Represents a conversation session for querying loan history"
     }
   ],
-  "messagingPatterns": [
-    {
-      "type": "event",
-      "name": "Server-Sent Events",
-      "description": "Used for streaming AI responses in the loan history chat feature"
-    }
-  ],
+  "messagingPatterns": [],
   "integrations": [
     {
-      "system": "Identity Provider",
+      "system": "CRB Identity Provider",
       "direction": "upstream",
-      "protocol": "OAuth"
+      "protocol": "REST"
     },
     {
-      "system": "CosLendingMenu",
-      "direction": "bidirectional",
-      "protocol": "Web Components"
+      "system": "CRB AI Service",
+      "direction": "upstream",
+      "protocol": "REST"
     },
     {
-      "system": "New Relic",
-      "direction": "downstream",
-      "protocol": "HTTP"
-    },
-    {
-      "system": "TestRail",
-      "direction": "downstream",
-      "protocol": "HTTP"
+      "system": "CRB Menu Service",
+      "direction": "upstream",
+      "protocol": "REST"
     }
   ],
   "architecturePatterns": [
-    "Single Page Application",
-    "Component-based architecture",
-    "Store pattern (Zustand)",
+    "Single Page Application (SPA)",
+    "Component-based UI",
+    "RESTful API integration",
     "Role-based access control",
-    "Environment configuration"
+    "Server-sent events (for chat)"
   ],
   "techStack": [
     "React",
     "TypeScript",
-    "Vite",
     "Styled Components",
-    "Zustand",
-    "crb-ui (internal UI library)",
+    "crb-ui (Design System)",
+    "Zustand (State Management)",
+    "Vite",
     "Cypress",
-    "ReactMarkdown",
-    "OAuth/OIDC",
-    "Server-Sent Events",
-    "Docker",
-    "Nginx"
+    "Docker"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded credentials in configuration files",
-      "description": "The configuration files contain placeholders for New Relic credentials. While these appear to be dummy values ('111'), any hardcoded credentials in source code pose a security risk. These should be moved to secure environment variables or secrets management.",
+      "title": "Security token exposure in Cypress tests",
+      "description": "Cypress tests are capturing authentication tokens and storing them in localStorage. This practice can expose sensitive tokens in test logs and potentially lead to security breaches. Consider implementing a mock authentication mechanism for tests instead.",
       "files": [
-        "public/assets/app-settings-dev.js",
-        "public/assets/app-settings-qa.js",
-        "public/assets/app-settings-stg.js",
-        "public/assets/app-settings-prd.js"
+        "cypress/support/utils.ts"
       ]
     },
     {
       "severity": "high",
       "category": "security",
-      "title": "OAuth client credentials potentially exposed",
-      "description": "The application contains OAuth client ID and redirect URIs in public configuration files. While client IDs are typically not sensitive alone, they should ideally be managed through a more secure configuration mechanism to prevent information disclosure.",
-      "files": [
-        "public/assets/app-settings.js",
-        "public/assets/app-settings-dev.js",
-        "public/assets/app-settings-qa.js",
-        "public/assets/app-settings-stg.js",
-        "public/assets/app-settings-prd.js"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "architecture",
-      "title": "CORS issues requiring extension workaround",
-      "description": "The README mentions using a Chrome extension to disable CORS, which is a serious architectural flaw. This approach is highly insecure for development and could lead to security vulnerabilities if the habit carries to production. The application should properly handle CORS through server configuration.",
+      "title": "CORS bypass configuration for development",
+      "description": "The README instructs users to disable CORS in Chrome for development, which is a security risk. A proper development environment should have correctly configured CORS headers. Consider implementing a proper local development proxy.",
       "files": [
         "README.md"
       ]
     }
+  ],
+  "ambiguities": [
+    "The relationship between loans and LTHFs (Loans To Be Held For Sale) is not clearly defined in the code",
+    "The full authentication flow and token management strategy is not completely visible from the frontend code",
+    "The specific business rules for loan approvals and the complete approval workflow are not fully documented in the code",
+    "The exact schema of loan entities and their relationships is not fully defined in the frontend code",
+    "The role of external parties (MPLs, Investors, Issuing Banks) and their specific interactions with the system"
   ]
 }

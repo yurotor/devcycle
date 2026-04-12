@@ -1,0 +1,118 @@
+{
+  "clusterName": "Integration and Enhanced Services",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Core loan entity with loan number, status, and related details that flows from ingestion to AI services and generates events in hooks"
+    },
+    {
+      "entity": "LoanSaleStatus",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Tracks the sale status of loans, ingested by the ingestion service and published as events by hooks"
+    },
+    {
+      "entity": "Investor",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Entity representing loan investors, tracked in ingestion and published as change events by hooks"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Data Ingestion and Notification Flow",
+      "description": "External loan and servicing data is ingested, processed, and changes trigger notifications for downstream consumers",
+      "steps": [
+        "Data retrieved from external sources (Federal Reserve API, S3, Athena) by cos-lending-selling-ingestion",
+        "Data stored in databases (sellingdb, vampire-database, etc.)",
+        "Loan state changes detected",
+        "Events published via COS.Lending.Selling.Hooks",
+        "Notifications consumed by downstream systems"
+      ]
+    },
+    {
+      "name": "AI-Powered Loan Insight Flow",
+      "description": "User questions about loans are answered using AI and underlying loan data",
+      "steps": [
+        "User submits question about loans through AI service",
+        "Service authenticates via Identity Server",
+        "Service accesses loan data from PostgreSQL database",
+        "Question processed through AWS Bedrock LLM",
+        "Response streamed back to user with insights about loans"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "COS.Lending.Selling.Hooks",
+      "mechanism": "Database",
+      "description": "Ingestion service updates loan data in shared database that triggers hooks service to detect changes and publish events"
+    },
+    {
+      "from": "COS.Lending.Selling.Hooks",
+      "to": "CosLending Hooks Hub",
+      "mechanism": "Messaging",
+      "description": "Loan state change events published to central hooks hub for broader consumption"
+    },
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "cos-lending-selling-ai",
+      "mechanism": "Database",
+      "description": "AI service reads loan data populated by the ingestion service to answer questions about loans"
+    },
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "AWS CloudWatch",
+      "mechanism": "Messaging",
+      "description": "Business metrics sent to CloudWatch for monitoring the ingestion process"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Webhook Publisher",
+      "description": "Standardized notification mechanism for loan-related events using a hooks pattern",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Data Ingestion Pipeline",
+      "description": "Consolidating data from multiple sources into a unified data store for downstream consumption",
+      "repos": [
+        "cos-lending-selling-ingestion"
+      ]
+    },
+    {
+      "pattern": "AI-Powered Knowledge Base",
+      "description": "Natural language interface to structured data using LLMs",
+      "repos": [
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "pattern": "Event-Driven Architecture",
+      "description": "System components communicate through events rather than direct calls",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-ingestion"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Exact database schema and relationships between the shared entities across repositories",
+    "Whether the AI service consumes events from the hooks service directly or just reads the database",
+    "Authentication and authorization flow details between the three services",
+    "Error handling and data consistency mechanisms across the integrated components",
+    "How real-time the AI insights are relative to data ingestion timing"
+  ]
+}

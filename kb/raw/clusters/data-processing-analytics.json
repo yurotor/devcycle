@@ -1,0 +1,143 @@
+{
+  "clusterName": "Data Processing & Analytics",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Core loan data entity representing loan contracts, statuses, and sale information flowing from ingestion to processing and analytics"
+    },
+    {
+      "entity": "Contract",
+      "repos": [
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Agreement terms between CRB and partners with effective dates, ingested and transformed for analytics"
+    },
+    {
+      "entity": "Fee",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools"
+      ],
+      "description": "Fee structures and parameters for loans used in collection processing and analytics"
+    },
+    {
+      "entity": "Interest",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools"
+      ],
+      "description": "Interest rate information and accrual records for loan processing and analysis"
+    },
+    {
+      "entity": "MPL",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Marketplace Lender entities with configuration for data processing and orchestration"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Data Processing Pipeline",
+      "description": "End-to-end flow from raw loan data ingestion to analytics-ready transformed data",
+      "steps": [
+        "Ingest loan data from external sources via cos-lending-selling-ingestion",
+        "Store raw data in S3/warehouse",
+        "Trigger processing DAGs in cos-lending-selling-dags",
+        "Transform data using DBT in cos-lending-selling-datatools",
+        "Make data available for analytics and reporting"
+      ]
+    },
+    {
+      "name": "SOFR Rate Processing",
+      "description": "Fetching and integrating SOFR rates for loan interest calculations",
+      "steps": [
+        "Fetch SOFR rates from Federal Reserve API via cos-lending-selling-ingestion",
+        "Store rates in database",
+        "Process rates in conjunction with loan data using DAGs",
+        "Apply to interest accrual calculations"
+      ]
+    },
+    {
+      "name": "Servicing Data Integration",
+      "description": "Processing of loan servicing information for analytics and operations",
+      "steps": [
+        "Ingest servicing data files from S3 via cos-lending-selling-ingestion",
+        "Process and store ServicingValue entities",
+        "Orchestrate data processing via Airflow DAGs",
+        "Transform for analytics consumption"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "cos-lending-selling-dags",
+      "mechanism": "shared-db",
+      "description": "Raw ingested loan, contract, and SOFR data stored in databases for DAG processing"
+    },
+    {
+      "from": "cos-lending-selling-dags",
+      "to": "cos-lending-selling-datatools",
+      "mechanism": "orchestration",
+      "description": "DAGs trigger and orchestrate data transformation processes defined in datatools"
+    },
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "AWS S3",
+      "mechanism": "file-storage",
+      "description": "Raw servicing data stored in S3 buckets for further processing"
+    },
+    {
+      "from": "cos-lending-selling-datatools",
+      "to": "postgres-warehouse",
+      "mechanism": "database",
+      "description": "Transformed data stored in PostgreSQL warehouse for analytics consumption"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "ETL Pipeline",
+      "description": "Extract-Transform-Load pattern used to process financial data from raw sources to analytics-ready formats",
+      "repos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools"
+      ]
+    },
+    {
+      "pattern": "Workflow Orchestration",
+      "description": "Airflow DAGs used to coordinate complex data processing workflows and dependencies",
+      "repos": [
+        "cos-lending-selling-dags"
+      ]
+    },
+    {
+      "pattern": "Data Warehouse",
+      "description": "Centralized repository pattern for transformed data ready for analytics and reporting",
+      "repos": [
+        "cos-lending-selling-datatools"
+      ]
+    },
+    {
+      "pattern": "Change Data Capture",
+      "description": "Tracking changes to data through timestamps to ensure incremental processing",
+      "repos": [
+        "cos-lending-selling-ingestion"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "The specific schema mappings between ServicingValue in cos-lending-selling-ingestion and the Loan entity in cos-lending-selling-dags",
+    "The exact trigger mechanisms between completed ingestion in cos-lending-selling-ingestion and DAG execution in cos-lending-selling-dags",
+    "The precise nature of the bidirectional Vampire integration referenced in cos-lending-selling-dags and how it relates to the other repos",
+    "How the MplBootstrapping configuration in cos-lending-selling-ingestion affects processing in the other repositories"
+  ]
+}

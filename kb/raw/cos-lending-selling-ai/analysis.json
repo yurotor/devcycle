@@ -1,132 +1,152 @@
 {
-  "purpose": "This repository provides an AI-powered question-answering system for the COS Lending Selling platform. It enables users to query loan data through natural language, translating these questions into SQL queries and generating human-readable responses using AWS Bedrock and Claude LLMs.",
+  "_headHash": "0ce5abc6b3419985bcb607234a5bfbabffb1ebc9",
+  "purpose": "This repository provides an AI-powered question-answering system for the CRB Lending/Selling platform, enabling natural language queries about loans, their history, interest calculations, transfers, and fees. It functions as a backend service that connects to a database containing loan information and uses Amazon Bedrock LLM APIs to process questions and generate insights.",
   "businessFeatures": [
-    "Conversational loan data querying",
-    "Natural language to SQL translation",
-    "Loan history analysis",
+    "Natural language querying of loan data",
+    "Loan history timeline generation",
+    "Interest calculation and breakdown analysis",
     "Transfer history tracking",
-    "Interest breakdown analysis",
-    "Fee details retrieval",
-    "Session-based conversation management"
+    "Fee details and configuration retrieval",
+    "Conversational chat interface with context retention",
+    "SQL generation for custom queries"
   ],
   "apis": [
     {
-      "endpoint": "/crb/ai/chat/",
+      "endpoint": "/crb/ai/loan",
+      "method": "POST",
+      "purpose": "Submit a question about a loan"
+    },
+    {
+      "endpoint": "/chat",
       "method": "POST",
       "purpose": "Create or resume a chat session for a user+loan pair"
     },
     {
-      "endpoint": "/crb/ai/chat/{session_id}/history",
-      "method": "GET",
-      "purpose": "Get all messages for a session with validation of ownership"
-    },
-    {
-      "endpoint": "/crb/ai/chat/{session_id}/message",
+      "endpoint": "/chat/{session_id}/message",
       "method": "POST",
-      "purpose": "Submit a user message to the session"
+      "purpose": "Submit a user message to a session"
     },
     {
-      "endpoint": "/crb/ai/chat/{session_id}/stream",
+      "endpoint": "/chat/{session_id}/history",
       "method": "GET",
-      "purpose": "SSE stream endpoint that orchestrates the question-answering pipeline"
+      "purpose": "Get all messages for a session"
+    },
+    {
+      "endpoint": "/chat/{session_id}/stream",
+      "method": "GET",
+      "purpose": "Stream chat responses via Server-Sent Events"
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "purpose": "Health check endpoint"
     }
   ],
   "dependencies": [
     {
-      "target": "aws-bedrock",
+      "target": "PostgreSQL loan database",
+      "type": "database"
+    },
+    {
+      "target": "DynamoDB",
+      "type": "database"
+    },
+    {
+      "target": "AWS Bedrock",
       "type": "http"
     },
     {
-      "target": "cos-lending-selling-postgres",
-      "type": "database"
-    },
-    {
-      "target": "aws-dynamodb",
-      "type": "database"
-    },
-    {
-      "target": "identity-server",
+      "target": "Identity Server",
       "type": "http"
     }
   ],
   "dataEntities": [
     {
       "name": "Session",
-      "description": "User conversation session with session_id, username, loan_id and messages"
+      "description": "Represents a chat session between a user and the AI about a specific loan"
     },
     {
       "name": "Message",
-      "description": "Chat message with role, content, SQL summary and timestamp"
+      "description": "A message in a chat session from either the user or the assistant"
     },
     {
       "name": "Loan",
-      "description": "Core loan entity with loan details, amounts, dates and status"
+      "description": "Core entity representing a loan in the system with its details and status"
     },
     {
       "name": "LoanAction",
-      "description": "Actions performed on loans such as transfers or status changes"
+      "description": "Represents actions taken on a loan such as transfers or status changes"
     },
     {
       "name": "Transfer",
-      "description": "Financial transfers related to loans including interest payments and fees"
+      "description": "Financial transfers related to loans such as interest payments or fees"
     }
   ],
   "messagingPatterns": [
     {
       "type": "event",
-      "name": "SSE (Server-Sent Events)",
-      "description": "Real-time streaming of AI responses to the client with token-by-token updates"
+      "name": "Server-Sent Events",
+      "description": "Streams AI responses to the client with progress updates and token-by-token delivery"
     }
   ],
   "integrations": [
     {
       "system": "AWS Bedrock",
-      "direction": "downstream",
+      "direction": "outbound",
       "protocol": "REST"
     },
     {
       "system": "AWS DynamoDB",
       "direction": "bidirectional",
-      "protocol": "SDK"
+      "protocol": "AWS SDK"
+    },
+    {
+      "system": "Identity Server",
+      "direction": "outbound",
+      "protocol": "OAuth"
     },
     {
       "system": "AWS Secrets Manager",
-      "direction": "downstream",
-      "protocol": "SDK"
-    },
-    {
-      "system": "COS Lending Selling Database",
-      "direction": "downstream",
-      "protocol": "PostgreSQL"
+      "direction": "outbound",
+      "protocol": "AWS SDK"
     }
   ],
   "architecturePatterns": [
-    "Microservice",
-    "Streaming API",
-    "Chain of Responsibility",
-    "LLM Prompt Engineering",
+    "API Gateway Pattern",
+    "Streaming Response Pattern",
+    "Chain of Responsibility (for query processing pipeline)",
     "Repository Pattern",
+    "Dependency Injection",
     "Singleton Pattern"
   ],
   "techStack": [
-    "Python 3.11",
+    "Python",
     "FastAPI",
     "AWS Bedrock",
-    "Claude LLM",
-    "PostgreSQL",
+    "Amazon Claude (Anthropic)",
     "DynamoDB",
+    "PostgreSQL",
     "Docker",
+    "SQLAlchemy/SQLModel",
     "Poetry",
-    "SQLModel",
-    "Server-Sent Events",
-    "HTTPX"
+    "OAuth/JWT Authentication",
+    "Server-Sent Events (SSE)"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Potential SQL injection risk in SQL generator",
-      "description": "The SQL generation functionality using LLM responses could potentially contain SQL injection vulnerabilities. Although there are safeguards like regex checks in _ensure_safe(), the system relies on AI-generated SQL which could produce unexpected results. Implement more robust parameterization and additional validation on generated SQL.",
+      "title": "Direct SQL execution without parameterization",
+      "description": "The _extract_sql function in ai_service.py uses regex to extract SQL statements and executes them directly. While there are some safeguards in place (SELECT-only check), this approach could be vulnerable to SQL injection if the AI model generates malicious SQL. Consider enhancing the SQL sanitization or using a more structured approach to SQL generation.",
+      "files": [
+        "app/ai/ai_service.py"
+      ]
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Database credential refresh timing issues",
+      "description": "In sql_executor.py, credential refresh happens outside the thread lock, which could lead to race conditions if multiple threads try to refresh credentials simultaneously. Restructure the credential refresh to happen entirely within the lock to prevent potential issues.",
       "files": [
         "app/ai/sql_executor.py"
       ]
@@ -134,20 +154,13 @@
     {
       "severity": "high",
       "category": "architecture",
-      "title": "Session data handling inconsistencies",
-      "description": "The session manager uses scan operations to find sessions by ID, which will not scale well. The code mentions this could be a concern as volume grows. Implement a GSI on session_id in DynamoDB to avoid full table scans.",
+      "title": "Limited error handling for Bedrock API failures",
+      "description": "While there is retry logic for Bedrock API calls, the error messages may not provide enough details for debugging in production. Consider implementing more comprehensive error logging and fallback mechanisms when Bedrock is unavailable or experiencing high latency.",
       "files": [
-        "app/ai/session_manager.py"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "Credentials caching without proper expiration",
-      "description": "Database credentials are cached but might not be properly rotated on expiration. The _creds_cache is set to expire after 300 seconds but there's no guarantee that the code properly handles token expiration scenarios. Implement proper credential rotation and expiration handling.",
-      "files": [
-        "app/ai/sql_executor.py"
+        "app/ai/ai_service.py",
+        "app/ai/streaming_summarizer.py"
       ]
     }
-  ]
+  ],
+  "ambiguities": []
 }

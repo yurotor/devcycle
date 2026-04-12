@@ -1,0 +1,116 @@
+{
+  "clusterName": "Infrastructure and Testing",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Core entity representing loan data with attributes like loan_id, mpl_id, and loan_type; e2e-tests use it for simulation while data-utils maps it to accounts"
+    },
+    {
+      "entity": "LoanAccount",
+      "repos": [
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Maps loans to financial accounts; defined in data-utils and verified in e2e tests"
+    },
+    {
+      "entity": "AccountConfig",
+      "repos": [
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Configuration of accounts used for financial operations; data-utils resolves them while e2e-tests validates their behavior"
+    },
+    {
+      "entity": "Aurora PostgreSQL Database",
+      "repos": [
+        "iac-cos-lending-selling",
+        "cos-lending-selling-e2e-tests"
+      ],
+      "description": "Main database provisioned by IaC and used by e2e tests for validation scenarios"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Account Resolution Flow",
+      "description": "Process of mapping loans to appropriate accounts for financial operations",
+      "steps": [
+        "data-utils calls COS Lending Accounting API to retrieve account configurations",
+        "data-utils maps loan details to specific accounts",
+        "account mappings are stored in SellingDB (provisioned by IaC)",
+        "e2e-tests validate the account mappings through simulated transactions"
+      ]
+    },
+    {
+      "name": "End-to-End Loan Processing",
+      "description": "Complete loan lifecycle testing from origination through purchase",
+      "steps": [
+        "e2e-tests initialize test environment using infrastructure provisioned by IaC",
+        "test simulates loan origination and processing using cos-simulator",
+        "account resolution occurs through data-utils integration",
+        "financial transactions execute against provisioned infrastructure",
+        "results are validated against expected outcomes"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "cos-lending-selling-e2e-tests",
+      "to": "iac-cos-lending-selling",
+      "mechanism": "infrastructure-usage",
+      "description": "E2E tests execute against AWS resources (Aurora DB, S3, SQS) provisioned by the IaC repository"
+    },
+    {
+      "from": "cos-lending-selling-data-utils",
+      "to": "iac-cos-lending-selling",
+      "mechanism": "database",
+      "description": "Data utils service reads/writes to Aurora PostgreSQL database provisioned by IaC repository"
+    },
+    {
+      "from": "cos-lending-selling-e2e-tests",
+      "to": "cos-lending-selling-data-utils",
+      "mechanism": "HTTP",
+      "description": "E2E tests validate account resolution logic provided by data-utils through account-resolver API integration"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Infrastructure as Code",
+      "description": "AWS resources defined and provisioned using Terragrunt for consistent environments",
+      "repos": [
+        "iac-cos-lending-selling"
+      ]
+    },
+    {
+      "pattern": "End-to-End Test Simulation",
+      "description": "Complete simulation of loan processing to validate business outcomes",
+      "repos": [
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "pattern": "Account Resolution",
+      "description": "Service pattern to map loans to their appropriate financial accounts",
+      "repos": [
+        "cos-lending-selling-data-utils"
+      ]
+    },
+    {
+      "pattern": "Outbox Pattern",
+      "description": "Used for reliable transfer processing ensuring data consistency",
+      "repos": [
+        "cos-lending-selling-e2e-tests"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "How SellingDB in cos-lending-selling-data-utils maps to specific Aurora database instances defined in iac-cos-lending-selling",
+    "Which specific S3 buckets from iac-cos-lending-selling are used by the e2e tests for test data storage",
+    "How the cos-simulator referenced in e2e-tests is deployed - whether it's part of the IaC definition",
+    "Whether the LoanActionsAccounts API in data-utils and e2e-tests are the same implementation or separate implementations"
+  ]
+}

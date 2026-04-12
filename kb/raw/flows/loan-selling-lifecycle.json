@@ -1,0 +1,62 @@
+{
+  "flowName": "Loan Selling Lifecycle",
+  "description": "The Loan Selling Lifecycle encompasses the end-to-end process of managing loans from origination through sales and transfers between financial institutions. It begins with loan creation or acquisition, followed by seasoning or grooming procedures where loans are prepared for sale according to investor requirements. The process continues through investor matching, loan transfers, interest calculations, and fee management.\n\nOnce loans are ready for sale, they undergo approval workflows, batch processing, and transfer to purchasing institutions. The lifecycle includes ongoing servicing activities such as interest accrual, volume fee calculations, true-up processes, and reconciliation. Throughout the process, notifications and hooks alert relevant stakeholders about status changes, batch completions, and investor changes. The system maintains a complete audit trail of loan events and facilitates reporting and analytics.",
+  "steps": [
+    "1: Loan Origination/Acquisition - Loans enter the system either through direct origination or acquisition from external systems",
+    "2: Loan Seasoning/Grooming - Loans undergo preparation processes to meet investor requirements and become eligible for sale",
+    "3: Investor Matching - Loans are matched with appropriate investors based on loan type, terms, and investor preferences",
+    "4: Approval Workflow - Pending loan sales undergo approval processes before proceeding to transfer",
+    "5: Batch Processing - Approved loans are grouped into batches for efficient processing",
+    "6: Transfer Execution - Loan ownership is transferred from issuing bank to purchasing institution with relevant documentation",
+    "7: Interest Accrual - Daily interest calculations are performed on loans based on current rates (e.g., SOFR)",
+    "8: Fee Processing - Volume fees, true-up fees and other charges are calculated and processed",
+    "9: Reconciliation - Loan data is reconciled with external systems to identify and resolve discrepancies",
+    "10: Notifications - Hooks service publishes events about loan status changes, batch completions, and other significant events",
+    "11: Reporting - Data is aggregated for financial reporting and compliance requirements"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "Cos.Lending.Selling.Contracts",
+    "COS.Lending.Selling.Hooks",
+    "COS.Lending.Selling.UI"
+  ],
+  "entities": [
+    "Loan",
+    "Account",
+    "PurchaseAccount",
+    "Transfer",
+    "Contract",
+    "Batch",
+    "BatchInfo",
+    "InterestHistory",
+    "Fee",
+    "Investor",
+    "Mpl",
+    "Bank",
+    "LoanAccount",
+    "LoanEvent",
+    "VolumeFeeMonthlyMinimum",
+    "SofrRate"
+  ],
+  "externalSystems": [
+    "CosLending Hooks Hub",
+    "OAuth Identity Provider",
+    "CRB Identity Provider",
+    "CRB AI Service",
+    "CRB Menu Service",
+    "Cross River Bank COS",
+    "AWS S3",
+    "Lending Contracts Service",
+    "Hooks Notification Service",
+    "Lending Accounting Service"
+  ],
+  "ambiguities": [
+    "Cos.Lending.Selling.DbModel: The exact mechanism for how tenant filtering is applied to database queries is not clear from the model definitions",
+    "COS.Lending.Selling.WebApi: How loan approval workflow is structured and what triggers state transitions",
+    "COS.Lending.Selling.WebApi: Specifics around the auto-purchase configuration and eligibility criteria",
+    "COS.Lending.Selling.Contracts: The exact nature of the COS transfer system referenced in AddTransferRequest",
+    "COS.Lending.Selling.Contracts: Purpose of the 'field1' through 'field21' properties on LoanInfo",
+    "COS.Lending.Selling.UI: The relationship between loans and LTHFs (Loans To Be Held For Sale) is not clearly defined"
+  ]
+}

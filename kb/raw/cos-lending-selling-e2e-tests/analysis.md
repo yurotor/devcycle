@@ -1,98 +1,85 @@
 # cos-lending-selling-e2e-tests
 
 ## Purpose
-This repository contains end-to-end testing infrastructure for Cross River Bank's lending and selling platform, simulating the entire selling environment with mock services and automated tests to validate loan origination, processing, interest accrual, and purchasing workflows.
+This repository contains end-to-end testing infrastructure for Cross River Bank's lending and selling services, simulating the entire lending environment to validate loan processing from origination through purchase, including interest calculations, fee processing, and account transfers.
 
 ## Business Features
-- Loan origination and purchase flow testing
-- Interest and fee calculation validation
-- Contract management and volume fee processing
-- Loan seasoning and curation processes
+- Loan origination and purchase simulation
+- Interest calculation and accrual
+- Volume fee processing and true-up calculations
+- Loan type grooming and investor changes
 - Servicing data ingestion and validation
-- True-up volume fee calculation
-- Pass-through interest processing
-- Loan type grooming and change approval workflows
-- Investor change management
-- Batch purchase automation
+- Fee collection on loan origination
+- Pass-through interest calculations
+- Auto purchase flow testing
 
 ## APIs
-- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Get accounts for loan actions based on MPL, bank and loan type
-- **POST /Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts** — Get accounts for changing loan type
-- **GET /core/v1/dda/accounts/{account_number}** — Get account balance
-- **GET /core/v1/dda/subaccounts/{account_number}** — Get subaccount balance
-- **POST /payment** — Process payment transactions
+- **POST /Accounting/v1/LoanAccounting/LoanActionsAccounts** — Get account configurations for loan actions
+- **POST /Accounting/v1/LoanAccounting/ChangeLoanTypeAccounts** — Get accounts for loan type changes
+- **GET /core/v1/dda/accounts/{account_number}** — Get account balance for a standard account
+- **GET /core/v1/dda/subaccounts/{account_number}** — Get account balance for a sub-account
 - **GET /init/{mpl_id}/{issuing_bank_id}/{loan_type}/{objective}/{account_number}/{is_subaccount}** — Initialize account configuration
-- **POST /set_delay_transfers** — Enable or disable transfer delays in the COS mock service
+- **POST /payment** — Process payment transactions
 
 ## Dependencies
-- **selling-web-api** (http)
-- **selling-hooks-service** (messaging)
-- **dbt-e2e** (shared-lib)
-- **accounts-resolver** (http)
-- **arix-db** (database)
-- **selling-db** (database)
 - **cos-simulator** (http)
 - **rabbitmq** (messaging)
-- **aws-sqs** (messaging)
-- **aws-s3** (shared-lib)
+- **accounts-resolver** (http)
+- **web-api** (http)
+- **hooks-e2e** (http)
+- **source_db** (database)
+- **tests_db** (database)
+- **dbt-e2e** (shared-lib)
 
 ## Data Entities
-- **Loan** — Core loan entity with sale status, origination data, and financial details
-- **Contract** — Configuration for interest calculation, timing, and fee structures
-- **AccountConfig** — Bank account configuration for different transaction types
-- **Batch** — Group of loans processed together for purchase
-- **LoanAction** — Actions performed on loans like purchase, interest accrual
-- **Transfer** — Financial transaction between accounts
-- **FeeSweep** — Configuration for periodic fee collection
-- **TrueUpVolumeFee** — Monthly minimum fee adjustment calculations
+- **Loan** — Represents a loan with attributes like loan_id, mpl_id, issuing_bank_id, loan_type, loan_amount, interest_rate, etc.
+- **Contract** — Defines the terms of lending between partners, including fees, interest calculation methods, and timing
+- **Batch** — Represents a group of loans being processed together during purchase
+- **Transfer** — Represents a financial transaction between accounts
+- **LoanAction** — Represents actions performed on loans such as purchase or fee collection
+- **AccountConfig** — Configuration of accounts used for various financial operations
 
 ## Messaging Patterns
-- **SQS Payment Queue** (queue) — Queue for processing payment completion events
-- **LoanSaleStatusChanged** (event) — Event published when loan sale status changes
-- **BatchCompleted** (event) — Event published when batch purchase completes
-- **TrueUpCharged** (event) — Event published when true-up volume fee is charged
-- **InvestorChanged** (event) — Event published when loan investor changes
-- **LoanTypeChanged** (event) — Event published when loan type is changed
-- **TransferOutbox** (outbox) — Outbox pattern for transfer events
-- **DailyInterestOutbox** (outbox) — Outbox pattern for interest accrual
+- **SQS Payment Queue** (queue) — Asynchronous messaging for payment processing from COS simulator to web-api
+- **RabbitMQ Hooks** (event) — Event-driven notifications for loan status changes, batch completions, and other important system events
+- **Transfer Outbox** (outbox) — Outbox pattern implementation for reliable transfer processing
 
 ## External Integrations
-- **COS (Core Operating System)** — bidirectional via REST
-- **Arix DB** — upstream via database
-- **Lending Accounting** — downstream via REST
 - **AWS S3** — bidirectional via file
-- **Hooks Service** — downstream via messaging
+- **Arix DB** — upstream via database
+- **COS (Core Operating System)** — downstream via REST
+- **Test Rail** — upstream via REST
 
 ## Architecture Patterns
 - Microservices
 - Event-driven architecture
 - Outbox pattern
+- Docker containerization
+- Time simulation (time travel)
 - Mock services
-- Container orchestration
-- Time travel simulation
 
 ## Tech Stack
 - Python
 - FastAPI
 - Docker
 - PostgreSQL
-- MS SQL Server
-- DBT
+- Microsoft SQL Server
+- AWS (SQS, S3)
 - RabbitMQ
-- AWS SQS
-- AWS S3
-- Pytest
+- DBT (Data Build Tool)
+- Pandas
+- SQLAlchemy
 
 ## Findings
-### [HIGH] Hard-coded secrets and credentials
+### [HIGH] Suboptimal transaction monitoring
+
+**Category:** optimization  
+**Files:** modules/e2e/src/assertions/batch_assertions.py, modules/e2e/src/assertions/interest_assertions.py
+
+The code uses polling patterns with hardcoded sleep intervals to monitor transaction completion, which could be inefficient and fragile. The application would benefit from an event-driven approach to reduce resource consumption and improve reliability.
+### [HIGH] Manual service orchestration
 
 **Category:** architecture  
-**Files:** scripts/run.sh, modules/cos/src/sqs.py, modules/e2e/src/loader.py
+**Files:** modules/e2e/src/airflow.py, modules/e2e/src/runner.py
 
-Several files contain hard-coded credentials or references to injecting AWS credentials directly in scripts. This is a security risk. Implement a secure secret management solution or use environment variables consistently.
-### [HIGH] Insufficient error handling in payment processing
-
-**Category:** security  
-**Files:** modules/cos/src/main.py, modules/cos/src/sqs.py
-
-The COS simulator does not properly handle transaction failures and always returns success responses. This could mask real payment processing issues in tests. Add error simulation capabilities and verify error handling paths.
+The tests rely on manual orchestration of multiple dependent services with fragile timing assumptions. Implementing a proper service coordination pattern with health checks would improve test stability and reliability.

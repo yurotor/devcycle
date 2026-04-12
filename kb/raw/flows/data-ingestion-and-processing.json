@@ -1,0 +1,55 @@
+{
+  "flowName": "Data Ingestion and Processing",
+  "description": "The Data Ingestion and Processing flow manages the end-to-end lifecycle of loan data from external sources into the Cross River Bank lending and selling platform. It starts with ingesting data from various marketplace lenders (MPLs), servicing sources, SOFR rates from the Federal Reserve API, and contract data from external systems into the selling database. This raw data is then validated, transformed, and curated for operational use.\n\nAfter ingestion, the data undergoes processing through orchestrated Airflow DAGs that handle interest accrual calculations, fee collection, seasoning analysis, and batch processing. The processed data supports core business functions including loan management, investor relationships, and financial operations. Throughout this pipeline, data quality checks are performed and monitoring metrics are published to CloudWatch to ensure system reliability.",
+  "steps": [
+    "Data Source Connection: Connect to external data sources including MPLs, servicing data in S3, Federal Reserve API, and contract databases",
+    "Raw Data Extraction: Extract loan data, servicing information, SOFR rates, and contract details from source systems",
+    "Data Validation: Validate incoming data against schema definitions and business rules",
+    "Data Transformation: Transform raw data into standardized formats compatible with the selling database",
+    "Data Loading: Load validated and transformed data into the Cos.Lending.Selling database",
+    "DAG Orchestration: Trigger appropriate Airflow DAGs based on data type and processing requirements",
+    "Processing Pipeline Execution: Execute specialized processing including interest calculations, fee collections, and seasoning analysis",
+    "Data Curation: Curate processed data for reporting and analytical purposes",
+    "Metric Publication: Publish processing metrics to CloudWatch for monitoring",
+    "Data Export: Export processed data to reporting systems and downstream consumers"
+  ],
+  "repos": [
+    "cos-lending-selling-ingestion",
+    "cos-lending-selling-dags",
+    "cos-lending-selling-datatools",
+    "Cos.Lending.Selling.DbModel"
+  ],
+  "entities": [
+    "Loan",
+    "Account",
+    "Fee",
+    "Contract",
+    "ServicingValue",
+    "ServicingTimestamp",
+    "Sofr",
+    "MplBootstrapping",
+    "Batch",
+    "Interest",
+    "Organization",
+    "LoanAction"
+  ],
+  "externalSystems": [
+    "Federal Reserve API",
+    "AWS S3",
+    "AWS CloudWatch",
+    "AWS Athena",
+    "SOFR data source",
+    "Vampire",
+    "Loan data source",
+    "Contract data source",
+    "Servicing data source",
+    "Arix database"
+  ],
+  "ambiguities": [
+    "The coordination mechanism between ingestion and DAG triggering is not clearly defined",
+    "Error handling and recovery procedures across the entire flow",
+    "How data lineage is tracked across the different systems",
+    "Integration points with notification systems for processing failures",
+    "Complete end-to-end SLA for the ingestion and processing pipeline"
+  ]
+}

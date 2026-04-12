@@ -1,0 +1,51 @@
+{
+  "flowName": "Loan Purchase and Transfer",
+  "description": "The Loan Purchase and Transfer process enables financial institutions to buy, sell, and transfer loans between parties. It begins when a Marketplace Lender (MPL) initiates a loan purchase request, which triggers eligibility verification, pricing calculations, and purchase approval workflows. Once approved, the system executes the transfer of loan ownership, updates account records, and processes associated financial transactions.\n\nAfter purchase completion, the system handles the necessary accounting entries, fee calculations, and interest accruals. The process includes batch capabilities for handling multiple loans simultaneously. Throughout the flow, notifications are sent to relevant stakeholders about status changes, and the system maintains a complete audit trail of all transfer activities. The flow concludes with reconciliation steps to ensure data consistency across systems.",
+  "steps": [
+    "1: MPL/Investor initiates loan purchase request through UI or API",
+    "2: System validates loan eligibility (loan type, status, seasoning requirements)",
+    "3: Purchase approval workflow processes the request",
+    "4: System calculates fees and interest based on contract terms",
+    "5: Transfer execution updates loan ownership records in database",
+    "6: Batch processing handles multiple loans if part of a batch purchase",
+    "7: System generates and processes financial transactions for the purchase",
+    "8: Notification hooks publish loan sale status changes to other systems",
+    "9: System updates accounting records for all parties involved",
+    "10: Reconciliation process verifies data consistency across systems"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "Cos.Lending.Selling.Contracts",
+    "COS.Lending.Selling.Hooks",
+    "COS.Lending.Selling.UI"
+  ],
+  "entities": [
+    "Loan",
+    "Transfer",
+    "Account",
+    "Batch",
+    "Contract",
+    "InterestHistory",
+    "Fee",
+    "Investor",
+    "Mpl",
+    "Bank",
+    "BatchPurchaseCompleted",
+    "LoanSaleStatusChanged"
+  ],
+  "externalSystems": [
+    "Cross River Bank COS",
+    "CosLending Hooks Hub",
+    "Lending Accounting Service",
+    "Lending Contracts Service",
+    "AWS S3"
+  ],
+  "ambiguities": [
+    "Exact contract model with MPLs and how terms are enforced",
+    "Specific business rules for loan approvals and the complete approval workflow",
+    "Auto-purchase configuration and eligibility criteria",
+    "How reconciliation with external systems is managed when discrepancies are found",
+    "Relationship between issuingBankId and servicingBankId in loan transfers"
+  ]
+}

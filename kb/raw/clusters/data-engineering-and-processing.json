@@ -1,0 +1,150 @@
+{
+  "clusterName": "Data Engineering and Processing",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Core loan data representing loan contracts with status, type, and sale information. Flows from ingestion repo to dags for processing and to datatools for analytics."
+    },
+    {
+      "entity": "Contract",
+      "repos": [
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ],
+      "description": "Agreements between CRB and partner institutions with terms and parameters, ingested and transformed for analytics."
+    },
+    {
+      "entity": "Fee",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools"
+      ],
+      "description": "Fee structures and collection records used in processing workflows and analytics."
+    },
+    {
+      "entity": "Interest",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools"
+      ],
+      "description": "Interest accrual records and rate information used in calculations and reporting."
+    },
+    {
+      "entity": "ServicingValue",
+      "repos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags"
+      ],
+      "description": "Loan servicing data including adjusted loan amounts and interest paid, ingested and then processed by DAGs."
+    },
+    {
+      "entity": "SOFR",
+      "repos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags"
+      ],
+      "description": "SOFR rates ingested from Federal Reserve API and used in interest calculations."
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Data Processing",
+      "description": "End-to-end flow from ingestion of loan data to processing and analytics",
+      "steps": [
+        "Ingest loan data from external sources",
+        "Store raw data in S3",
+        "Process with Airflow DAGs",
+        "Transform using dbt",
+        "Load into data warehouse for analytics"
+      ]
+    },
+    {
+      "name": "SOFR Rate Processing",
+      "description": "Ingestion and application of SOFR rates for interest calculations",
+      "steps": [
+        "Fetch SOFR rates from Federal Reserve API",
+        "Store rates in database",
+        "Apply rates in interest accrual calculations",
+        "Include in analytics"
+      ]
+    },
+    {
+      "name": "Servicing Data Processing",
+      "description": "Processing of loan servicing information for accounting and reporting",
+      "steps": [
+        "Ingest servicing data from files in S3",
+        "Process and validate data",
+        "Apply to loans via DAGs",
+        "Generate reports on servicing status"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "cos-lending-selling-dags",
+      "mechanism": "shared-db",
+      "description": "Raw loan, contract, and servicing data is ingested and stored in databases accessed by DAGs for processing."
+    },
+    {
+      "from": "cos-lending-selling-dags",
+      "to": "cos-lending-selling-datatools",
+      "mechanism": "shared-db",
+      "description": "Processed loan data and calculated values from DAGs are accessed by datatools for analytics and reporting."
+    },
+    {
+      "from": "cos-lending-selling-ingestion",
+      "to": "AWS S3",
+      "mechanism": "file",
+      "description": "Raw servicing data files are ingested and stored in S3 for further processing."
+    },
+    {
+      "from": "cos-lending-selling-dags",
+      "to": "AWS S3",
+      "mechanism": "database",
+      "description": "Processed data and reports are stored in S3 for downstream consumption."
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "ETL Pipeline",
+      "description": "Extract-Transform-Load pattern used across all repos for data processing",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ]
+    },
+    {
+      "pattern": "Data Orchestration",
+      "description": "Using Airflow DAGs to schedule and coordinate data processing tasks",
+      "repos": [
+        "cos-lending-selling-dags"
+      ]
+    },
+    {
+      "pattern": "Data Transformation",
+      "description": "Using dbt for SQL-based transformations of raw data into analytics-ready formats",
+      "repos": [
+        "cos-lending-selling-datatools"
+      ]
+    },
+    {
+      "pattern": "Event-Based Processing",
+      "description": "Processing data based on ingestion completion events",
+      "repos": [
+        "cos-lending-selling-datatools"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "The specific business rules governing loan seasoning calculations in cos-lending-selling-dags",
+    "The interaction between MPL (Marketplace Lender) entity in cos-lending-selling-dags and MplBootstrapping in cos-lending-selling-ingestion",
+    "The specific metrics reported to CloudWatch from cos-lending-selling-ingestion and how they're used for monitoring"
+  ]
+}

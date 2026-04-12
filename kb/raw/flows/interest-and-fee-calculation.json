@@ -1,0 +1,42 @@
+{
+  "flowName": "Interest and Fee Calculation",
+  "description": "The Interest and Fee Calculation flow manages the daily and monthly financial calculations for loans in the lending platform. It begins with daily interest accrual based on current loan balances and SOFR rates, followed by calculation of various fees based on contract terms. The process includes recording these calculations for accounting purposes and creating entries that will be used for investor payments and reporting.\n\nThe flow involves automated scheduled batch processes that run through Airflow DAGs to handle interest calculations, volume fee assessments, true-up calculations, and fee sweep operations. These calculations are essential for accurate financial reporting, investor payments, and revenue recognition across the loan portfolio.",
+  "steps": [
+    "1: SOFR Rate Ingestion - Import daily SOFR rates from external source into the system as the base for interest calculations",
+    "2: Daily Interest Calculation - Calculate daily interest on each loan based on current balance, applicable rate and loan status",
+    "3: Interest Accrual Recording - Record calculated interest in InterestHistory entity and prepare for accounting entries",
+    "4: Fee Calculation - Calculate various fees (origination, servicing, etc.) based on contract terms and loan parameters",
+    "5: Volume Fee Processing - Calculate volume-based fees according to MPL contracts and minimum volume commitments",
+    "6: True-Up Calculation - Perform monthly true-up calculations to adjust for any discrepancies in volume fee calculations",
+    "7: Fee Sweep Processing - Collect calculated fees from appropriate accounts as defined in account mappings",
+    "8: Accounting Entry Generation - Create accounting entries for interest and fees in the Accounting Service",
+    "9: Reporting Data Export - Generate reporting data for financial analysis and investor statements"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.Contracts",
+    "cos-lending-selling-dags",
+    "cos-lending-selling-data-utils"
+  ],
+  "entities": [
+    "Loan",
+    "InterestHistory",
+    "Account",
+    "Fee",
+    "SofrRate",
+    "LoanAction",
+    "VolumeFeeMonthlyMinimum",
+    "CustomPurchaseAccountMapping",
+    "FeeSweep"
+  ],
+  "externalSystems": [
+    "COS.Lending.Accounting",
+    "SOFR data source",
+    "Cross River Bank COS"
+  ],
+  "ambiguities": [
+    "The specific calculation formula for volume fee true-ups in cos-lending-selling-dags is not clearly defined",
+    "The exact rules for determining when to use CustomPurchaseAccountMapping in cos-lending-selling-data-utils are not specified",
+    "The relationship between InterestHistory in COS.Lending.Selling.WebApi and the accounting entries created is not fully documented"
+  ]
+}

@@ -1,73 +1,73 @@
 # cos-lending-selling-datatools
 
 ## Purpose
-The cos-lending-selling-datatools repository is a data processing platform for the Cross River Bank lending and selling business, designed to extract, transform, and load data from source systems into data warehouses. It uses Airflow DAGs to orchestrate DBT transformations and data ingestion tasks from MSSQL databases, providing analytical capabilities for loan contracts, seasoning, and volume data.
+cos-lending-selling-datatools is a data engineering repository for the Cross River Bank lending and selling platform. It provides tools for data extraction, transformation, and loading (ETL) using dbt, Airflow, and Python to facilitate analytics and reporting for the loan selling business.
 
 ## Business Features
-- Loan data ingestion and transformation
-- Contract data processing
-- Loan seasoning calculations
-- Volume fee calculation
-- Loan sale status tracking
-- Data export and warehousing
+- Loan data extraction and transformation
+- Contract and termsheet processing
+- Volume and seasoning analysis
+- Data export capabilities
+- Entity and reference data management
 
 ## APIs
-- **POST /ecs-task-execution** — Executes DBT or ingestion tasks in ECS Fargate
+- **POST /api/ingestion** — Ingests various types of data from source systems (loans, contracts, volume data)
 
 ## Dependencies
 - **cos-lending-selling-web-api** (database)
-- **aws-s3** (file)
-- **aws-ssm** (http)
-- **aws-ecs** (http)
-- **aws-secrets-manager** (http)
+- **aws-s3** (storage)
+- **aws-secrets-manager** (security)
+- **aws-ssm** (configuration)
+- **aws-ecs** (compute)
+- **postgres-warehouse** (database)
 
 ## Data Entities
-- **Loan** — Core loan data entity representing lending transactions
-- **LoanType** — Categories of loans processed in the system
-- **Contract** — Legal agreements governing loan terms and conditions
-- **Fee** — Fee structures and calculations for loans
-- **TermSheet** — Document outlining the terms of loan agreements
-- **Seasoning** — Loan aging information used for HFS and LTHFS calculations
-- **LoanSaleStatus** — Status of loan sale transactions
+- **Loan** — Core loan data including type, status, and sale information
+- **Contract** — Agreement terms between CRB and partner institutions
+- **Fee** — Fee structures and parameters for loans
+- **Termsheet** — Effective termsheet configurations and parameters
+- **Interest** — Interest rate information for loans
+- **Seasoning** — Loan aging and seasoning period information
+- **Tiering** — Tier ranges and parameters for loan pricing
 
 ## Messaging Patterns
-- **ECS Task Queue** (queue) — Manages execution of DBT and ingestion tasks in ECS Fargate
+- **Data Ingestion Events** (event) — Events triggered upon completion of data ingestion operations
 
 ## External Integrations
-- **AWS ECS Fargate** — bidirectional via REST
+- **COS Lending Selling Web API** — upstream via database
 - **AWS S3** — bidirectional via REST
-- **PostgreSQL Data Warehouse** — bidirectional via database
-- **Airflow** — upstream via REST
+- **AWS ECS** — downstream via REST
+- **AWS Secrets Manager** — upstream via REST
 
 ## Architecture Patterns
-- Data Pipeline
-- ETL
-- Containerized Microservices
-- Task Orchestration
-- Data Warehouse
+- Data warehouse
+- ETL pipeline
+- Container-based deployment
+- Infrastructure as code
+- Data lake
 
 ## Tech Stack
-- Python
-- DBT
-- Docker
+- Python 3.11
+- dbt
 - Airflow
+- Docker
 - PostgreSQL
-- AWS ECS
 - AWS S3
+- AWS ECS
 - AWS SSM
 - AWS Secrets Manager
-- Boto3
+- Jupyter
 
 ## Findings
-### [HIGH] Hardcoded S3 credentials
+### [HIGH] Hardcoded credentials in aws_utils.py
 
 **Category:** security  
 **Files:** dags/projects/utils/aws_utils.py
 
-Local S3 credentials are hardcoded in aws_utils.py. Although these appear to be for local development only, hardcoded credentials pose a security risk if accidentally used in production contexts. Replace with environment variables or configuration files that are excluded from source control.
+The file dags/projects/utils/aws_utils.py contains hardcoded S3 credentials (username: 'admin', password: 'p4ssw0rd'). While these appear to be for local development only, hardcoded credentials represent a security risk if accidentally used in other environments or committed to version control.
 ### [HIGH] Incomplete ingestion task implementation
 
 **Category:** architecture  
-**Files:** dags/projects/cos_lending_selling/bootstrapping_dag.py, dags/projects/utils/ingestion_task_factory.py
+**Files:** dags/projects/utils/ingestion_task_factory.py
 
-The bootstrapping_dag.py contains TODO comments indicating incomplete implementation of ingestion tasks. The ingestion task factory is referenced but the local implementation is not completed ('not_implemented' function in ingestion_task_factory.py), which would prevent proper execution in local development environments.
+The ingestion task factory in dags/projects/utils/ingestion_task_factory.py has incomplete local implementation with a placeholder method 'not_implemented()'. This could cause runtime failures when executing DAGs in local environment and suggests incomplete migration from test/development code to production-ready components.

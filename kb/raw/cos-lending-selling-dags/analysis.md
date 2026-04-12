@@ -1,74 +1,90 @@
 # cos-lending-selling-dags
 
 ## Purpose
-This repository contains Apache Airflow DAGs (Directed Acyclic Graphs) that orchestrate various ETL processes for a loan selling and servicing platform. It automates data ingestion, transformation, and synchronization between systems to enable loan management, fee collection, interest accrual, and reporting.
+This repository contains Airflow DAGs for orchestrating data processing workflows in a lending and selling system. It manages the ingestion, transformation, and curation of loan data, along with handling fee collections, interest accruals, and reporting for financial operations.
 
 ## Business Features
-- Loan data ingestion and curation from source systems
-- Interest accrual calculations for loans
+- Loan data ingestion and curation
+- Interest accrual calculation
 - Fee collection and processing
-- Data export for reporting and analytics
-- Loan servicing data management
-- MPL (Marketplace Lender) management
-- SOFR rate ingestion for interest calculations
-- Pre-sale reporting for loan sales
-- Synchronization with vampire (sales data system)
-- Account resolution and management
+- Export data for reporting
+- Servicing data management
+- SOFR rate ingestion
+- Volume fee true-up processing
+- Presale reporting
+- Account management and resolution
 
 ## Dependencies
-- **dbt-transformations** (shared-lib)
-- **flyway-migrations** (shared-lib)
-- **ingestion-modules** (shared-lib)
-- **postgres-rds** (database)
-- **vampire** (database)
-- **athena** (database)
+- **PostgreSQL database** (database)
+- **DBT** (shared-lib)
+- **Flyway** (shared-lib)
+- **AWS ECS** (http)
+- **AWS Athena** (database)
+- **AWS S3** (database)
+- **AWS Secrets Manager** (shared-lib)
+- **AWS SSM Parameter Store** (shared-lib)
+- **External loan data API** (http)
+- **External volume data API** (http)
+- **External contract data API** (http)
+- **External servicing data source** (database)
+- **External SOFR data source** (http)
+- **Vampire system** (bidirectional)
 
 ## Data Entities
-- **Loan** — Core loan data representing originated loans in the system
+- **Loan** — Core loan data entity representing loan contracts
 - **Account** — Financial accounts associated with loans
-- **Fee** — Fee data for loan processing and servicing
-- **MPL** — Marketplace Lender entities that originate loans
-- **Organization** — Issuing banks and investors that participate in the lending ecosystem
-- **SOFR** — Secured Overnight Financing Rate data used for interest calculations
-- **Contract** — Legal contracts associated with loans
-- **FeeTierRange** — Tier-based fee structure definitions
+- **Fee** — Fee structures and collection records
+- **LoanAction** — Actions performed on loans
+- **Batch** — Grouping of loans for processing
+- **MPL** — Marketplace Lender entity
+- **Organization** — Financial institutions like issuing banks & investors
+- **Interest** — Interest accrual records
 
 ## External Integrations
 - **SOFR data source** — upstream via REST
-- **Vampire** — downstream via database
-- **Athena** — upstream via database
+- **Vampire** — bidirectional via database
+- **Loan data source** — upstream via REST
+- **Contract data source** — upstream via REST
+- **Volume data source** — upstream via REST
 - **Servicing data source** — upstream via file
 
 ## Architecture Patterns
-- ELT (Extract, Load, Transform)
-- Task orchestration
-- Container-based processing
-- Infrastructure as Code
-- Data pipeline
+- Extract-Load-Transform (ELT)
+- Container-based task execution
+- Orchestration workflow
+- Parameter-driven execution
 
 ## Tech Stack
 - Apache Airflow
 - Python
-- AWS ECS
 - Docker
+- AWS ECS
+- AWS MWAA
 - PostgreSQL
-- DBT (Data Build Tool)
+- DBT
 - Flyway
+- AWS Athena
+- AWS S3
 - AWS Secrets Manager
 - AWS SSM Parameter Store
-- AWS Athena
-- AWS CloudWatch
+- New Relic
 
 ## Findings
-### [HIGH] Secret Management Inconsistency
-
-**Category:** security  
-**Files:** .devcontainer/docker-compose.yml, dags/projects/utils/ingestion_task_factory.py
-
-The repository uses a mix of AWS Secrets Manager and environment variables for credential management. Some credentials like database passwords are properly managed through Secrets Manager ARNs, while others may be exposed through environment files (e.g., selling.env). All secrets should be managed consistently through Secrets Manager to prevent potential credential exposure.
-### [HIGH] Missing Error Handling in Dag Tasks
+### [HIGH] Environment Variable Secrets in MWAA
 
 **Category:** architecture  
-**Files:** dags/projects/loans_ingestion/loans_ingestion_dag.py, dags/projects/utils/dbt_task_factory.py, dags/projects/utils/ingestion_task_factory.py
+**Files:** dags/projects/utils/ingestion_task_factory.py, dags/projects/utils/dbt_task_factory.py, dags/projects/utils/flyway_task_factory.py
 
-Many of the DAG tasks have minimal or no error handling, which can lead to silent failures or incomplete executions without clear diagnostics. Tasks should implement proper exception handling with appropriate logging and recovery mechanisms to ensure reliability.
+The DAGs appear to rely on environment variables for configuration which may include sensitive values. MWAA environment variables are visible to all users with console access. Consider moving all sensitive configurations to AWS Secrets Manager.
+### [HIGH] Hard-coded AWS region
+
+**Category:** security  
+**Files:** dags/projects/utils/flyway_task_factory.py, dags/projects/utils/dbt_task_factory.py, dags/projects/utils/ingestion_task_factory.py
+
+AWS region is hard-coded as 'us-east-1' in log configuration which reduces portability and could create issues if deployed to a different region. Region should be retrieved from environment or configuration.
+### [HIGH] Excessive IAM permissions for tasks
+
+**Category:** architecture  
+**Files:** dags/projects/utils/ingestion_task_factory.py, dags/projects/utils/dbt_task_factory.py
+
+ECS tasks appear to use the same general role across different task types rather than least-privilege roles specific to each task's needs. Implement role separation based on task functionality requirements.

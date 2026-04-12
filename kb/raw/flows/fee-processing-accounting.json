@@ -1,0 +1,44 @@
+{
+  "flowName": "Fee Processing & Accounting",
+  "description": "The Fee Processing & Accounting flow manages the entire lifecycle of fees in the lending and selling system, from calculation and assessment to collection and reconciliation. Fees are generated based on loan activities, volume commitments, and contractual agreements with MPLs (Marketplace Lenders). Once calculated, fees are swept from designated accounts, properly accounted for in the accounting system, and recorded for reporting purposes.\n\nThe process involves multiple systems working together to ensure accurate fee assessment, proper account resolution, timely collection, and transparent reporting. It handles various fee types including transaction fees, volume fees, true-up fees, and special adjustments based on contractual agreements. The flow ensures proper accounting entries are created in the general ledger while maintaining a detailed audit trail of all fee-related activities.",
+  "steps": [
+    "Fee Calculation: Based on loan activities, contract terms, and volume commitments, the system calculates appropriate fees to be charged",
+    "Account Resolution: The data-utils service resolves the proper fee accounts for both source and destination of fee movements",
+    "Fee Assessment: Fees are assessed and recorded in the database with proper associations to loans, batches, or MPLs",
+    "Fee Collection/Sweep: Scheduled processes initiate the collection of fees from designated MPL accounts",
+    "Outbox Processing: Fee collection events are published via FeeOutbox pattern for downstream consumers",
+    "Accounting Entry Creation: Accounting entries are created in the general ledger reflecting fee collections",
+    "Volume Fee True-up: Monthly processing evaluates actual vs. committed volumes and calculates true-up fees when necessary",
+    "Reporting & Reconciliation: Fee data is exported to reporting systems for financial reporting and reconciliation purposes"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "cos-lending-selling-data-utils",
+    "cos-lending-selling-dags"
+  ],
+  "entities": [
+    "Fee",
+    "Account",
+    "Loan",
+    "LoanAccount",
+    "FeeSweep",
+    "VolumeFeeMonthlyMinimum",
+    "FeeOutbox",
+    "VolumeFeeOutbox",
+    "TrueUpVolumeFeeOutbox",
+    "ObjectiveAccount",
+    "CustomPurchaseAccountMapping"
+  ],
+  "externalSystems": [
+    "CRB.CosLending.Accounting.Api",
+    "AWS SQS",
+    "Lending Accounting Service"
+  ],
+  "ambiguities": [
+    "Exact formula and rules for different fee types calculation in COS.Lending.Selling.WebApi",
+    "Mechanism for handling fee collection failures in Cos.Lending.Selling.DbModel outbox processors",
+    "Specific timing and triggers for volume fee true-up calculations in cos-lending-selling-dags",
+    "Reconciliation process between fees assessed and accounting entries in CRB.CosLending.Accounting.Api"
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "clusterName": "User Interfaces & Experience",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Core entity representing loan information flowing from AI service to UI for display and interaction"
+    },
+    {
+      "entity": "ChatSession",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Represents conversation context that persists between UI and AI service, storing question-answer history for loan inquiries"
+    },
+    {
+      "entity": "Message",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "description": "Content exchanged during chat sessions, sent from UI to AI service and returned as responses"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Query Conversation",
+      "description": "End-to-end flow of user asking questions about loans through natural language interface",
+      "steps": [
+        "User selects loan in Selling UI",
+        "UI creates a chat session via POST /selling/api/sessions",
+        "AI service initializes session context with loan data",
+        "User asks question in UI",
+        "Question sent to AI service via POST /chat/{session_id}/message",
+        "AI service processes using AWS Bedrock",
+        "Response streamed back via Server-Sent Events",
+        "UI displays response and stores in chat history"
+      ]
+    },
+    {
+      "name": "Loan History Retrieval",
+      "description": "Flow for accessing historical loan conversations",
+      "steps": [
+        "User requests previous loan conversation",
+        "UI fetches session history via GET /selling/api/sessions/{sessionId}/history",
+        "AI service retrieves stored conversation from database",
+        "Chat history displayed to user in UI"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.UI",
+      "to": "cos-lending-selling-ai",
+      "mechanism": "HTTP REST",
+      "description": "UI sends user questions about loans to AI service and receives detailed loan insights and explanations"
+    },
+    {
+      "from": "cos-lending-selling-ai",
+      "to": "COS.Lending.Selling.UI",
+      "mechanism": "Server-Sent Events",
+      "description": "AI service streams response tokens to UI for progressive rendering of AI responses"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Progressive Response Rendering",
+      "description": "Uses Server-Sent Events to stream AI-generated content token by token, providing immediate feedback to users rather than waiting for complete responses",
+      "repos": [
+        "cos-lending-selling-ai",
+        "COS.Lending.Selling.UI"
+      ]
+    },
+    {
+      "pattern": "Natural Language Interface",
+      "description": "Allows users to query complex loan data using natural language rather than structured forms or SQL-like queries",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    },
+    {
+      "pattern": "Contextual Conversation",
+      "description": "Maintains conversation context across multiple interactions, allowing follow-up questions without restating context",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "The exact relationship between COS.Lending.Selling.API and cos-lending-selling-ai is unclear - whether they're separate services or if one proxies requests to the other",
+    "How loan actions from LoanAction entity in cos-lending-selling-ai are reflected in or initiated from the UI",
+    "The mechanism for synchronizing loan data between PostgreSQL (referenced in cos-lending-selling-ai) and the data source for COS.Lending.Selling.UI"
+  ]
+}

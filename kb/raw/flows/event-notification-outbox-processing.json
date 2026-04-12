@@ -1,0 +1,50 @@
+{
+  "flowName": "Event Notification & Outbox Processing",
+  "description": "The Event Notification & Outbox Processing flow implements a reliable messaging pattern within the Cos.Lending.Selling system. When business events occur in the WebApi, they are first persisted in outbox tables in the database to ensure durability. These events are then processed asynchronously by outbox processors that publish them to the appropriate downstream systems. For domain events requiring notifications, the Hooks service receives these events and transforms them into standardized notifications delivered to subscribers via the Hooks Hub Service. This transactional outbox pattern ensures that data changes and message publishing are eventually consistent even if immediate publishing fails.\n\nThe flow spans multiple repositories with the WebApi initiating business transactions, the DbModel storing outbox records, and the Hooks service handling delivery of notifications to external consumers. Various outbox processors handle different event types including transfers, fees, batch initialization, interest calculations, and regulatory reporting. This architecture allows the system to maintain reliable, asynchronous communication while preserving transactional integrity.",
+  "steps": [
+    "1: Business operation triggers domain event in WebApi (e.g., loan sale status change, batch purchase completion)",
+    "2: Transaction commits business data changes and writes event to appropriate outbox table in DbModel (e.g., NotificationOutbox, TransferOutbox)",
+    "3: Outbox processor service periodically polls outbox tables for unprocessed records",
+    "4: Processor reads outbox records, publishes messages to appropriate destinations, and marks records as processed",
+    "5: For notification events, COS.Lending.Selling.Hooks service receives the event data",
+    "6: Hooks service transforms domain event into standardized notification format",
+    "7: Hooks service publishes notification to CRB.CosLending.Hooks.Hub.Service",
+    "8: External subscribers receive notifications via Hooks Hub Service"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "COS.Lending.Selling.Hooks"
+  ],
+  "entities": [
+    "NotificationOutbox",
+    "TransferOutbox",
+    "FeeOutbox",
+    "BatchInitOutbox",
+    "DailyInterestOutbox",
+    "VolumeFeeOutbox",
+    "ReportingOutbox",
+    "MaturedLoanOutbox",
+    "TrueUpVolumeFeeOutbox",
+    "LoanSaleStatusChanged",
+    "BatchPurchaseCompleted",
+    "TrueUpVolumeFeeCharged",
+    "InvestorChanged",
+    "LoanTypeChanged",
+    "OverdueLoansAlert"
+  ],
+  "externalSystems": [
+    "CosLending Hooks Hub",
+    "CRB.CosLending.Hooks.Hub.Service",
+    "OAuth Identity Provider",
+    "COS Storage Service",
+    "COS Transaction Service",
+    "Lending Contracts Service",
+    "Lending Accounting Service"
+  ],
+  "ambiguities": [
+    "MessageDispatcherService in COS.Lending.Selling.WebApi has unclear relationship with the outbox processors",
+    "The specific retry policies and error handling for outbox processors in COS.Lending.Selling.WebApi are not defined",
+    "The exact mapping between outbox record types in Cos.Lending.Selling.DbModel and the event types handled by COS.Lending.Selling.Hooks is not clearly defined"
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "clusterName": "Core Lending Selling Platform",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Core entity representing a financial loan with attributes like ID, status, amount, and interest rate. Defined in Contracts, persisted in DbModel, and operated on via WebApi."
+    },
+    {
+      "entity": "Account",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Banking account used for transfers and financial operations. Defined in DbModel and manipulated through WebApi endpoints."
+    },
+    {
+      "entity": "Transfer",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Represents movement of funds between accounts with status tracking. Defined in DbModel and initiated via WebApi endpoints."
+    },
+    {
+      "entity": "Batch",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.Contracts",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Groups multiple loans for bulk processing. Defined as BatchInfo in Contracts, persisted in DbModel, and queried via WebApi."
+    },
+    {
+      "entity": "InterestHistory",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Tracks interest accruals for loans over time. Defined in DbModel and processed via WebApi's interest accrual flows."
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Purchase Flow",
+      "description": "End-to-end flow for MPLs to purchase loans from banks",
+      "steps": [
+        "Loan details defined in Contracts",
+        "Purchase request initiated via WebApi",
+        "Data persisted to database via DbModel",
+        "Transfer created for funds movement",
+        "Notification sent via NotificationOutbox"
+      ]
+    },
+    {
+      "name": "Interest Accrual Flow",
+      "description": "Daily process for calculating and applying interest to loans",
+      "steps": [
+        "DailyInterestOutbox triggered from WebApi",
+        "Interest calculated based on loan terms from DbModel",
+        "Interest history recorded in database",
+        "Notifications sent to relevant parties"
+      ]
+    },
+    {
+      "name": "Fee Processing Flow",
+      "description": "Process for collecting and managing fees associated with loans",
+      "steps": [
+        "Fee events triggered via WebApi",
+        "Fee calculations based on contracts and volume",
+        "FeeOutbox/VolumeFeeOutbox message published",
+        "Fee data persisted in DbModel",
+        "Transfer initiated for fee collection"
+      ]
+    },
+    {
+      "name": "Reporting Flow",
+      "description": "Generation of pre-sale and post-sale loan reports",
+      "steps": [
+        "Report request via WebApi POST /api/reports",
+        "Data gathered from DbModel entities",
+        "ReportingOutbox message published",
+        "Report generated and stored in AWS S3",
+        "Notification of report availability"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.DbModel",
+      "mechanism": "direct-reference",
+      "description": "WebApi uses DbModel to persist and retrieve loan and account data"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.Contracts",
+      "mechanism": "direct-reference",
+      "description": "WebApi uses Contracts to define data structures for API request/response models"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cross River Bank COS",
+      "mechanism": "REST",
+      "description": "Bidirectional integration for loan data exchange with the bank's core system"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "COS.Lending.Contracts",
+      "mechanism": "HTTP",
+      "description": "Retrieves contract information to validate loan operations"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "COS.Lending.Accounting",
+      "mechanism": "HTTP",
+      "description": "Bidirectional integration for financial accounting operations related to loans"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "AWS SQS",
+      "mechanism": "messaging",
+      "description": "Uses SQS for reliable background processing of loan operations"
+    },
+    {
+      "from": "COS.Lending.Selling.DbModel",
+      "to": "PostgreSQL",
+      "mechanism": "Entity Framework Core",
+      "description": "Persists all loan, account, and transaction data to PostgreSQL database"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Outbox Pattern",
+      "description": "Used for reliable asynchronous processing across multiple services",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "Repository Pattern",
+      "description": "Abstracts data access logic from business logic",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "Shared Contract Model",
+      "description": "Common entity definitions shared across services",
+      "repos": [
+        "Cos.Lending.Selling.Contracts"
+      ]
+    },
+    {
+      "pattern": "Batch Processing",
+      "description": "Groups multiple operations for efficiency",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "In COS.Lending.Selling.WebApi, the business rules for loan transfer eligibility based on account types need more explicit definition",
+    "In Cos.Lending.Selling.Contracts, the specific mappings and display logic for LoanInfo's field1-field21 properties are not clearly defined",
+    "In Cos.Lending.Selling.DbModel, the specific constraints and validation rules for the one-to-many relationship between LoanAccount and Account are not explicitly defined",
+    "The exact algorithm for interest calculation referenced in DailyInterestOutbox is not explicitly defined in any repository"
+  ]
+}

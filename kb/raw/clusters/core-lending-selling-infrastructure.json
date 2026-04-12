@@ -1,0 +1,173 @@
+{
+  "clusterName": "Core Lending Selling Infrastructure",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Core entity representing a financial loan with properties like ID, status, amount, interest rates. Defined as a database model, exposed via contracts, and manipulated through the API"
+    },
+    {
+      "entity": "Account",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.WebApi"
+      ],
+      "description": "Represents financial accounts used for transfers and operations, persisted in database and exposed through API endpoints"
+    },
+    {
+      "entity": "Transfer",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Represents movement of funds between accounts, stored in database and exposed via API endpoints"
+    },
+    {
+      "entity": "Batch",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Groups multiple loan operations for bulk processing, defined in database, shared through contracts, and managed via API"
+    },
+    {
+      "entity": "InterestHistory",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ],
+      "description": "Tracks interest calculations and changes over time for loans, stored in database and processed through API"
+    },
+    {
+      "entity": "Investor",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "description": "Entities that purchase loans, defined in database model and exposed via contracts"
+    },
+    {
+      "entity": "Mpl",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "description": "Marketplace Lender entity representing lending platforms, defined in database and shared via contracts"
+    },
+    {
+      "entity": "Bank",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "description": "Financial institutions that originate or service loans, stored in database and exposed via contracts"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Purchase Flow",
+      "description": "Process of acquiring loans from originators into the system",
+      "steps": [
+        "Client initiates loan purchase request via WebAPI",
+        "Loan data validated against Contract definitions",
+        "Loans stored in database via DbModel entities",
+        "Purchase confirmed with receipt generation",
+        "Notification events published via outbox pattern"
+      ]
+    },
+    {
+      "name": "Interest Accrual Flow",
+      "description": "Daily process of calculating and applying interest to loans",
+      "steps": [
+        "Daily trigger initiates interest calculation via WebAPI",
+        "Interest computed based on loan terms and SofrRate from Contracts",
+        "Results stored in InterestHistory entity via DbModel",
+        "Interest updates published via DailyInterestOutbox",
+        "Notifications sent to relevant systems"
+      ]
+    },
+    {
+      "name": "Fee Processing Flow",
+      "description": "Collection and management of various fees associated with loans",
+      "steps": [
+        "Fee triggered based on schedule or event via WebAPI",
+        "Fee calculated according to Contract definitions",
+        "Fee records created in database via DbModel",
+        "Fee collection events published via FeeOutbox",
+        "Volume-based fee adjustments handled via TrueUpVolumeFeeOutbox"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.DbModel",
+      "mechanism": "Direct reference/ORM",
+      "description": "API uses DbModel for data access, persistence, and retrieval of loan and account information"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.Contracts",
+      "mechanism": "Direct reference",
+      "description": "API uses Contracts to ensure data consistency and validation when exchanging information with external systems"
+    },
+    {
+      "from": "Cos.Lending.Selling.DbModel",
+      "to": "External Systems",
+      "mechanism": "Outbox pattern/messaging",
+      "description": "Reliable event publishing from database changes to external systems via various outbox tables"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cross River Bank COS",
+      "mechanism": "REST API",
+      "description": "Bidirectional integration with bank systems for loan data synchronization and transaction processing"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Outbox Pattern",
+      "description": "Ensures reliable event publication by storing outgoing messages in database tables before async processing",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ]
+    },
+    {
+      "pattern": "Repository Pattern",
+      "description": "Abstracts data access logic and provides consistent interface for entity operations",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ]
+    },
+    {
+      "pattern": "Contract-First Design",
+      "description": "Defines shared data contracts independently to ensure consistency across services",
+      "repos": [
+        "Cos.Lending.Selling.Contracts"
+      ]
+    },
+    {
+      "pattern": "Batch Processing",
+      "description": "Groups multiple loan operations together for efficient processing and tracking",
+      "repos": [
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.WebApi"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "How loan pricing and underwriting decisions are made during the purchase process",
+    "Business rules for determining interest rates beyond the basic SOFR references",
+    "Exact business logic for fee calculation formulas and when various types of fees apply",
+    "Complete loan lifecycle states and valid transitions between different statuses",
+    "Reconciliation process details when discrepancies are detected",
+    "Specific business rules around investor eligibility and investment limits"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "flowName": "Loan Data Analytics and Reporting",
+  "description": "The Loan Data Analytics and Reporting flow encompasses the end-to-end process of extracting, transforming, analyzing, and reporting on loan data across the lending and selling platform. Raw data from various operational sources is ingested into data warehouses, processed through ETL pipelines, and made available for analytical reporting to support business intelligence, compliance requirements, and decision-making processes.\n\nThe flow begins with scheduled data extraction from operational databases and external sources via Airflow DAGs, followed by transformation using dbt models that normalize, cleanse, and enrich the data. Processed data is then stored in analytical data marts optimized for reporting. Business users can access these insights through reports and dashboards that provide visibility into loan performance, fee collections, interest accruals, MPL relationships, and other key business metrics.",
+  "steps": [
+    "1: Data extraction - Scheduled Airflow DAGs extract raw loan data, contract information, fee details, and interest history from operational databases and external sources",
+    "2: Data transformation - DBT models process raw data through cleaning, normalization, enrichment, and business rule application",
+    "3: Data loading - Transformed data is loaded into analytics data warehouse tables and materialized views",
+    "4: SOFR rate integration - External SOFR rates are ingested and applied to loan calculations",
+    "5: Reporting data preparation - Key metrics and KPIs are calculated and aggregated",
+    "6: Data export - Analytical datasets are exported to reporting systems and S3 for consumption",
+    "7: Report generation - Business intelligence tools consume prepared datasets to generate operational, regulatory, and management reports"
+  ],
+  "repos": [
+    "cos-lending-selling-dags",
+    "cos-lending-selling-datatools",
+    "Cos.Lending.Selling.DbModel",
+    "COS.Lending.Selling.WebApi"
+  ],
+  "entities": [
+    "Loan",
+    "Account",
+    "Fee",
+    "Contract",
+    "InterestHistory",
+    "Transfer",
+    "Batch",
+    "Mpl",
+    "VolumeFeeMonthlyMinimum",
+    "LoanAction",
+    "Organization",
+    "Investor",
+    "Termsheet",
+    "Seasoning",
+    "Tiering"
+  ],
+  "externalSystems": [
+    "AWS S3",
+    "AWS Athena",
+    "SOFR data source",
+    "Vampire system",
+    "Cross River Bank COS",
+    "Lending Contracts Service"
+  ],
+  "ambiguities": [
+    "The exact business rules for data aggregation and summarization for specific report types",
+    "The complete data lineage showing how specific loan metrics are derived from source systems",
+    "The reconciliation process between analytical data and operational systems to ensure accuracy",
+    "The frequency and business triggers for non-scheduled ad-hoc reporting requests"
+  ]
+}

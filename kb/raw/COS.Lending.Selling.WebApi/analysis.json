@@ -1,69 +1,63 @@
 {
-  "purpose": "COS Lending Selling WebApi is a .NET-based platform for managing loans in the marketplace lending ecosystem. It enables purchasing, changing, and managing loans, with features for calculating fees, handling transfers between accounts, and generating reports for various stakeholders.",
+  "_headHash": "46767b1f065d5e518d2280a0fe4d6bc5df5d55fd",
+  "purpose": "The repository serves as a backend WebAPI for loan management in a lending platform, specifically handling the selling and purchasing of loans. It enables MPLs (Marketplace Lenders) to purchase loans and manage loan lifecycle operations including transfers, fees, interest accruals, and investor relationship management.",
   "businessFeatures": [
-    "Loan purchase and sales management",
-    "Loan type changes and grooming",
-    "Fee calculation and collection (volume fees, Florida stamp tax, DMV fees, etc.)",
-    "Interest accrual and processing",
-    "Batch loan processing",
-    "Transfers between accounts",
-    "Investor reporting (pre-sale and post-sale)",
-    "Reconciliation services",
-    "Auto-purchase of eligible loans",
-    "Monthly minimum fee calculation",
-    "Transfer monitoring and status synchronization"
+    "Loan purchasing and selling",
+    "Interest accrual and management",
+    "Fee collection and processing",
+    "Batch processing of loans",
+    "Reconciliation and reporting",
+    "Loan grooming and type changes",
+    "Volume fee processing",
+    "Automated loan purchasing",
+    "Transfer management"
   ],
   "apis": [
     {
       "endpoint": "/api/loans",
       "method": "GET",
-      "purpose": "Retrieve loans with various filter options"
+      "purpose": "Retrieve loans with filtering options"
     },
     {
-      "endpoint": "/api/loans/purchase",
-      "method": "POST",
-      "purpose": "Purchase loans from MPLs"
-    },
-    {
-      "endpoint": "/api/loans/discrepancies",
-      "method": "POST",
-      "purpose": "Find discrepancies between loan data"
-    },
-    {
-      "endpoint": "/api/contracts",
+      "endpoint": "/api/loans/{id}",
       "method": "GET",
-      "purpose": "Retrieve lending contracts"
+      "purpose": "Get details for a specific loan"
+    },
+    {
+      "endpoint": "/api/batches",
+      "method": "GET",
+      "purpose": "Get information about loan batches"
     },
     {
       "endpoint": "/api/reports",
       "method": "POST",
-      "purpose": "Generate loan sales reports"
+      "purpose": "Generate pre-sale or post-sale loan reports"
     },
     {
-      "endpoint": "/api/grooming",
+      "endpoint": "/api/transfers",
       "method": "POST",
-      "purpose": "Change loan properties or investor"
+      "purpose": "Initiate funds transfers between accounts"
     }
   ],
   "dependencies": [
     {
-      "target": "COS",
+      "target": "COS.Lending.Contracts",
       "type": "http"
     },
     {
-      "target": "LendingContracts",
+      "target": "COS.Lending.Hooks",
       "type": "http"
     },
     {
-      "target": "LendingAccounting",
+      "target": "COS.Lending.Accounting",
       "type": "http"
     },
     {
-      "target": "Hooks",
+      "target": "COS Storage Service",
       "type": "http"
     },
     {
-      "target": "Storage",
+      "target": "COS Transaction Service",
       "type": "http"
     },
     {
@@ -78,61 +72,67 @@
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Core loan entity with all related details and status"
+      "description": "Represents a loan with its details, status, and relationship to other entities"
     },
     {
       "name": "LoanAction",
-      "description": "Actions performed on loans like purchases and fee collections"
+      "description": "Tracks actions performed on loans such as purchases, interest accruals, and fee collections"
     },
     {
       "name": "Transfer",
-      "description": "Money movement between accounts"
+      "description": "Represents a financial transfer between accounts with status tracking"
     },
     {
       "name": "Contract",
-      "description": "Agreement between MPL and bank defining fee structures and terms"
+      "description": "Defines relationship between MPL and bank with terms for loan operations"
     },
     {
       "name": "Account",
-      "description": "Financial accounts used for transfers"
+      "description": "Banking account used for transfers and financial operations"
     },
     {
       "name": "Batch",
-      "description": "Group of loans processed together"
+      "description": "Groups multiple loans for bulk processing"
     },
     {
-      "name": "GroomingProcess",
-      "description": "Workflow for changing loan properties"
+      "name": "InterestHistory",
+      "description": "Tracks interest accruals for loans over time"
     },
     {
-      "name": "VolumeFee",
-      "description": "Fees charged based on loan volume"
-    },
-    {
-      "name": "PendingApproval",
-      "description": "Changes awaiting approval"
+      "name": "VolumeFeeMonthlyMinimum",
+      "description": "Tracks minimum fee requirements for MPLs"
     }
   ],
   "messagingPatterns": [
     {
       "type": "outbox",
       "name": "TransferOutbox",
-      "description": "Ensures reliable processing of transfers between accounts"
-    },
-    {
-      "type": "outbox",
-      "name": "DailyInterestOutbox",
-      "description": "Handles daily interest accrual messages"
+      "description": "Ensures reliable processing of transfer requests to external systems"
     },
     {
       "type": "outbox",
       "name": "NotificationOutbox",
-      "description": "Manages external notifications about system events"
+      "description": "Manages notifications to be sent to external systems"
     },
     {
       "type": "outbox",
       "name": "BatchInitOutbox",
-      "description": "Triggers batch initialization for loan purchases"
+      "description": "Handles batch initialization processing"
+    },
+    {
+      "type": "outbox",
+      "name": "FeeOutbox",
+      "description": "Manages fee collection processing"
+    },
+    {
+      "type": "outbox",
+      "name": "VolumeFeeOutbox",
+      "description": "Processes volume-based fees for loans"
+    },
+    {
+      "type": "outbox",
+      "name": "TrueUpVolumeFeeOutbox",
+      "description": "Handles true-up volume fee processing"
     },
     {
       "type": "outbox",
@@ -141,33 +141,23 @@
     },
     {
       "type": "outbox",
-      "name": "VolumeFeeOutbox",
-      "description": "Processes volume fee calculations and transfers"
-    },
-    {
-      "type": "outbox",
-      "name": "TrueUpVolumeFeeOutbox",
-      "description": "Handles volume fee adjustments"
+      "name": "DailyInterestOutbox",
+      "description": "Processes daily interest accruals"
     },
     {
       "type": "queue",
-      "name": "SQS Message Queue",
-      "description": "Processes outbox messages for reliable delivery"
+      "name": "SQS Message Handling",
+      "description": "Processes messages from AWS SQS for reliable background processing"
     }
   ],
   "integrations": [
     {
-      "system": "COS (Core Banking System)",
+      "system": "Cross River Bank COS",
       "direction": "bidirectional",
       "protocol": "REST"
     },
     {
       "system": "AWS S3",
-      "direction": "bidirectional",
-      "protocol": "REST"
-    },
-    {
-      "system": "Hooks Notification Service",
       "direction": "downstream",
       "protocol": "REST"
     },
@@ -177,60 +167,63 @@
       "protocol": "REST"
     },
     {
+      "system": "Hooks Notification Service",
+      "direction": "downstream",
+      "protocol": "REST"
+    },
+    {
       "system": "Lending Accounting Service",
-      "direction": "upstream",
+      "direction": "bidirectional",
       "protocol": "REST"
     }
   ],
   "architecturePatterns": [
-    "Microservices",
-    "Outbox Pattern",
-    "Repository Pattern",
-    "Background Services",
-    "CQRS",
+    "Outbox pattern",
+    "Repository pattern",
+    "Functional core/imperative shell",
+    "Background processing services",
+    "Multi-tenant architecture",
     "Event-driven architecture",
-    "Tenant Isolation"
+    "Microservices",
+    "CQRS"
   ],
   "techStack": [
-    ".NET 8",
-    "F# (for business logic)",
-    "C# (for infrastructure)",
+    ".NET 8.0",
+    "F# (business logic)",
+    "C# (API layer and infrastructure)",
     "PostgreSQL 16.2",
-    "Entity Framework Core",
     "AWS SQS",
+    "Entity Framework Core",
     "Docker",
     "Quartz.NET",
-    "NServiceBus",
     "CSV Helper"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Sensitive information in repository",
-      "description": "Certificate files (CosLending.pfx) and license files (nsbLicense.xml) are committed in the repository. These should be stored securely in a vault and retrieved during deployment rather than being committed to source control.",
-      "files": [
-        ".devcontainer/assets/CosLending.pfx",
-        ".devcontainer/assets/nsbLicense.xml"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "architecture",
-      "title": "Hardcoded credentials in docker-compose file",
-      "description": "The docker-compose.yml file contains hardcoded database credentials. These should be externalized to environment variables or a secure configuration store to prevent credential leakage.",
+      "title": "Insecure credentials handling in docker-compose",
+      "description": "Hard-coded database credentials are present in docker-compose.yml. Credentials should be moved to environment variables or secrets management.",
       "files": [
         ".devcontainer/docker-compose.yml"
       ]
     },
     {
       "severity": "high",
-      "category": "security",
-      "title": "Missing authorization checks",
-      "description": "PolicyTenantService sets tenants but doesn't validate if the user has the necessary permissions for specific operations. Consider implementing more granular permission checks based on operation types.",
+      "category": "architecture",
+      "title": "Missing idempotency in outbox processors",
+      "description": "While some outbox processors check for duplicates, others don't implement proper idempotency checks, which could lead to duplicate operations if processors are restarted.",
       "files": [
-        "CRB.Cos.Lending.Selling.Middlewares/PolicyTenantService.cs"
+        "CRB.COS.Lending.Selling.OutboxProcessors/Processors/BatchInitOutboxProcessor.cs",
+        "CRB.COS.Lending.Selling.OutboxProcessors/Processors/MaturedLoansOutboxProcessor.cs"
       ]
     }
+  ],
+  "ambiguities": [
+    "Exact purpose and structure of the MessageDispatcherService and how it relates to the outbox processors",
+    "How loan approval workflow is structured and what triggers state transitions",
+    "Specifics around the auto-purchase configuration and eligibility criteria",
+    "Exact contract model with MPLs and how terms are enforced",
+    "How reconciliation with external systems is managed and resolved when discrepancies are found"
   ]
 }

@@ -1,0 +1,85 @@
+{
+  "clusters": [
+    {
+      "name": "Core Loan Management",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "analysisGoal": "Investigate core loan processing flows and data model coherence"
+    },
+    {
+      "name": "Data Processing & Analytics",
+      "repos": [
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "cos-lending-selling-ingestion"
+      ],
+      "analysisGoal": "Analyze ETL processes and data workflow orchestration"
+    },
+    {
+      "name": "User Interfaces & Experience",
+      "repos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai"
+      ],
+      "analysisGoal": "Evaluate user interaction patterns and data visualization"
+    },
+    {
+      "name": "Integration & Support Services",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-data-utils"
+      ],
+      "analysisGoal": "Examine system integration patterns and account resolution mechanisms"
+    }
+  ],
+  "businessFlows": [
+    {
+      "name": "Loan Selling Lifecycle",
+      "involvedRepos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "COS.Lending.Selling.UI",
+        "COS.Lending.Selling.Hooks",
+        "Cos.Lending.Selling.Contracts"
+      ]
+    },
+    {
+      "name": "Data Ingestion to Analytics",
+      "involvedRepos": [
+        "cos-lending-selling-ingestion",
+        "cos-lending-selling-dags",
+        "cos-lending-selling-datatools",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "name": "Fee Processing & Accounting",
+      "involvedRepos": [
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-data-utils",
+        "Cos.Lending.Selling.DbModel",
+        "cos-lending-selling-dags"
+      ]
+    },
+    {
+      "name": "Loan Query & Insights",
+      "involvedRepos": [
+        "COS.Lending.Selling.UI",
+        "cos-lending-selling-ai",
+        "COS.Lending.Selling.WebApi",
+        "cos-lending-selling-datatools"
+      ]
+    },
+    {
+      "name": "Event Notification & Outbox Processing",
+      "involvedRepos": [
+        "COS.Lending.Selling.WebApi",
+        "COS.Lending.Selling.Hooks",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    }
+  ]
+}

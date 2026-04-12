@@ -1,141 +1,108 @@
 {
-  "purpose": "This repository contains the Infrastructure as Code (IaC) for Cross River Bank's Lending and Selling platform. It uses Terragrunt to provision and manage AWS cloud resources including databases, APIs, compute resources, and storage services required for loan servicing and selling operations.",
+  "_headHash": "34d11d8be9150a951a55f9706a126fac1f83d810",
+  "purpose": "This repository contains Infrastructure as Code (IaC) for the Cross River Bank Lending and Selling platform, provisioning and managing AWS cloud resources including Aurora databases, Airflow workflows, ECS Fargate tasks, S3 buckets, and other supporting services across multiple environments.",
   "businessFeatures": [
-    "Loan servicing",
-    "Loan selling",
-    "AI-powered lending analytics",
+    "Loan servicing infrastructure",
+    "AI-based loan processing",
+    "Data processing workflows via Airflow",
+    "Loan selling functionality",
     "Database access management",
-    "Workflow orchestration"
+    "Monitoring and alerting"
   ],
-  "apis": [
-    {
-      "endpoint": "/admin-api",
-      "method": "Multiple",
-      "purpose": "Administrative interface for lending platform management"
-    },
-    {
-      "endpoint": "/web-api",
-      "method": "Multiple",
-      "purpose": "Customer-facing API for lending services"
-    },
-    {
-      "endpoint": "/ai-api",
-      "method": "Multiple",
-      "purpose": "AI-powered lending decision and analytics API"
-    }
-  ],
+  "apis": [],
   "dependencies": [
+    {
+      "target": "admin-api",
+      "type": "http"
+    },
+    {
+      "target": "web-api",
+      "type": "http"
+    },
+    {
+      "target": "ai-api",
+      "type": "http"
+    },
     {
       "target": "Aurora PostgreSQL",
       "type": "database"
     },
     {
-      "target": "Amazon S3",
-      "type": "shared-lib"
-    },
-    {
-      "target": "Amazon ECS",
-      "type": "http"
-    },
-    {
-      "target": "AWS Lambda",
-      "type": "http"
-    },
-    {
-      "target": "Amazon SQS",
+      "target": "SQS queues",
       "type": "messaging"
-    },
-    {
-      "target": "Amazon Secrets Manager",
-      "type": "database"
-    },
-    {
-      "target": "Amazon MWAA (Airflow)",
-      "type": "http"
     }
   ],
   "dataEntities": [
     {
-      "name": "LoanFunding",
-      "description": "Represents loan funding data in the lending platform"
+      "name": "Loans",
+      "description": "Core loan data stored in Aurora database"
     },
     {
-      "name": "DatabaseCredential",
-      "description": "Represents database access credentials for various services"
+      "name": "LoanFunding",
+      "description": "Data related to loan funding process in dbt_temp schema"
     }
   ],
   "messagingPatterns": [
     {
       "type": "queue",
-      "name": "SQS Queues for Selling-X",
+      "name": "SQS queues for selling-x",
       "description": "Message queues for loan selling processes"
-    },
-    {
-      "type": "event",
-      "name": "Secret Rotation",
-      "description": "Event-driven credential rotation for database access"
     }
   ],
   "integrations": [
     {
-      "system": "External Database Systems",
-      "direction": "bidirectional",
+      "system": "External data consumers",
+      "direction": "downstream",
       "protocol": "database"
     },
     {
-      "system": "AWS Secrets Manager",
+      "system": "Amazon Athena",
       "direction": "bidirectional",
-      "protocol": "REST"
-    },
-    {
-      "system": "AI Service",
-      "direction": "bidirectional",
-      "protocol": "REST"
+      "protocol": "file"
     }
   ],
   "architecturePatterns": [
     "Infrastructure as Code",
-    "Serverless",
     "Microservices",
-    "Event-driven",
-    "Container-based deployment",
-    "Workflow orchestration"
+    "Secret rotation pattern",
+    "Lambda for database credential management",
+    "Multi-environment deployment"
   ],
   "techStack": [
-    "Terragrunt",
     "Terraform",
-    "AWS",
-    "Docker",
+    "Terragrunt",
+    "AWS (ECS, Aurora, Lambda, S3, SQS, MWAA, Athena)",
     "Python",
     "PostgreSQL",
     "Airflow",
-    "Lambda",
-    "ECS",
-    "S3",
-    "SQS",
-    "DynamoDB",
-    "CloudWatch"
+    "Docker"
   ],
   "findings": [
     {
       "severity": "high",
       "category": "security",
-      "title": "Hardcoded root database access in Lambda functions",
-      "description": "The secret rotation Lambda functions reference a root secret ARN for database access, creating a potential security risk if compromised. Consider using a more restricted service account or IAM role-based authentication.",
+      "title": "Hard-coded certificate in repository",
+      "description": "A certificate file (crb.pem) is stored in the repository under docker/certs/. Certificates should never be stored in repositories and should instead be managed through secure certificate management solutions.",
       "files": [
-        "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
-        "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
+        "docker/certs/crb.pem"
       ]
     },
     {
       "severity": "high",
-      "category": "security",
-      "title": "Direct SQL query construction using f-strings",
-      "description": "Direct SQL query construction using f-strings in Lambda functions could lead to SQL injection vulnerabilities. While most SQL is properly parameterized, the grant permission statements use f-strings. Switch to parameterized queries for all SQL operations.",
+      "category": "architecture",
+      "title": "Database credentials rotated but no integration tests",
+      "description": "The Lambda rotation functions change database passwords but don't have comprehensive tests to verify application functionality continues after rotation. This could lead to service disruption if applications can't connect with new credentials.",
       "files": [
         "orchestration/terragrunt/aws/_env/ai-api/artifacts/app/rotate_secret.py",
         "orchestration/terragrunt/aws/_env/db-external-access/artifacts/app/rotate_secret.py"
       ]
     }
+  ],
+  "ambiguities": [
+    "The exact purpose and functionality of the 'selling-x' component that uses SQS queues",
+    "The specific data models and schemas in the Aurora database beyond the mentioned 'app' and 'dbt_temp' schemas",
+    "The flow and interaction patterns between the various APIs (admin-api, web-api, ai-api)",
+    "What AI functionality is implemented in the ai-api Lambda functions",
+    "How the Airflow workflows integrate with the rest of the system beyond the sample DAG"
   ]
 }

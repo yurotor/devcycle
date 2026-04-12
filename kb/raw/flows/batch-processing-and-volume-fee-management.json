@@ -1,0 +1,44 @@
+{
+  "flowName": "Batch Processing and Volume Fee Management",
+  "description": "The Batch Processing and Volume Fee Management flow orchestrates the aggregated processing of loans in batches and manages volume-based fee calculations. It begins with batch initialization, where loans are selected for processing based on predefined criteria. Loans are processed in batches to optimize throughput, calculate volume fees, and apply any true-up fees to ensure minimum revenue requirements are met. The system then dispatches notifications about batch completion and volume fee charges to downstream systems.\n\nVolume fees are calculated based on loan volumes and contractual terms with MPLs (Marketplace Lenders). The system maintains monthly minimum requirements, applies actual volume-based charges, and performs true-up calculations to reconcile any differences. Airflow DAGs orchestrate these workflows, handling the scheduling of batch processes and coordinating the data transformations necessary for accurate fee calculations and reporting.",
+  "steps": [
+    "1: Batch initialization - System identifies eligible loans and creates a batch for processing based on configurable criteria",
+    "2: Loan processing - Batch processes selected loans applying relevant business rules and status transitions",
+    "3: Volume fee calculation - System calculates fees based on processed loan volumes according to MPL contracts",
+    "4: Monthly minimum fee verification - Compares actual volume fees against contractual monthly minimums",
+    "5: True-up fee processing - When actual fees are below monthly minimums, calculates and applies true-up charges",
+    "6: Notification dispatch - Sends BatchPurchaseCompleted and TrueUpVolumeFeeCharged notifications via hooks",
+    "7: Reporting - Generates reports on processed batches and fee calculations for reconciliation and auditing"
+  ],
+  "repos": [
+    "COS.Lending.Selling.WebApi",
+    "Cos.Lending.Selling.DbModel",
+    "COS.Lending.Selling.Hooks",
+    "cos-lending-selling-dags"
+  ],
+  "entities": [
+    "Batch",
+    "Loan",
+    "Account",
+    "VolumeFeeMonthlyMinimum",
+    "Fee",
+    "Mpl",
+    "Contract",
+    "BatchPurchaseCompleted",
+    "TrueUpVolumeFeeCharged",
+    "BatchInitOutbox",
+    "VolumeFeeOutbox",
+    "TrueUpVolumeFeeOutbox"
+  ],
+  "externalSystems": [
+    "CosLending Hooks Hub",
+    "Cross River Bank COS",
+    "Lending Accounting Service"
+  ],
+  "ambiguities": [
+    "The specific contractual terms that determine volume fee calculations and monthly minimums",
+    "The exact triggering conditions for batch processing initiation",
+    "The reconciliation process when fee calculation discrepancies occur",
+    "How volume fee true-up charges are communicated to MPLs beyond system notifications"
+  ]
+}

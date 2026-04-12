@@ -1,0 +1,99 @@
+{
+  "clusterName": "Infrastructure and Support",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "iac-cos-lending-selling",
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Core loan entity that flows from infrastructure provisioning to testing and account resolution"
+    },
+    {
+      "entity": "LoanAccount",
+      "repos": [
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Account mappings for loans that are created by data-utils and validated in e2e tests"
+    },
+    {
+      "entity": "AccountConfig",
+      "repos": [
+        "cos-lending-selling-e2e-tests",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Configuration for accounts used for various financial operations"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Infrastructure Provisioning to Testing",
+      "description": "AWS resources provisioned by IaC are used by E2E tests to verify functionality",
+      "steps": [
+        "Provision Aurora DB",
+        "Configure S3 buckets",
+        "Setup ECS services",
+        "Run E2E tests against provisioned infrastructure"
+      ]
+    },
+    {
+      "name": "Account Resolution Flow",
+      "description": "Account mapping data flows from data-utils to databases provisioned in IaC",
+      "steps": [
+        "Fetch account data via accounting API",
+        "Resolve correct accounts based on loan attributes",
+        "Update account mappings in Selling DB"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "iac-cos-lending-selling",
+      "to": "cos-lending-selling-e2e-tests",
+      "mechanism": "shared-db",
+      "description": "E2E tests utilize the Aurora PostgreSQL databases provisioned by IaC"
+    },
+    {
+      "from": "iac-cos-lending-selling",
+      "to": "cos-lending-selling-data-utils",
+      "mechanism": "shared-db",
+      "description": "Data-utils service reads from and writes to the databases provisioned by IaC"
+    },
+    {
+      "from": "cos-lending-selling-data-utils",
+      "to": "cos-lending-selling-e2e-tests",
+      "mechanism": "shared-db",
+      "description": "E2E tests validate the account mappings created by the data-utils service"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Infrastructure as Code",
+      "description": "Declarative provisioning of AWS resources using Terragrunt for multiple environments",
+      "repos": [
+        "iac-cos-lending-selling"
+      ]
+    },
+    {
+      "pattern": "Simulator Pattern",
+      "description": "Simulates real-world scenarios and external dependencies for comprehensive testing",
+      "repos": [
+        "cos-lending-selling-e2e-tests"
+      ]
+    },
+    {
+      "pattern": "Data Mapper",
+      "description": "Maps and resolves account information from different data sources",
+      "repos": [
+        "cos-lending-selling-data-utils"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "In iac-cos-lending-selling, the relationship between AI-API service and its DynamoDB tables isn't clearly defined",
+    "In cos-lending-selling-e2e-tests, the exact relationship between the SQS Payment Queue and the web-api service needs clarification",
+    "In cos-lending-selling-data-utils, the specific rules for CustomPurchaseAccountMapping aren't defined"
+  ]
+}

@@ -1,171 +1,110 @@
 {
-  "purpose": "This repository provides data ingestion services for the Cross River Bank lending and selling platform. It handles ETL processes for loan data, contracts, and financial rates (SOFR) from various sources into a centralized database for reporting and operational use.",
-  "businessFeatures": [
-    "Loan data ingestion from MPL (Marketplace Lending) partners",
-    "Contract data bootstrapping from contract management system",
-    "SOFR (Secured Overnight Financing Rate) rates ingestion from Federal Reserve API",
-    "Servicing data ingestion from S3 CSV files",
-    "Loan status synchronization between Arix and Selling databases",
-    "CloudWatch metrics reporting for operational monitoring"
+  "_headHash": "fd93a0a788f483b4aa32104851a6a1ce122a42bb",
+  "repositoryPurpose": "Data ingestion and synchronization service for Cross River Bank's lending and selling platform",
+  "architectureOverview": {
+    "type": "Python-based data integration service",
+    "deploymentMethod": "Docker container",
+    "primaryPatterns": [
+      "ETL",
+      "API integration",
+      "Database synchronization"
+    ]
+  },
+  "businessFeatures": {
+    "primaryFeatures": [
+      "Ingest loan servicing data from external MPLs (Marketplace Lenders) via S3 CSV files",
+      "Synchronize loan status between Arix and Selling databases",
+      "Import SOFR (Secured Overnight Financing Rate) data from Federal Reserve API",
+      "Generate metrics for CloudWatch dashboards to monitor lending operations",
+      "Contract data bootstrapping and management",
+      "Vampire system data export/import"
+    ],
+    "dataEntities": [
+      "Loans - Represents consumer loans with loan_id, loan_number, status",
+      "Contracts - Represents lending agreements with MPLs including terms, fees, and rates",
+      "Servicing Values - Loan servicing data including adjusted_loan_amount and interest_paid",
+      "SOFR Rates - Federal Reserve interest rates (daily and 30-day average)",
+      "MPL Bootstrapping - Configuration for enabled marketplace lenders",
+      "Servicing Timestamps - Tracking when servicing data was last ingested by MPL"
+    ]
+  },
+  "externalIntegrations": {
+    "apis": [
+      "Federal Reserve API - Used to fetch SOFR rates",
+      "AWS CloudWatch - Used for metrics reporting"
+    ],
+    "dataStores": [
+      "AWS S3 - Source for CSV servicing data files from MPLs",
+      "AWS Athena - Used to query data in data lake/warehouse"
+    ],
+    "databases": [
+      "Selling DB (PostgreSQL) - Main operational database where ingested data is stored",
+      "Loans DB (MSSQL) - External system containing Arix loan data",
+      "Contracts DB (MSSQL) - System of record for contract data",
+      "Volume DB (MSSQL) - System for tracking loan volumes",
+      "Vampire DB (MSSQL) - System with unclear purpose but requires data export/import"
+    ]
+  },
+  "technicalComponents": {
+    "dataIngestion": [
+      "S3 CSV file ingestion for servicing data from MPLs (Marlette, Momnt, etc.)",
+      "Federal Reserve API integration for SOFR rates",
+      "Database-to-database synchronization from MSSQL to PostgreSQL"
+    ],
+    "dataTransformation": [
+      "Conversion of CSV data to structured database records",
+      "Status reconciliation between Arix and Selling systems",
+      "Contract data bootstrapping from Contracts DB to Selling DB"
+    ],
+    "metrics": [
+      "Loan counts by MPL and loan type",
+      "Loan counts by origination status",
+      "Loan volume metrics",
+      "Transfer status metrics (pending, completed, canceled)",
+      "Daily interest accrual metrics",
+      "Volume fee collection metrics",
+      "Purchase loan metrics"
+    ],
+    "utilities": [
+      "AWS secret and SSM parameter management",
+      "Database session management",
+      "S3 file operations (list, read, move)",
+      "Athena query execution wrapper"
+    ]
+  },
+  "codeStructure": {
+    "modules": [
+      "ingestion - Core data import and synchronization logic",
+      "models - SQLAlchemy ORM models for database tables",
+      "repository - Data access layer for each entity type",
+      "cloudwatch - Metrics collection and reporting",
+      "utils - Common utilities for AWS, DB access, logging"
+    ]
+  },
+  "criticalFindings": [
+    "The SOFR ingestion module fetches critical interest rate data that may be used for loan pricing",
+    "The sync module reconciles loan statuses between systems with specific attention to critical statuses (status >= 5)",
+    "The system imports contract data which defines financial terms between Cross River Bank and MPLs",
+    "The system handles loan purchase data which represents completed financial transactions",
+    "The repository includes special handling for bootstrapping MPL data which appears to be a critical initialization process",
+    "The repository references multiple external systems (Arix, Vampire) that may have complex dependencies"
   ],
-  "apis": [
-    {
-      "endpoint": "Federal Reserve API",
-      "method": "GET",
-      "purpose": "Fetches SOFR rates for financial calculations"
-    }
+  "securityConsiderations": {
+    "dataEncryption": "The system handles sensitive financial data and uses AWS Secrets Manager for credential storage",
+    "databaseCredentials": "Database credentials are managed through environment variables and AWS secrets"
+  },
+  "ambiguities": [
+    "References to 'Vampire' system in multiple places but its specific purpose and API contract are unclear",
+    "The 'mpl_id' field is widely used but the list of valid MPLs is not explicitly defined in the code",
+    "Several loan status codes (e.g., 'status >= 5') are referenced without explanation of their business meaning",
+    "The relationship between 'Arix' and 'Selling' systems is not fully explained but appears to be critical"
   ],
-  "dependencies": [
-    {
-      "target": "selling-db",
-      "type": "database"
-    },
-    {
-      "target": "loans-db",
-      "type": "database"
-    },
-    {
-      "target": "contracts-db",
-      "type": "database"
-    },
-    {
-      "target": "volume-db",
-      "type": "database"
-    },
-    {
-      "target": "vampire-db",
-      "type": "database"
-    },
-    {
-      "target": "aws-s3",
-      "type": "file"
-    },
-    {
-      "target": "aws-athena",
-      "type": "database"
-    },
-    {
-      "target": "aws-cloudwatch",
-      "type": "messaging"
-    },
-    {
-      "target": "aws-secrets-manager",
-      "type": "shared-lib"
-    },
-    {
-      "target": "aws-ssm",
-      "type": "shared-lib"
-    }
-  ],
-  "dataEntities": [
-    {
-      "name": "Contract",
-      "description": "Represents loan contracts between Cross River and MPL partners with effective dates and terms"
-    },
-    {
-      "name": "Loan",
-      "description": "Core loan entity containing loan identifiers, status, and origination information"
-    },
-    {
-      "name": "MplBootstrapping",
-      "description": "Configuration for enabled MPL (Marketplace Lending) partners"
-    },
-    {
-      "name": "Sofr",
-      "description": "Secured Overnight Financing Rate data from Federal Reserve"
-    },
-    {
-      "name": "ServicingTimestamp",
-      "description": "Records of when servicing data was ingested by MPL"
-    },
-    {
-      "name": "ServicingValue",
-      "description": "Loan servicing data with payment and interest information"
-    }
-  ],
-  "messagingPatterns": [
-    {
-      "type": "event",
-      "name": "CloudWatch Metrics",
-      "description": "Publishes operational metrics to CloudWatch for monitoring loan volumes, transfers, and processing status"
-    }
-  ],
-  "integrations": [
-    {
-      "system": "Federal Reserve API",
-      "direction": "upstream",
-      "protocol": "REST"
-    },
-    {
-      "system": "AWS S3",
-      "direction": "upstream",
-      "protocol": "file"
-    },
-    {
-      "system": "AWS Athena",
-      "direction": "bidirectional",
-      "protocol": "SQL"
-    },
-    {
-      "system": "AWS CloudWatch",
-      "direction": "downstream",
-      "protocol": "messaging"
-    },
-    {
-      "system": "Arix Database",
-      "direction": "upstream",
-      "protocol": "SQL"
-    }
-  ],
-  "architecturePatterns": [
-    "ETL (Extract, Transform, Load)",
-    "Microservice",
-    "Event-driven metrics",
-    "Data synchronization",
-    "Container-based deployment"
-  ],
-  "techStack": [
-    "Python",
-    "SQLAlchemy",
-    "Pandas",
-    "Docker",
-    "PostgreSQL",
-    "MS SQL Server",
-    "AWS S3",
-    "AWS CloudWatch",
-    "AWS Secrets Manager",
-    "AWS SSM",
-    "AWS Athena",
-    "Pydantic",
-    "PyTest"
-  ],
-  "findings": [
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "Hardcoded credentials in Docker examples",
-      "description": "README.md contains hardcoded sample credentials (P4ssw0rd) for MS SQL Server. While these appear to be for local testing purposes, hardcoded credentials should never appear in repositories as they can be accidentally used in production or create poor security practices.",
-      "files": [
-        "README.md"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "architecture",
-      "title": "Lack of error handling in SOFR data ingestion",
-      "description": "When SOFR data ingestion fails, there is minimal retry logic and error recovery. Given this is a critical financial rate for loan calculations, the system should have more robust error handling and alerting when rate ingestion fails.",
-      "files": [
-        "modules/src/ingestion/sofr.py"
-      ]
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "title": "TrustServerCertificate set to 'yes' in database connections",
-      "description": "SQL Server connections have 'TrustServerCertificate' set to 'yes' which bypasses certificate validation. This creates a vulnerability to man-in-the-middle attacks and should be fixed by properly configuring trusted certificates.",
-      "files": [
-        "modules/src/utils/db_utils.py"
-      ]
-    }
-  ]
+  "findings": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": []
 }

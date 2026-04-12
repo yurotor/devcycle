@@ -1,0 +1,92 @@
+{
+  "clusterName": "Integration & Support Services",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Core loan entity containing identifier and sale status information. Flows from data-utils as source of truth to hooks for event publishing."
+    },
+    {
+      "entity": "Investor",
+      "repos": [
+        "COS.Lending.Selling.Hooks",
+        "cos-lending-selling-data-utils"
+      ],
+      "description": "Entity representing the investor associated with loans. Data-utils resolves/updates this information while hooks service publishes changes via InvestorChanged events."
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Sale Status Change Notification",
+      "description": "When a loan's sale status changes, the change is captured and notifications are published to downstream systems",
+      "steps": [
+        "Loan sale status change detected",
+        "Account data resolved via data-utils",
+        "Hooks service publishes LoanSaleStatusChanged event",
+        "Notification sent to CosLending Hooks Hub"
+      ]
+    },
+    {
+      "name": "Batch Purchase Accounting Flow",
+      "description": "When batch purchases complete, account mapping occurs and notifications are sent",
+      "steps": [
+        "Batch purchase completion detected",
+        "data-utils resolves accounts from multiple sources",
+        "Proper account mappings updated in SellingDB",
+        "Hooks service publishes BatchPurchaseCompleted event"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "cos-lending-selling-data-utils",
+      "to": "COS.Lending.Selling.Hooks",
+      "mechanism": "shared-db",
+      "description": "Loan account mappings are persisted to SellingDB by data-utils and then read by the hooks service to enrich event notifications with proper financial account information"
+    },
+    {
+      "from": "COS.Lending.Selling.Hooks",
+      "to": "CRB.CosLending.Hooks.Hub.Service",
+      "mechanism": "messaging",
+      "description": "Loan selling events (status changes, batch purchases, etc.) are published as standardized notifications via NServiceBus"
+    },
+    {
+      "from": "cos-lending-selling-data-utils",
+      "to": "CRB.CosLending.Accounting.Api",
+      "mechanism": "REST",
+      "description": "Retrieves loan accounting information needed to resolve the proper financial accounts for loans"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Webhook Publisher",
+      "description": "Exposes an endpoint to receive domain events and transforms them into standardized notifications that are published to subscribers",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    },
+    {
+      "pattern": "Data Integration Hub",
+      "description": "Resolves and integrates account data from multiple sources (accounting API and databases) to create a unified view",
+      "repos": [
+        "cos-lending-selling-data-utils"
+      ]
+    },
+    {
+      "pattern": "Event Notification",
+      "description": "Domain events are published as notifications to inform downstream systems of changes in loan selling status and operations",
+      "repos": [
+        "COS.Lending.Selling.Hooks"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "How the TrueUpVolumeFeeCharged event in COS.Lending.Selling.Hooks gets the fee account information it needs to process charges",
+    "Which system triggers the account resolution process in cos-lending-selling-data-utils before loan selling events occur",
+    "How CustomPurchaseAccountMapping rules in cos-lending-selling-data-utils are maintained and by which system",
+    "How the FeeSweep entity in cos-lending-selling-data-utils interacts with the hooks system for fee-related notifications"
+  ]
+}

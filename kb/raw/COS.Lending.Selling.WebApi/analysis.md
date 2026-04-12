@@ -1,103 +1,94 @@
 # COS.Lending.Selling.WebApi
 
 ## Purpose
-COS Lending Selling WebApi is a .NET-based platform for managing loans in the marketplace lending ecosystem. It enables purchasing, changing, and managing loans, with features for calculating fees, handling transfers between accounts, and generating reports for various stakeholders.
+The repository serves as a backend WebAPI for loan management in a lending platform, specifically handling the selling and purchasing of loans. It enables MPLs (Marketplace Lenders) to purchase loans and manage loan lifecycle operations including transfers, fees, interest accruals, and investor relationship management.
 
 ## Business Features
-- Loan purchase and sales management
-- Loan type changes and grooming
-- Fee calculation and collection (volume fees, Florida stamp tax, DMV fees, etc.)
-- Interest accrual and processing
-- Batch loan processing
-- Transfers between accounts
-- Investor reporting (pre-sale and post-sale)
-- Reconciliation services
-- Auto-purchase of eligible loans
-- Monthly minimum fee calculation
-- Transfer monitoring and status synchronization
+- Loan purchasing and selling
+- Interest accrual and management
+- Fee collection and processing
+- Batch processing of loans
+- Reconciliation and reporting
+- Loan grooming and type changes
+- Volume fee processing
+- Automated loan purchasing
+- Transfer management
 
 ## APIs
-- **GET /api/loans** — Retrieve loans with various filter options
-- **POST /api/loans/purchase** — Purchase loans from MPLs
-- **POST /api/loans/discrepancies** — Find discrepancies between loan data
-- **GET /api/contracts** — Retrieve lending contracts
-- **POST /api/reports** — Generate loan sales reports
-- **POST /api/grooming** — Change loan properties or investor
+- **GET /api/loans** — Retrieve loans with filtering options
+- **GET /api/loans/{id}** — Get details for a specific loan
+- **GET /api/batches** — Get information about loan batches
+- **POST /api/reports** — Generate pre-sale or post-sale loan reports
+- **POST /api/transfers** — Initiate funds transfers between accounts
 
 ## Dependencies
-- **COS** (http)
-- **LendingContracts** (http)
-- **LendingAccounting** (http)
-- **Hooks** (http)
-- **Storage** (http)
+- **COS.Lending.Contracts** (http)
+- **COS.Lending.Hooks** (http)
+- **COS.Lending.Accounting** (http)
+- **COS Storage Service** (http)
+- **COS Transaction Service** (http)
 - **AWS SQS** (messaging)
 - **PostgreSQL** (database)
 
 ## Data Entities
-- **Loan** — Core loan entity with all related details and status
-- **LoanAction** — Actions performed on loans like purchases and fee collections
-- **Transfer** — Money movement between accounts
-- **Contract** — Agreement between MPL and bank defining fee structures and terms
-- **Account** — Financial accounts used for transfers
-- **Batch** — Group of loans processed together
-- **GroomingProcess** — Workflow for changing loan properties
-- **VolumeFee** — Fees charged based on loan volume
-- **PendingApproval** — Changes awaiting approval
+- **Loan** — Represents a loan with its details, status, and relationship to other entities
+- **LoanAction** — Tracks actions performed on loans such as purchases, interest accruals, and fee collections
+- **Transfer** — Represents a financial transfer between accounts with status tracking
+- **Contract** — Defines relationship between MPL and bank with terms for loan operations
+- **Account** — Banking account used for transfers and financial operations
+- **Batch** — Groups multiple loans for bulk processing
+- **InterestHistory** — Tracks interest accruals for loans over time
+- **VolumeFeeMonthlyMinimum** — Tracks minimum fee requirements for MPLs
 
 ## Messaging Patterns
-- **TransferOutbox** (outbox) — Ensures reliable processing of transfers between accounts
-- **DailyInterestOutbox** (outbox) — Handles daily interest accrual messages
-- **NotificationOutbox** (outbox) — Manages external notifications about system events
-- **BatchInitOutbox** (outbox) — Triggers batch initialization for loan purchases
+- **TransferOutbox** (outbox) — Ensures reliable processing of transfer requests to external systems
+- **NotificationOutbox** (outbox) — Manages notifications to be sent to external systems
+- **BatchInitOutbox** (outbox) — Handles batch initialization processing
+- **FeeOutbox** (outbox) — Manages fee collection processing
+- **VolumeFeeOutbox** (outbox) — Processes volume-based fees for loans
+- **TrueUpVolumeFeeOutbox** (outbox) — Handles true-up volume fee processing
 - **ReportingOutbox** (outbox) — Manages report generation requests
-- **VolumeFeeOutbox** (outbox) — Processes volume fee calculations and transfers
-- **TrueUpVolumeFeeOutbox** (outbox) — Handles volume fee adjustments
-- **SQS Message Queue** (queue) — Processes outbox messages for reliable delivery
+- **DailyInterestOutbox** (outbox) — Processes daily interest accruals
+- **SQS Message Handling** (queue) — Processes messages from AWS SQS for reliable background processing
 
 ## External Integrations
-- **COS (Core Banking System)** — bidirectional via REST
-- **AWS S3** — bidirectional via REST
-- **Hooks Notification Service** — downstream via REST
+- **Cross River Bank COS** — bidirectional via REST
+- **AWS S3** — downstream via REST
 - **Lending Contracts Service** — upstream via REST
-- **Lending Accounting Service** — upstream via REST
+- **Hooks Notification Service** — downstream via REST
+- **Lending Accounting Service** — bidirectional via REST
 
 ## Architecture Patterns
-- Microservices
-- Outbox Pattern
-- Repository Pattern
-- Background Services
-- CQRS
+- Outbox pattern
+- Repository pattern
+- Functional core/imperative shell
+- Background processing services
+- Multi-tenant architecture
 - Event-driven architecture
-- Tenant Isolation
+- Microservices
+- CQRS
 
 ## Tech Stack
-- .NET 8
-- F# (for business logic)
-- C# (for infrastructure)
+- .NET 8.0
+- F# (business logic)
+- C# (API layer and infrastructure)
 - PostgreSQL 16.2
-- Entity Framework Core
 - AWS SQS
+- Entity Framework Core
 - Docker
 - Quartz.NET
-- NServiceBus
 - CSV Helper
 
 ## Findings
-### [HIGH] Sensitive information in repository
+### [HIGH] Insecure credentials handling in docker-compose
 
 **Category:** security  
-**Files:** .devcontainer/assets/CosLending.pfx, .devcontainer/assets/nsbLicense.xml
-
-Certificate files (CosLending.pfx) and license files (nsbLicense.xml) are committed in the repository. These should be stored securely in a vault and retrieved during deployment rather than being committed to source control.
-### [HIGH] Hardcoded credentials in docker-compose file
-
-**Category:** architecture  
 **Files:** .devcontainer/docker-compose.yml
 
-The docker-compose.yml file contains hardcoded database credentials. These should be externalized to environment variables or a secure configuration store to prevent credential leakage.
-### [HIGH] Missing authorization checks
+Hard-coded database credentials are present in docker-compose.yml. Credentials should be moved to environment variables or secrets management.
+### [HIGH] Missing idempotency in outbox processors
 
-**Category:** security  
-**Files:** CRB.Cos.Lending.Selling.Middlewares/PolicyTenantService.cs
+**Category:** architecture  
+**Files:** CRB.COS.Lending.Selling.OutboxProcessors/Processors/BatchInitOutboxProcessor.cs, CRB.COS.Lending.Selling.OutboxProcessors/Processors/MaturedLoansOutboxProcessor.cs
 
-PolicyTenantService sets tenants but doesn't validate if the user has the necessary permissions for specific operations. Consider implementing more granular permission checks based on operation types.
+While some outbox processors check for duplicates, others don't implement proper idempotency checks, which could lead to duplicate operations if processors are restarted.

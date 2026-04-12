@@ -1,0 +1,37 @@
+{
+  "flowName": "Customer Inquiry and Support",
+  "description": "The Customer Inquiry and Support flow enables users to inquire about loan data, history, and details through natural language queries. Users interact with the lending platform UI to submit questions about loans, their history, interest calculations, transfers, and fees. The system leverages an AI service to process these inquiries, retrieve relevant loan information from databases, and return comprehensive answers to the user through a conversational interface. This flow maintains context across interactions, allowing for follow-up questions and deeper exploration of loan data.",
+  "steps": [
+    "1: User authenticates in COS.Lending.Selling.UI and accesses the loan inquiry interface",
+    "2: User submits a natural language question about loans or their history",
+    "3: Request is sent to cos-lending-selling-ai service for processing",
+    "4: AI service connects to PostgreSQL database to retrieve relevant loan data",
+    "5: AI service processes question using AWS Bedrock LLM and generates a response",
+    "6: Response is returned to UI via Server-Sent Events maintaining chat context",
+    "7: UI displays the response to the user with relevant loan data visualizations",
+    "8: User can ask follow-up questions which maintain context from previous inquiries"
+  ],
+  "repos": [
+    "COS.Lending.Selling.UI",
+    "cos-lending-selling-ai"
+  ],
+  "entities": [
+    "Loan",
+    "LoanDetails",
+    "ChatSession",
+    "Message",
+    "LoanAction",
+    "Transfer",
+    "Session"
+  ],
+  "externalSystems": [
+    "CRB Identity Provider",
+    "AWS Bedrock",
+    "PostgreSQL loan database",
+    "AWS DynamoDB",
+    "AWS Secrets Manager"
+  ],
+  "ambiguities": [
+    "cos-lending-selling-ai: The exact loan data structure in PostgreSQL that's queried for customer inquiries is not fully defined"
+  ]
+}

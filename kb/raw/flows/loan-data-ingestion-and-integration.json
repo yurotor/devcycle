@@ -1,0 +1,46 @@
+{
+  "flowName": "Loan Data Ingestion and Integration",
+  "description": "The Loan Data Ingestion and Integration flow manages the end-to-end process of acquiring loan data from various marketplace lenders (MPLs), transforming it, and integrating it into the Lending Selling platform. Raw loan data is first ingested from external MPL sources via APIs or S3 file uploads, then validated, transformed and loaded into the selling database. This data is then made available for various downstream processes including interest accrual, fee calculations, and reporting.\n\nOnce data is loaded into the database, Airflow DAGs orchestrate subsequent processing steps including enrichment with servicing data, SOFR rate applications, contract associations, and transformation for reporting needs. The flow includes data quality checks, error handling, and CloudWatch metrics collection to monitor the health and performance of the ingestion processes.",
+  "steps": [
+    "1: Raw loan data collection from marketplace lenders via APIs or S3",
+    "2: Data validation and transformation for database compatibility",
+    "3: Loading validated data into PostgreSQL selling database",
+    "4: Enrichment with servicing data from S3 CSV files",
+    "5: SOFR rate ingestion from Federal Reserve API",
+    "6: Contract data synchronization between systems",
+    "7: Airflow DAG execution for data curation and processing",
+    "8: Fee collection and interest accrual calculations",
+    "9: Data export for reporting purposes",
+    "10: Performance monitoring via CloudWatch metrics"
+  ],
+  "repos": [
+    "cos-lending-selling-ingestion",
+    "cos-lending-selling-dags",
+    "Cos.Lending.Selling.DbModel",
+    "iac-cos-lending-selling"
+  ],
+  "entities": [
+    "Loan",
+    "Account",
+    "Contract",
+    "Fee",
+    "InterestHistory",
+    "Mpl",
+    "ServicingValue",
+    "Sofr",
+    "Batch",
+    "LoanAccount"
+  ],
+  "externalSystems": [
+    "Federal Reserve API",
+    "AWS S3",
+    "AWS CloudWatch",
+    "AWS Athena",
+    "External loan data API",
+    "External contract data API"
+  ],
+  "ambiguities": [
+    "The cos-lending-selling-ingestion repo references MplBootstrapping but doesn't define which specific MPLs are integrated",
+    "The data structure required by the Cos.Lending.Selling.DbModel for loan ingestion has validation rules not explicitly defined in the repos"
+  ]
+}

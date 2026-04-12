@@ -1,0 +1,47 @@
+{
+  "flowName": "Loan Analysis and Querying",
+  "description": "The Loan Analysis and Querying flow enables users to ask questions about loans in natural language and receive intelligent, contextual responses. It begins with user queries in a conversational interface, which are processed by an AI-powered backend that interprets the intent, retrieves relevant loan data, analyzes it using Large Language Models, and returns insights. This flow maintains context across interactions and can handle complex queries about loan histories, interest calculations, transfers, and fees.\n\nThe system leverages data engineering pipelines that extract, transform and load loan data from operational systems into analytics-ready formats. These pipelines ensure that the AI querying capabilities have access to current and historical loan information, enabling accurate analysis across the loan lifecycle from origination through selling.",
+  "steps": [
+    "User Authentication: User logs in and initiates a query session with authentication credentials",
+    "Query Submission: User submits a natural language query about loans or related entities",
+    "Intent Recognition: System analyzes the query to determine intent and required data entities",
+    "Context Management: System retrieves previous conversation context if available",
+    "SQL Generation: AI converts natural language to appropriate database queries",
+    "Data Retrieval: System fetches relevant loan data from PostgreSQL database",
+    "LLM Processing: Query and data are processed using AWS Bedrock LLMs",
+    "Response Generation: System formats comprehensive answer with relevant loan insights",
+    "Response Delivery: Answer is delivered to user interface via Server-Sent Events",
+    "Context Persistence: Conversation context is stored in DynamoDB for future queries"
+  ],
+  "repos": [
+    "cos-lending-selling-ai",
+    "cos-lending-selling-datatools"
+  ],
+  "entities": [
+    "Loan",
+    "LoanAction",
+    "Transfer",
+    "Fee",
+    "Interest",
+    "Contract",
+    "Termsheet",
+    "Session",
+    "Message"
+  ],
+  "externalSystems": [
+    "AWS Bedrock",
+    "AWS DynamoDB",
+    "Identity Server",
+    "AWS Secrets Manager",
+    "COS Lending Selling Web API",
+    "AWS S3",
+    "AWS ECS",
+    "PostgreSQL loan database"
+  ],
+  "ambiguities": [
+    "Integration pattern between the AI querying service and data pipeline tools",
+    "Data freshness guarantees and synchronization frequency between operational and analytical data",
+    "Access control policies for sensitive loan information",
+    "Error handling and fallback mechanisms when AI processing fails"
+  ]
+}

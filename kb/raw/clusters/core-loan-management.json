@@ -1,0 +1,154 @@
+{
+  "clusterName": "Core Loan Management",
+  "sharedEntities": [
+    {
+      "entity": "Loan",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "description": "Core entity representing a financial loan with properties such as ID, number, status, amount, and interest rate that flows between all components of the system"
+    },
+    {
+      "entity": "Account",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Represents banking accounts used for transfers and financial operations in the loan selling process"
+    },
+    {
+      "entity": "Transfer",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Represents financial transfers between accounts with status tracking for loan operations"
+    },
+    {
+      "entity": "Contract",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Defines relationship between MPL and bank with terms for loan operations"
+    },
+    {
+      "entity": "Batch",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel",
+        "Cos.Lending.Selling.Contracts"
+      ],
+      "description": "Groups multiple loans for bulk processing operations across the system"
+    },
+    {
+      "entity": "InterestHistory",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ],
+      "description": "Tracks interest accruals and calculations for loans over time"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Loan Purchase Flow",
+      "description": "Process of marketplace lenders purchasing loans through the platform",
+      "steps": [
+        "Contract terms established between MPL and bank",
+        "Loans grouped into batches for purchase",
+        "Purchase invoice generated with loan details",
+        "Transfer of funds initiated between accounts",
+        "Receipt generated confirming successful purchase",
+        "Notifications sent to relevant parties"
+      ]
+    },
+    {
+      "name": "Interest Accrual Flow",
+      "description": "Daily process of calculating and applying interest to loans",
+      "steps": [
+        "Daily interest calculations triggered via outbox pattern",
+        "Interest rates (potentially including SOFR rates) applied to loan balances",
+        "Interest history records created or updated",
+        "Accounting service notified of interest accruals"
+      ]
+    },
+    {
+      "name": "Fee Management Flow",
+      "description": "Process for calculating, collecting and distributing various fees",
+      "steps": [
+        "Regular fee calculations performed based on loan activity",
+        "Volume-based fees calculated with monthly minimums applied",
+        "True-up adjustments made to ensure fee compliance",
+        "Fee collection transfers initiated",
+        "Accounting system updated with fee information"
+      ]
+    }
+  ],
+  "integrationPoints": [
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.DbModel",
+      "mechanism": "shared-db",
+      "description": "Web API uses DbModel as its persistence layer, storing and retrieving loan, account, transfer and other entity data"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "Cos.Lending.Selling.Contracts",
+      "mechanism": "shared-lib",
+      "description": "Web API depends on Contracts to define data structures for loan selling operations and external service communications"
+    },
+    {
+      "from": "COS.Lending.Selling.WebApi",
+      "to": "external-systems",
+      "mechanism": "outbox-pattern",
+      "description": "Multiple outbox patterns ensure reliable message delivery to external systems for transfers, notifications, batch operations, fees, and interest calculations"
+    },
+    {
+      "from": "COS.Lending.Selling.DbModel",
+      "to": "external-systems",
+      "mechanism": "outbox-tables",
+      "description": "Database tables implement outbox pattern storing events for asynchronous processing by external systems"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Outbox Pattern",
+      "description": "Used extensively for reliable message delivery and event publishing to ensure consistency between the database and downstream systems",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "Repository Pattern",
+      "description": "Used to abstract database operations and provide clean domain model interactions",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    },
+    {
+      "pattern": "Contract-First Design",
+      "description": "Shared contracts repository defines data structures used across services to ensure consistency",
+      "repos": [
+        "Cos.Lending.Selling.Contracts"
+      ]
+    },
+    {
+      "pattern": "Event-Driven Architecture",
+      "description": "System uses events via outboxes to coordinate processes across services and ensure reliable background processing",
+      "repos": [
+        "COS.Lending.Selling.WebApi",
+        "Cos.Lending.Selling.DbModel"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "In COS.Lending.Selling.WebApi, the exact triggers for interest accrual calculations (whether time-based, event-based, or manual) are not clearly defined",
+    "In Cos.Lending.Selling.DbModel, the relationship between LoanAccount and Loan entities and when each is used is ambiguous",
+    "In Cos.Lending.Selling.Contracts, the exact relationship between Invoice and Receipt entities and how they map to the purchase flow is unclear"
+  ]
+}

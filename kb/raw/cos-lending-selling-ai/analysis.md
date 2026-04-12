@@ -1,82 +1,84 @@
 # cos-lending-selling-ai
 
 ## Purpose
-This repository provides an AI-powered question-answering system for the COS Lending Selling platform. It enables users to query loan data through natural language, translating these questions into SQL queries and generating human-readable responses using AWS Bedrock and Claude LLMs.
+This repository provides an AI-powered question-answering system for the CRB Lending/Selling platform, enabling natural language queries about loans, their history, interest calculations, transfers, and fees. It functions as a backend service that connects to a database containing loan information and uses Amazon Bedrock LLM APIs to process questions and generate insights.
 
 ## Business Features
-- Conversational loan data querying
-- Natural language to SQL translation
-- Loan history analysis
+- Natural language querying of loan data
+- Loan history timeline generation
+- Interest calculation and breakdown analysis
 - Transfer history tracking
-- Interest breakdown analysis
-- Fee details retrieval
-- Session-based conversation management
+- Fee details and configuration retrieval
+- Conversational chat interface with context retention
+- SQL generation for custom queries
 
 ## APIs
-- **POST /crb/ai/chat/** — Create or resume a chat session for a user+loan pair
-- **GET /crb/ai/chat/{session_id}/history** — Get all messages for a session with validation of ownership
-- **POST /crb/ai/chat/{session_id}/message** — Submit a user message to the session
-- **GET /crb/ai/chat/{session_id}/stream** — SSE stream endpoint that orchestrates the question-answering pipeline
+- **POST /crb/ai/loan** — Submit a question about a loan
+- **POST /chat** — Create or resume a chat session for a user+loan pair
+- **POST /chat/{session_id}/message** — Submit a user message to a session
+- **GET /chat/{session_id}/history** — Get all messages for a session
+- **GET /chat/{session_id}/stream** — Stream chat responses via Server-Sent Events
+- **GET /health** — Health check endpoint
 
 ## Dependencies
-- **aws-bedrock** (http)
-- **cos-lending-selling-postgres** (database)
-- **aws-dynamodb** (database)
-- **identity-server** (http)
+- **PostgreSQL loan database** (database)
+- **DynamoDB** (database)
+- **AWS Bedrock** (http)
+- **Identity Server** (http)
 
 ## Data Entities
-- **Session** — User conversation session with session_id, username, loan_id and messages
-- **Message** — Chat message with role, content, SQL summary and timestamp
-- **Loan** — Core loan entity with loan details, amounts, dates and status
-- **LoanAction** — Actions performed on loans such as transfers or status changes
-- **Transfer** — Financial transfers related to loans including interest payments and fees
+- **Session** — Represents a chat session between a user and the AI about a specific loan
+- **Message** — A message in a chat session from either the user or the assistant
+- **Loan** — Core entity representing a loan in the system with its details and status
+- **LoanAction** — Represents actions taken on a loan such as transfers or status changes
+- **Transfer** — Financial transfers related to loans such as interest payments or fees
 
 ## Messaging Patterns
-- **SSE (Server-Sent Events)** (event) — Real-time streaming of AI responses to the client with token-by-token updates
+- **Server-Sent Events** (event) — Streams AI responses to the client with progress updates and token-by-token delivery
 
 ## External Integrations
-- **AWS Bedrock** — downstream via REST
-- **AWS DynamoDB** — bidirectional via SDK
-- **AWS Secrets Manager** — downstream via SDK
-- **COS Lending Selling Database** — downstream via PostgreSQL
+- **AWS Bedrock** — outbound via REST
+- **AWS DynamoDB** — bidirectional via AWS SDK
+- **Identity Server** — outbound via OAuth
+- **AWS Secrets Manager** — outbound via AWS SDK
 
 ## Architecture Patterns
-- Microservice
-- Streaming API
-- Chain of Responsibility
-- LLM Prompt Engineering
+- API Gateway Pattern
+- Streaming Response Pattern
+- Chain of Responsibility (for query processing pipeline)
 - Repository Pattern
+- Dependency Injection
 - Singleton Pattern
 
 ## Tech Stack
-- Python 3.11
+- Python
 - FastAPI
 - AWS Bedrock
-- Claude LLM
-- PostgreSQL
+- Amazon Claude (Anthropic)
 - DynamoDB
+- PostgreSQL
 - Docker
+- SQLAlchemy/SQLModel
 - Poetry
-- SQLModel
-- Server-Sent Events
-- HTTPX
+- OAuth/JWT Authentication
+- Server-Sent Events (SSE)
 
 ## Findings
-### [HIGH] Potential SQL injection risk in SQL generator
+### [HIGH] Direct SQL execution without parameterization
 
 **Category:** security  
-**Files:** app/ai/sql_executor.py
+**Files:** app/ai/ai_service.py
 
-The SQL generation functionality using LLM responses could potentially contain SQL injection vulnerabilities. Although there are safeguards like regex checks in _ensure_safe(), the system relies on AI-generated SQL which could produce unexpected results. Implement more robust parameterization and additional validation on generated SQL.
-### [HIGH] Session data handling inconsistencies
+The _extract_sql function in ai_service.py uses regex to extract SQL statements and executes them directly. While there are some safeguards in place (SELECT-only check), this approach could be vulnerable to SQL injection if the AI model generates malicious SQL. Consider enhancing the SQL sanitization or using a more structured approach to SQL generation.
+### [HIGH] Database credential refresh timing issues
 
 **Category:** architecture  
-**Files:** app/ai/session_manager.py
-
-The session manager uses scan operations to find sessions by ID, which will not scale well. The code mentions this could be a concern as volume grows. Implement a GSI on session_id in DynamoDB to avoid full table scans.
-### [HIGH] Credentials caching without proper expiration
-
-**Category:** security  
 **Files:** app/ai/sql_executor.py
 
-Database credentials are cached but might not be properly rotated on expiration. The _creds_cache is set to expire after 300 seconds but there's no guarantee that the code properly handles token expiration scenarios. Implement proper credential rotation and expiration handling.
+In sql_executor.py, credential refresh happens outside the thread lock, which could lead to race conditions if multiple threads try to refresh credentials simultaneously. Restructure the credential refresh to happen entirely within the lock to prevent potential issues.
+### [HIGH] Limited error handling for Bedrock API failures
+
+**Category:** architecture  
+**Files:** app/ai/ai_service.py, app/ai/streaming_summarizer.py
+
+While there is retry logic for Bedrock API calls, the error messages may not provide enough details for debugging in production. Consider implementing more comprehensive error logging and fallback mechanisms when Bedrock is unavailable or experiencing high latency.

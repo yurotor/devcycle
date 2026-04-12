@@ -1,0 +1,50 @@
+{
+  "flowName": "Fee and Interest Processing",
+  "description": "The Fee and Interest Processing flow manages the full lifecycle of calculating, accruing, collecting, and reporting fees and interest for loans in the selling system. This process begins with data ingestion from multiple sources, including external rate information (like SOFR rates), loan details, and account mappings required for financial transactions.\n\nThe system then performs daily interest accrual calculations and schedules various fee assessments based on loan characteristics, investor agreements, and volume-based fee structures. These fees and interest charges are processed through appropriate accounts, which are resolved and mapped through the account resolution utilities. The entire flow culminates in financial reporting, notifications, and the execution of financial transactions to settle fees and interest across accounts.",
+  "steps": [
+    "Data Ingestion: Ingest SOFR rates, loan data, account mappings, and fee schedules from external systems",
+    "Account Resolution: Map and resolve purchase, return, interest, and fee accounts for proper financial routing",
+    "Daily Interest Calculation: Calculate daily interest accruals for all active loans",
+    "Fee Assessment: Determine applicable fees including volume fees, true-up fees, and service fees based on business rules",
+    "Transaction Generation: Create financial transactions for interest charges and fees",
+    "Batch Processing: Group related transactions into batches for efficient processing",
+    "Financial Settlement: Execute the actual movement of funds between accounts",
+    "Notification: Publish events like TrueUpVolumeFeeCharged for downstream systems",
+    "Reporting: Generate fee and interest reports for accounting and compliance"
+  ],
+  "repos": [
+    "Cos.Lending.Selling.DbModel",
+    "cos-lending-selling-dags",
+    "cos-lending-selling-data-utils",
+    "COS.Lending.Selling.Hooks"
+  ],
+  "entities": [
+    "Fee",
+    "InterestHistory",
+    "Account",
+    "Loan",
+    "LoanAccount",
+    "Transfer",
+    "Batch",
+    "FeeOutbox",
+    "DailyInterestOutbox",
+    "VolumeFeeOutbox",
+    "TrueUpVolumeFeeOutbox",
+    "ObjectiveAccount",
+    "FeeSweep"
+  ],
+  "externalSystems": [
+    "SOFR data source",
+    "CRB.CosLending.Accounting.Api",
+    "CosLending Hooks Hub",
+    "MPLConsumerLoansOperations",
+    "OAuth Identity Provider"
+  ],
+  "ambiguities": [
+    "The exact triggering mechanism for fee collection process (scheduled vs. event-driven)",
+    "Detailed error handling and reconciliation process for failed fee transactions",
+    "Specific rules for different fee types and their calculation formulas",
+    "Integration with payment processing systems not clearly defined",
+    "The process for fee adjustments or reversals is not explicitly documented"
+  ]
+}
