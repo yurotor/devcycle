@@ -8,7 +8,7 @@ import {
   type Ticket,
   type WorkflowPhase,
 } from "@/lib/fake-data";
-import { ScanPill } from "@/components/scan-pill";
+
 
 interface KanbanBoardProps {
   tickets: Ticket[];
@@ -63,7 +63,6 @@ export function KanbanBoard({
           {tickets.length} tickets
         </span>
         <div className="ml-auto flex items-center gap-3">
-          <ScanPill />
           {onSync && (
             <button
               onClick={onSync}

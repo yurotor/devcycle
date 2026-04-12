@@ -1,7 +1,7 @@
 // POST /api/tickets/:id/design/generate — generate wave/task breakdown
 
 import { db } from "@/lib/db";
-import { tickets, waves, tasks } from "@/lib/db/schema";
+import { tickets, waves, tasks, repos } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { complete } from "@/lib/anthropic";
 
@@ -60,6 +60,9 @@ export async function POST(
     // Use stub
   }
 
+  // Load repos for matching task.repo → repoId
+  const repoRows = await db.select().from(repos).where(eq(repos.workspaceId, ticket.workspaceId));
+
   // Clear existing waves/tasks for this ticket
   await db.delete(tasks).where(eq(tasks.ticketId, ticketId));
   await db.delete(waves).where(eq(waves.ticketId, ticketId));
@@ -77,9 +80,17 @@ export async function POST(
 
     const waveTasks = [];
     for (const t of w.tasks) {
+      const repoName = (t.repo ?? "").toLowerCase();
+      const matchedRepo = repoRows.find((r) =>
+        r.name.toLowerCase() === repoName ||
+        r.name.toLowerCase().includes(repoName) ||
+        repoName.includes(r.name.toLowerCase())
+      );
+
       const [task] = await db.insert(tasks).values({
         ticketId,
         waveId: wave.id,
+        repoId: matchedRepo?.id ?? null,
         title: t.title,
         description: t.description,
         status: "pending",

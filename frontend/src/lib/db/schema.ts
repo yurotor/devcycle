@@ -83,6 +83,7 @@ export const tasks = sqliteTable("tasks", {
   prUrl: text("pr_url"),
   prNumber: integer("pr_number"),
   implementedManually: integer("implemented_manually").notNull().default(0),
+  diff: text("diff"), // JSON: FileDiff[] — stored after Claude generates code
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

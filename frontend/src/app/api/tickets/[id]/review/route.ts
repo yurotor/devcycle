@@ -51,7 +51,7 @@ export async function POST(
       `${request.headers.get("origin") || "http://localhost:3000"}/api/tickets/${ticketId}/implement?action=diff&taskId=${taskId}`
     );
     const diffData = await diffRes.json();
-    const diffs = diffData.diffs ?? [];
+    const diffs = diffData.files ?? [];
 
     const diffText = diffs.map((d: { path: string; status: string; hunks: { lines: string[] }[] }) =>
       `### ${d.path} (${d.status})\n${d.hunks.map((h: { lines: string[] }) => h.lines.join("\n")).join("\n")}`

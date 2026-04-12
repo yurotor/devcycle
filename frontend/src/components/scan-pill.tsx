@@ -31,12 +31,13 @@ export function ScanPill() {
   const [expanded, setExpanded] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [interviewDone, setInterviewDone] = useState(false);
-  const [fadeOut, setFadeOut] = useState(false);
 
   // Track if we already auto-opened for interview/failure
   const autoOpenedRef = useRef<"interview" | "failed" | null>(null);
-  // True only when interview finished during THIS session (not loaded from previous)
-  const finishedThisSessionRef = useRef(false);
+  // Whether we ever saw a non-idle/non-done status during this mount (i.e., scan was active)
+  const sawActiveRef = useRef(false);
+  // Timer for auto-hide after done
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Poll scan status ─────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export function ScanPill() {
         const data = (await res.json()) as ScanStatus;
         setStatus(data);
         if (data.interviewDone) setInterviewDone(true);
+        if (data.status === "running") sawActiveRef.current = true;
       } catch {
         // network error — ignore
       }
@@ -60,6 +62,11 @@ export function ScanPill() {
     return () => clearInterval(timer);
   }, []);
 
+  const scheduleHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setPillState("hidden"), 3000);
+  };
+
   // ── Derive pill state from status ─────────────────────────────
 
   useEffect(() => {
@@ -69,12 +76,10 @@ export function ScanPill() {
     }
 
     if (status.status === "running") {
-      if (interviewDone && status.synthesisReady) {
-        // Interview already completed — show done, don't re-open
-        setPillState("done");
-        return;
-      }
-      if (status.synthesisReady && (status.phase === "compiling" || status.phase === "done")) {
+      // Clear any pending hide timer when scan restarts
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+
+      if (!interviewDone && status.synthesisReady && (status.phase === "compiling" || status.phase === "done")) {
         // Synthesis exists — safe to start interview
         setPillState("interview");
         if (autoOpenedRef.current !== "interview") {
@@ -95,8 +100,11 @@ export function ScanPill() {
 
     if (status.status === "done") {
       if (interviewDone) {
-        // Interview finished — show persistent KB ready state
+        // Interview already done — show "done" briefly if we saw the scan, else hide
+        if (!sawActiveRef.current) { setPillState("hidden"); return; }
         setPillState("done");
+        // Only schedule hide once, not on every poll
+        if (!hideTimerRef.current) scheduleHide();
         return;
       }
       if (!status.synthesisReady) {
@@ -133,11 +141,10 @@ export function ScanPill() {
   };
 
   const handleInterviewDone = () => {
-    finishedThisSessionRef.current = true;
+    sawActiveRef.current = true; // treat interview completion as "active" so pill shows briefly
     setInterviewDone(true);
     setShowInterviewModal(false);
     setPillState("done");
-    setTimeout(() => setFadeOut(true), 5000);
   };
 
   const handlePillClick = () => {
@@ -150,7 +157,7 @@ export function ScanPill() {
 
   // ── Render ────────────────────────────────────────────────────
 
-  if (pillState === "hidden" || (pillState === "done" && (fadeOut || !finishedThisSessionRef.current))) {
+  if (pillState === "hidden") {
     return null;
   }
 

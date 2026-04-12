@@ -426,6 +426,7 @@ Keep it concise but thorough. Write for an engineer joining the team.`,
           {
             system: "You are documenting a software system's features. Write clear, technical wiki pages in markdown. Use the relative link format provided for cross-references.",
             maxTokens: 2048,
+            stubResponse: `# ${feature.name}\n\n## Overview\n${feature.description || "Feature documentation pending."}\n\n## Repos Involved\n${feature.repos.map((r) => `- [${r}](../repos/${r.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.md)`).join("\n")}\n\n*Auto-generated stub — re-run scan with AI available for full documentation.*`,
           }
         );
         content = raw;

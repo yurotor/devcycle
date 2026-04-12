@@ -1,121 +1,26 @@
-// POST /api/tickets/:id/implement — start/complete/manual/create-pr for a task
-// GET  /api/tickets/:id/implement — get implementation status or diff
+// POST /api/tickets/:id/implement — start implementation, create PR, or mark manual
+// GET  /api/tickets/:id/implement — get task status or diff
 
 import { db } from "@/lib/db";
-import { tickets, tasks } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { tickets, tasks, repos, workspace, pats, jobs } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { decryptPat } from "@/lib/crypto";
+import { AzureDevOpsClient } from "@/lib/azure-devops/client";
+import { gitExec, claudeExec, withRepoLock } from "@/lib/claude-cli";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
-// ─── Stub diff generator ──────────────────────────────────────────
+const KB_ROOT = path.join(process.cwd(), "..", "kb");
+const REPOS_DIR = path.join(KB_ROOT, "repos");
 
-function generateStubDiff(task: { id: number; title: string; branchName: string | null }) {
-  const slug = (task.title ?? "task")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 30);
+// ─── Types ───────────────────────────────────────────────────────
 
-  const files = [
-    {
-      path: `src/Services/${slug}.service.ts`,
-      status: "modified" as const,
-      hunks: [
-        {
-          oldStart: 12,
-          newStart: 12,
-          lines: [
-            " import { Injectable } from '@nestjs/common';",
-            " ",
-            "-export class OldService {",
-            "+export class UpdatedService {",
-            "+  private readonly logger = new Logger();",
-            " ",
-            "   constructor(",
-            "-    private readonly repo: Repository,",
-            "+    private readonly repo: Repository,",
-            "+    private readonly eventBus: EventBus,",
-            "   ) {}",
-            " ",
-            "-  async process(id: number) {",
-            "-    const entity = await this.repo.findOne(id);",
-            "-    return entity;",
-            "+  async process(id: number) {",
-            "+    const entity = await this.repo.findOne(id);",
-            "+    if (!entity) {",
-            "+      throw new NotFoundException(`Entity ${id} not found`);",
-            "+    }",
-            "+    this.eventBus.emit('entity.processed', { id });",
-            "+    return entity;",
-            "   }",
-          ],
-        },
-      ],
-    },
-    {
-      path: `src/Models/${slug}.model.ts`,
-      status: "added" as const,
-      hunks: [
-        {
-          oldStart: 0,
-          newStart: 1,
-          lines: [
-            "+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';",
-            "+",
-            "+@Entity()",
-            "+export class " + slug.replace(/-/g, "") + " {",
-            "+  @PrimaryGeneratedColumn()",
-            "+  id: number;",
-            "+",
-            "+  @Column()",
-            "+  name: string;",
-            "+",
-            "+  @Column({ type: 'decimal', precision: 10, scale: 2 })",
-            "+  amount: number;",
-            "+",
-            "+  @Column({ default: true })",
-            "+  isActive: boolean;",
-            "+}",
-          ],
-        },
-      ],
-    },
-    {
-      path: `src/Tests/${slug}.spec.ts`,
-      status: "added" as const,
-      hunks: [
-        {
-          oldStart: 0,
-          newStart: 1,
-          lines: [
-            "+import { Test, TestingModule } from '@nestjs/testing';",
-            "+import { UpdatedService } from '../Services/" + slug + ".service';",
-            "+",
-            "+describe('UpdatedService', () => {",
-            "+  let service: UpdatedService;",
-            "+",
-            "+  beforeEach(async () => {",
-            "+    const module: TestingModule = await Test.createTestingModule({",
-            "+      providers: [UpdatedService],",
-            "+    }).compile();",
-            "+    service = module.get(UpdatedService);",
-            "+  });",
-            "+",
-            "+  it('should process entity', async () => {",
-            "+    const result = await service.process(1);",
-            "+    expect(result).toBeDefined();",
-            "+  });",
-            "+",
-            "+  it('should throw for missing entity', async () => {",
-            "+    await expect(service.process(999)).rejects.toThrow();",
-            "+  });",
-            "+});",
-          ],
-        },
-      ],
-    },
-  ];
-
-  return files;
+interface FileDiff {
+  path: string;
+  status: "added" | "modified" | "deleted";
+  hunks: { oldStart: number; newStart: number; lines: string[] }[];
 }
 
 // ─── GET ──────────────────────────────────────────────────────────
@@ -129,7 +34,7 @@ export async function GET(
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
-  // Diff request
+  // Diff request — return stored diff from DB
   if (action === "diff") {
     const taskId = parseInt(url.searchParams.get("taskId") ?? "0", 10);
     const [task] = await db
@@ -137,12 +42,9 @@ export async function GET(
       .from(tasks)
       .where(eq(tasks.id, taskId));
 
-    if (!task) {
-      return Response.json({ files: [] });
-    }
+    if (!task) return Response.json({ files: [] });
 
-    // Stub: generate realistic-looking diffs
-    const files = generateStubDiff(task);
+    const files = task.diff ? JSON.parse(task.diff) : [];
     return Response.json({ files });
   }
 
@@ -170,96 +72,381 @@ export async function POST(
   const ticketId = parseInt(id, 10);
   const body = await request.json();
   const { action, taskId } = body as {
-    action: "start" | "complete" | "manual" | "create-pr";
+    action: "start" | "manual" | "create-pr";
     taskId?: number;
   };
 
-  if (action === "start") {
-    const pendingTasks = await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.ticketId, ticketId));
-
-    const target = taskId
-      ? pendingTasks.find((t) => t.id === taskId)
-      : pendingTasks.find((t) => t.status === "pending");
-
-    if (target) {
-      await db
-        .update(tasks)
-        .set({ status: "in-progress", updatedAt: Date.now() })
-        .where(eq(tasks.id, target.id));
-    }
-
-    return Response.json({ ok: true, taskId: target?.id });
-  }
-
-  if (action === "complete" && taskId) {
-    const [ticketRow] = await db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId));
-
-    const slug = (ticketRow?.title ?? "task")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-    const prefix = ticketRow?.jiraKey ?? `TASK-${ticketId}`;
-    const branchName = `${prefix}-${slug}`.slice(0, 30).replace(/-$/, "");
-
-    await db
-      .update(tasks)
-      .set({
-        status: "done",
-        branchName,
-        updatedAt: Date.now(),
-      })
-      .where(eq(tasks.id, taskId));
-
-    return Response.json({ ok: true });
+  if (action === "start" && taskId) {
+    return handleStart(ticketId, taskId);
   }
 
   if (action === "manual" && taskId) {
     await db
       .update(tasks)
-      .set({
-        implementedManually: 1,
-        status: "done",
-        updatedAt: Date.now(),
-      })
+      .set({ implementedManually: 1, status: "done", updatedAt: Date.now() })
       .where(eq(tasks.id, taskId));
-
     return Response.json({ ok: true });
   }
 
   if (action === "create-pr" && taskId) {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
-    if (!task) {
-      return Response.json({ error: "Task not found" }, { status: 404 });
-    }
-
-    const [ticket] = await db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId));
-
-    const prNumber = 300 + taskId;
-    const prUrl = `https://dev.azure.com/org/project/_git/repo/pullrequest/${prNumber}`;
-
-    await db
-      .update(tasks)
-      .set({ prUrl, prNumber, updatedAt: Date.now() })
-      .where(eq(tasks.id, taskId));
-
-    return Response.json({
-      ok: true,
-      pr: {
-        number: prNumber,
-        url: prUrl,
-        title: `${ticket?.jiraKey ?? "TASK"}-${taskId}: ${task.title}`,
-      },
-    });
+    return handleCreatePR(ticketId, taskId);
   }
 
   return Response.json({ error: "Invalid action" }, { status: 400 });
+}
+
+// ─── Start implementation (background job) ────────────────────────
+
+async function handleStart(ticketId: number, taskId: number) {
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
+
+  const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+  if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
+
+  // Need a repo to implement against
+  if (!task.repoId) {
+    return Response.json({ error: "Task has no repo assigned. Edit the task to assign a repository." }, { status: 400 });
+  }
+
+  const [repo] = await db.select().from(repos).where(eq(repos.id, task.repoId));
+  if (!repo) return Response.json({ error: "Repo not found" }, { status: 404 });
+
+  const [ws] = await db.select().from(workspace).limit(1);
+  if (!ws) return Response.json({ error: "Workspace not configured" }, { status: 404 });
+
+  // Check repo is cloned
+  const repoDir = path.join(REPOS_DIR, repo.name);
+  if (!fs.existsSync(path.join(repoDir, ".git"))) {
+    return Response.json({ error: `Repo "${repo.name}" is not cloned. Run a scan first.` }, { status: 400 });
+  }
+
+  // Check no job already running for this task
+  const existingJobs = await db.select().from(jobs).where(
+    and(eq(jobs.relatedId, taskId), eq(jobs.type, "implement"), eq(jobs.status, "running"))
+  );
+  if (existingJobs.length > 0) {
+    return Response.json({ ok: true, jobId: existingJobs[0].id, status: "already_running" });
+  }
+
+  // Create job row
+  const now = Date.now();
+  const [job] = await db.insert(jobs).values({
+    workspaceId: ws.id,
+    type: "implement",
+    status: "running",
+    relatedId: taskId,
+    progress: 0,
+    createdAt: now,
+    updatedAt: now,
+  }).returning();
+
+  // Mark task in-progress
+  await db.update(tasks).set({ status: "in-progress", updatedAt: now }).where(eq(tasks.id, taskId));
+
+  // Fire-and-forget
+  runImplementInBackground(taskId, ticketId, job.id, repo, ticket).catch((err) => {
+    console.error("[implement] Background implementation crashed:", err);
+  });
+
+  return Response.json({ ok: true, jobId: job.id });
+}
+
+// ─── Background implementation ────────────────────────────────────
+
+async function runImplementInBackground(
+  taskId: number,
+  ticketId: number,
+  jobId: number,
+  repo: { id: number; name: string; project: string; defaultBranch: string },
+  ticket: { jiraKey: string; title: string; description: string | null; prdPath: string | null }
+) {
+  const repoDir = path.join(REPOS_DIR, repo.name);
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) return;
+
+  const slug = (task.title ?? "task")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  const branchName = `${ticket.jiraKey}/${slug}`.replace(/-$/, "");
+  const defaultBranch = repo.defaultBranch || "main";
+
+  const updateJob = async (updates: { status?: string; progress?: number; error?: string }) => {
+    await db.update(jobs).set({
+      ...updates,
+      updatedAt: Date.now(),
+    }).where(eq(jobs.id, jobId));
+  };
+
+  try {
+    await withRepoLock(repo.name, async () => {
+      // Ensure we're on the default branch with a clean state
+      try {
+        await gitExec(["checkout", defaultBranch], { cwd: repoDir });
+        await gitExec(["clean", "-fd"], { cwd: repoDir });
+        await gitExec(["checkout", "--", "."], { cwd: repoDir });
+      } catch {
+        // May fail if repo is in a weird state — continue anyway
+      }
+
+      // Delete branch if it exists (retry scenario)
+      try {
+        await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+      } catch {
+        // Branch doesn't exist — fine
+      }
+
+      // Create feature branch
+      await gitExec(["checkout", "-b", branchName], { cwd: repoDir });
+      await updateJob({ progress: 10 });
+
+      // Load context for Claude
+      const prdContent = loadPRD(ticket);
+      const synthesisContext = loadSynthesisOverview();
+
+      const prompt = `You are implementing a code change in this repository.
+
+## Task
+**${task.title}**
+${task.description || ""}
+
+## Ticket
+**${ticket.jiraKey}: ${ticket.title}**
+${ticket.description || ""}
+
+## PRD
+${prdContent}
+
+## System Context
+${synthesisContext}
+
+## Instructions
+- Make minimal, targeted changes to implement this task
+- Follow existing code patterns and conventions in the repository
+- Do NOT modify unrelated files
+- If the repo has tests, add or update tests for your changes
+- Do NOT commit your changes — just edit the files`;
+
+      // Let Claude implement the changes
+      await updateJob({ progress: 20 });
+      console.log(`[implement] Starting Claude CLI for task ${taskId} in ${repo.name}...`);
+
+      await claudeExec(prompt, {
+        addDirs: [repoDir],
+        model: "sonnet",
+        maxBudget: 2.00,
+        timeoutMs: 600_000,
+        systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits.",
+      });
+
+      await updateJob({ progress: 80 });
+
+      // Stage and commit changes
+      await gitExec(["add", "-A"], { cwd: repoDir });
+
+      // Check if there are actually changes to commit
+      const statusOutput = await gitExec(["status", "--porcelain"], { cwd: repoDir });
+      if (!statusOutput.trim()) {
+        throw new Error("Claude did not make any file changes");
+      }
+
+      await gitExec(
+        ["-c", "user.name=DevCycle", "-c", "user.email=devcycle@noreply", "commit", "-m", `${ticket.jiraKey}: ${task.title}`],
+        { cwd: repoDir }
+      );
+
+      // Capture the diff
+      const rawDiff = await gitExec(["diff", "HEAD~1", "--unified=5"], { cwd: repoDir });
+      const fileDiffs = parseUnifiedDiff(rawDiff);
+
+      await updateJob({ progress: 95 });
+
+      // Store results
+      await db.update(tasks).set({
+        diff: JSON.stringify(fileDiffs),
+        branchName,
+        status: "done",
+        updatedAt: Date.now(),
+      }).where(eq(tasks.id, taskId));
+
+      await updateJob({ status: "done", progress: 100 });
+      console.log(`[implement] Task ${taskId} completed — ${fileDiffs.length} files changed`);
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[implement] Task ${taskId} failed:`, msg);
+
+    // Clean up: return to default branch
+    try {
+      await gitExec(["checkout", defaultBranch], { cwd: repoDir });
+      await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+    } catch {
+      // Best effort cleanup
+    }
+
+    await db.update(tasks).set({ status: "pending", updatedAt: Date.now() }).where(eq(tasks.id, taskId));
+    await updateJob({ status: "failed", error: msg.slice(0, 500) });
+  }
+}
+
+// ─── Create PR (git push + Azure DevOps API) ─────────────────────
+
+async function handleCreatePR(ticketId: number, taskId: number) {
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
+  if (!task.branchName) return Response.json({ error: "No branch — run implementation first" }, { status: 400 });
+  if (!task.repoId) return Response.json({ error: "No repo assigned" }, { status: 400 });
+
+  const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+  if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
+
+  const [repo] = await db.select().from(repos).where(eq(repos.id, task.repoId));
+  if (!repo) return Response.json({ error: "Repo not found" }, { status: 404 });
+
+  const [ws] = await db.select().from(workspace).limit(1);
+  if (!ws) return Response.json({ error: "Workspace not configured" }, { status: 404 });
+
+  const [pat] = await db.select().from(pats).where(
+    and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure"))
+  );
+  if (!pat) return Response.json({ error: "No Azure PAT configured" }, { status: 400 });
+
+  const decryptedPat = decryptPat(pat.encryptedPat, pat.iv);
+  const repoDir = path.join(REPOS_DIR, repo.name);
+
+  try {
+    // Parse org URL for clone URL construction
+    const orgUrl = new URL(ws.azureOrgUrl);
+    const orgPath = orgUrl.pathname.split("/").filter(Boolean)[0] || "";
+    const cloneUrl = `https://${decryptedPat}@dev.azure.com/${orgPath}/${encodeURIComponent(repo.project)}/_git/${encodeURIComponent(repo.name)}`;
+
+    // Unshallow if needed (shallow clones can't push)
+    try {
+      await gitExec(["fetch", "--unshallow"], { cwd: repoDir });
+    } catch {
+      // Already unshallow or fetch failed — continue
+    }
+
+    // Set remote URL with PAT and push
+    await gitExec(["remote", "set-url", "origin", cloneUrl], { cwd: repoDir });
+    await gitExec(["push", "-u", "origin", task.branchName], { cwd: repoDir, timeout: 60_000 });
+
+    // Create PR via Azure DevOps API
+    const client = new AzureDevOpsClient(ws.azureOrgUrl, decryptedPat);
+    const defaultBranch = repo.defaultBranch || "main";
+
+    const pr = await client.createPullRequest(repo.project, repo.adoId ?? repo.name, {
+      title: `${ticket.jiraKey}: ${task.title}`,
+      description: `Implements task: ${task.title}\n\n${task.description || ""}`,
+      sourceBranch: task.branchName,
+      targetBranch: defaultBranch,
+    });
+
+    // Build web URL
+    const prUrl = `${ws.azureOrgUrl}/${encodeURIComponent(repo.project)}/_git/${encodeURIComponent(repo.name)}/pullrequest/${pr.pullRequestId}`;
+
+    await db.update(tasks).set({
+      prUrl,
+      prNumber: pr.pullRequestId,
+      updatedAt: Date.now(),
+    }).where(eq(tasks.id, taskId));
+
+    return Response.json({
+      ok: true,
+      pr: { number: pr.pullRequestId, url: prUrl, title: `${ticket.jiraKey}: ${task.title}` },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[implement] Create PR failed for task ${taskId}:`, msg);
+    return Response.json({ error: msg.slice(0, 300) }, { status: 500 });
+  }
+}
+
+// ─── Load PRD content ─────────────────────────────────────────────
+
+function loadPRD(ticket: { prdPath: string | null }): string {
+  if (!ticket.prdPath) return "(No PRD available)";
+  const fullPath = path.join(KB_ROOT, ticket.prdPath);
+  if (!fs.existsSync(fullPath)) return "(PRD file not found)";
+  try {
+    return fs.readFileSync(fullPath, "utf8");
+  } catch {
+    return "(Failed to read PRD)";
+  }
+}
+
+// ─── Load system synthesis overview ───────────────────────────────
+
+function loadSynthesisOverview(): string {
+  const synthPath = path.join(KB_ROOT, "raw", "system-synthesis.json");
+  if (!fs.existsSync(synthPath)) return "";
+  try {
+    const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));
+    const parts: string[] = [];
+    if (synth.systemOverview) parts.push(synth.systemOverview);
+    if (synth.serviceMap?.length) {
+      parts.push("### Services\n" + synth.serviceMap.map((s: { repo: string; role: string }) =>
+        `- **${s.repo}**: ${s.role}`
+      ).join("\n"));
+    }
+    return parts.join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
+// ─── Unified diff parser ──────────────────────────────────────────
+
+function parseUnifiedDiff(raw: string): FileDiff[] {
+  const files: FileDiff[] = [];
+  if (!raw.trim()) return files;
+
+  const diffBlocks = raw.split(/^diff --git /m).filter(Boolean);
+
+  for (const block of diffBlocks) {
+    // Extract file path from "a/path b/path" header
+    const headerMatch = block.match(/^a\/(.+?) b\/(.+)/m);
+    if (!headerMatch) continue;
+    const filePath = headerMatch[2];
+
+    // Determine file status
+    let status: FileDiff["status"] = "modified";
+    if (block.includes("new file mode")) status = "added";
+    else if (block.includes("deleted file mode")) status = "deleted";
+
+    // Parse hunks
+    const hunks: FileDiff["hunks"] = [];
+    const hunkRegex = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@.*$/gm;
+    let match: RegExpExecArray | null;
+    const hunkPositions: { oldStart: number; newStart: number; startIdx: number }[] = [];
+
+    while ((match = hunkRegex.exec(block)) !== null) {
+      hunkPositions.push({
+        oldStart: parseInt(match[1], 10),
+        newStart: parseInt(match[2], 10),
+        startIdx: match.index + match[0].length,
+      });
+    }
+
+    for (let i = 0; i < hunkPositions.length; i++) {
+      const hp = hunkPositions[i];
+      const endIdx = i + 1 < hunkPositions.length
+        ? block.lastIndexOf("\n@@", hunkPositions[i + 1].startIdx)
+        : block.length;
+      const hunkBody = block.slice(hp.startIdx, endIdx);
+      const lines = hunkBody.split("\n").filter((l) =>
+        l.startsWith("+") || l.startsWith("-") || l.startsWith(" ")
+      );
+
+      if (lines.length > 0) {
+        hunks.push({ oldStart: hp.oldStart, newStart: hp.newStart, lines });
+      }
+    }
+
+    files.push({ path: filePath, status, hunks });
+  }
+
+  return files;
 }

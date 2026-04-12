@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,35 +91,57 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const [newCommentText, setNewCommentText] = useState("");
   const [fixingCommentId, setFixingCommentId] = useState<number | null>(null);
 
-  const loadTasks = async () => {
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadTasks = useCallback(async () => {
     const res = await fetch(`/api/tickets/${ticket.id}/tasks`);
     const data = await res.json();
     setWaves(data.waves ?? []);
-  };
+    return data.waves as WaveRow[];
+  }, [ticket.id]);
 
   useEffect(() => {
     loadTasks().finally(() => setLoading(false));
-  }, [ticket.id]);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [ticket.id, loadTasks]);
+
+  // ── Poll until a task leaves "in-progress" ──────────────────
+
+  const waitForTask = useCallback((taskId: number): Promise<void> => {
+    return new Promise((resolve) => {
+      const interval = setInterval(async () => {
+        const updatedWaves = await loadTasks();
+        const allTasks = updatedWaves.flatMap((w: WaveRow) => w.tasks);
+        const t = allTasks.find((t: TaskRow) => t.id === taskId);
+        if (!t || t.status !== "in-progress") {
+          clearInterval(interval);
+          if (pollRef.current === interval) pollRef.current = null;
+          resolve();
+        }
+      }, 3000);
+      pollRef.current = interval;
+    });
+  }, [loadTasks]);
 
   // ── Single task actions ──────────────────────────────────────
 
   const startTask = async (taskId: number) => {
     setBusyTaskId(taskId);
     try {
-      await fetch(`/api/tickets/${ticket.id}/implement`, {
+      const res = await fetch(`/api/tickets/${ticket.id}/implement`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start", taskId }),
       });
-      setTimeout(async () => {
-        await fetch(`/api/tickets/${ticket.id}/implement`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "complete", taskId }),
-        });
-        await loadTasks();
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        console.error("[implement] Start failed:", data.error);
         setBusyTaskId(null);
-      }, 1500);
+        return;
+      }
+      // Poll until task completes or fails
+      await waitForTask(taskId);
+      setBusyTaskId(null);
     } catch {
       setBusyTaskId(null);
     }
@@ -146,25 +168,8 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
       (t) => t.status !== "done" && !t.implementedManually
     );
     for (const task of pending) {
-      setBusyTaskId(task.id);
-      try {
-        await fetch(`/api/tickets/${ticket.id}/implement`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start", taskId: task.id }),
-        });
-        await new Promise((r) => setTimeout(r, 1000));
-        await fetch(`/api/tickets/${ticket.id}/implement`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "complete", taskId: task.id }),
-        });
-        await loadTasks();
-      } catch {
-        // continue
-      }
+      await startTask(task.id);
     }
-    setBusyTaskId(null);
   };
 
   const runAll = async () => {

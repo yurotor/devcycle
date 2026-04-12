@@ -214,21 +214,29 @@ function loadKBContext(): string {
 
   const rawDir = path.join(KB_ROOT, "raw");
   if (fs.existsSync(rawDir)) {
-    const repoPurposes: string[] = [];
+    const repoDetails: string[] = [];
     for (const entry of fs.readdirSync(rawDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const analysisPath = path.join(rawDir, entry.name, "analysis.json");
       if (fs.existsSync(analysisPath)) {
         try {
           const analysis = JSON.parse(fs.readFileSync(analysisPath, "utf8"));
-          if (analysis.purpose) {
-            repoPurposes.push(`- **${entry.name}**: ${analysis.purpose}`);
+          const parts = [`### ${entry.name}`];
+          if (analysis.purpose) parts.push(analysis.purpose);
+          if (analysis.keyFiles?.length) {
+            parts.push("Key files: " + analysis.keyFiles.map((f: { path: string; purpose: string }) =>
+              `\`${f.path}\` (${f.purpose})`
+            ).join(", "));
           }
+          if (analysis.dataEntities?.length) {
+            parts.push("Entities: " + analysis.dataEntities.map((e: { name: string }) => e.name).join(", "));
+          }
+          repoDetails.push(parts.join("\n"));
         } catch { /* skip */ }
       }
     }
-    if (repoPurposes.length) {
-      sections.push(`## Repository Purposes\n${repoPurposes.join("\n")}`);
+    if (repoDetails.length) {
+      sections.push(`## Repositories\n\n${repoDetails.join("\n\n")}`);
     }
   }
 

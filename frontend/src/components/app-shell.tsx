@@ -23,6 +23,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { TicketDetail } from "@/components/ticket-detail";
 import { MarkdownViewer } from "@/components/markdown-viewer";
+import { ScanPill } from "@/components/scan-pill";
 import { type Ticket } from "@/lib/fake-data";
 
 type SidebarTab = "kb" | "suggestions";
@@ -135,6 +136,11 @@ export function AppShell() {
 
   return (
     <div className="h-full flex relative">
+
+      {/* Scan pill — fixed top-right, below board header area */}
+      <div className="fixed top-14 right-4 z-50">
+        <ScanPill />
+      </div>
 
       {/* Icon rail */}
       <div className="w-12 border-r border-border bg-sidebar flex flex-col items-center py-3 gap-1 shrink-0">

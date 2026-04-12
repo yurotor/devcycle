@@ -3,13 +3,13 @@
 
 import fs from "fs";
 import path from "path";
-import { execFile } from "child_process";
 import { db } from "@/lib/db";
 import { workspace, pats, repos, scanSuggestions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptPat } from "@/lib/crypto";
 import { complete, isAIAvailable as isApiAvailable } from "@/lib/anthropic";
 import { compileKnowledgeBase } from "@/lib/scan/kb-manager";
+import { gitExec, claudeExec, isClaudeCliAvailable } from "@/lib/claude-cli";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -45,6 +45,8 @@ export interface DeepRepoAnalysis {
   architecturePatterns: string[];
   techStack: string[];
   findings: AnalysisFinding[];
+  /** Key files with their purpose — config files, entry points, core business logic. */
+  keyFiles?: Array<{ path: string; purpose: string }>;
   /** Things the model encountered but couldn't resolve from code alone. */
   ambiguities?: string[];
 }
@@ -121,112 +123,9 @@ const MAX_FILES_PER_REPO = 30;
 const MAX_FILE_CHARS = 8000;
 const CONCURRENCY = 4;
 
-// ─── Async git helper ────────────────────────────────────────────
-
-function gitExec(args: string[], options?: { timeout?: number; cwd?: string }): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile("git", args, {
-      timeout: options?.timeout ?? 120_000,
-      maxBuffer: 10 * 1024 * 1024,
-      ...(options?.cwd ? { cwd: options.cwd } : {}),
-    }, (err, stdout) => {
-      if (err) reject(err);
-      else resolve(stdout);
-    });
-  });
-}
-
-// ─── Claude Code CLI helper ─────────────────────────────────────
-
-let _claudeCliAvailable: boolean | null = null;
-
-function isClaudeCliAvailable(): boolean {
-  if (_claudeCliAvailable !== null) return _claudeCliAvailable;
-  try {
-    require("child_process").execSync("which claude", { stdio: "ignore" });
-    _claudeCliAvailable = true;
-  } catch {
-    _claudeCliAvailable = false;
-  }
-  return _claudeCliAvailable;
-}
-
 /** Returns true if either Claude CLI or API is available. */
 export function isAIAvailable(): boolean {
   return isClaudeCliAvailable() || isApiAvailable();
-}
-
-interface ClaudeExecOptions {
-  jsonSchema?: object;
-  addDirs?: string[];
-  model?: string;
-  maxBudget?: number;
-  systemPrompt?: string;
-  timeoutMs?: number;
-}
-
-interface ClaudeCliResponse {
-  type: string;
-  subtype: string;
-  is_error: boolean;
-  result?: string;
-  structured_output?: unknown;
-}
-
-async function claudeExec<T = string>(prompt: string, options: ClaudeExecOptions = {}): Promise<T> {
-  const args = [
-    "--print",
-    "--output-format", "json",
-    "--bare",
-    "--dangerously-skip-permissions",
-    "--model", options.model ?? "sonnet",
-    "--max-budget-usd", String(options.maxBudget ?? 0.50),
-  ];
-
-  if (options.jsonSchema) {
-    args.push("--json-schema", JSON.stringify(options.jsonSchema));
-  }
-  if (options.addDirs) {
-    for (const dir of options.addDirs) {
-      args.push("--add-dir", dir);
-    }
-  }
-  if (options.systemPrompt) {
-    args.push("--append-system-prompt", options.systemPrompt);
-  }
-
-  args.push("-p", prompt);
-
-  return new Promise<T>((resolve, reject) => {
-    const child = execFile("claude", args, {
-      timeout: options.timeoutMs ?? 600_000, // 10 min default
-      maxBuffer: 50 * 1024 * 1024,
-      encoding: "utf8",
-    }, (err, stdout, stderr) => {
-      if (err) {
-        const detail = stderr?.trim() || err.message;
-        return reject(new Error(`Claude CLI failed: ${detail.slice(0, 500)}`));
-      }
-
-      try {
-        const response = JSON.parse(stdout.trim()) as ClaudeCliResponse;
-        if (response.is_error) {
-          return reject(new Error(`Claude CLI error: ${response.result?.slice(0, 500) ?? "unknown"}`));
-        }
-        if (response.structured_output !== undefined) {
-          return resolve(response.structured_output as T);
-        }
-        if (response.result !== undefined) {
-          return resolve(response.result as T);
-        }
-        reject(new Error(`Unexpected Claude CLI response: ${stdout.slice(0, 300)}`));
-      } catch (parseErr) {
-        reject(new Error(`Failed to parse Claude CLI output: ${stdout.slice(0, 300)}`));
-      }
-    });
-    // Close stdin immediately so Claude CLI doesn't wait for input
-    child.stdin?.end();
-  });
 }
 
 // ─── ScanEngine ───────────────────────────────────────────────────
@@ -413,6 +312,7 @@ export class ScanEngine {
       analysis.integrations ??= [];
       analysis.architecturePatterns ??= [];
       analysis.techStack ??= [];
+      analysis.keyFiles ??= [];
       analysis.ambiguities ??= [];
 
       // ── Sub-step: analysis done (1.0) ──
@@ -588,6 +488,7 @@ const DEEP_ANALYSIS_SCHEMA = {
     architecturePatterns: { type: "array", items: { type: "string" } },
     techStack: { type: "array", items: { type: "string" } },
     findings: { type: "array", items: { type: "object", properties: { severity: { type: "string" }, category: { type: "string" }, title: { type: "string" }, description: { type: "string" }, files: { type: "array", items: { type: "string" } } }, required: ["severity", "category", "title", "description"] } },
+    keyFiles: { type: "array", items: { type: "object", properties: { path: { type: "string" }, purpose: { type: "string" } }, required: ["path", "purpose"] } },
     ambiguities: { type: "array", items: { type: "string" } },
   },
 };
@@ -605,6 +506,8 @@ For ambiguities: list ONLY CONCRETE things referencing a specific service, confi
 - "References 'VampireClient' in LoanController but the Vampire system's purpose and API contract are unknown"
 - "Config key 'GROOMING_THRESHOLD' is used in batch processing but its business meaning is unclear"
 Do NOT flag: vague questions, auth/authz, security, tech stack, CI/CD, compliance, team structure.
+
+For keyFiles: list the most important files in the repo — configuration files, entry points, core business logic, data models, mapping files. Include the file path relative to the repo root and a one-line description of what the file does. Aim for 5-15 files.
 
 Be thorough. Identify ALL business features, APIs, dependencies, data entities, messaging patterns, and external integrations visible in the code. Only include critical and high severity findings.`;
 
