@@ -124,14 +124,9 @@ export async function POST(
     lc.includes("sufficient detail") ||
     lc.includes("fully specified");
 
-  // Fallback: if AI forgot choices and this isn't a conclusion, add Yes/No/Other
+  // Fallback: if AI forgot choices and this isn't a conclusion, always add defaults
   if (choices.length === 0 && !ready && phase === "analyze") {
-    // Check if the message ends with a question
-    const trimmed = cleanText.trim();
-    const endsWithQuestion = trimmed.endsWith("?");
-    if (endsWithQuestion) {
-      choices = ["Yes", "No", "Other"];
-    }
+    choices = ["Yes", "No", "Other"];
   }
 
   // Strip marker

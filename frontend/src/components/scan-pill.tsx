@@ -35,6 +35,8 @@ export function ScanPill() {
 
   // Track if we already auto-opened for interview/failure
   const autoOpenedRef = useRef<"interview" | "failed" | null>(null);
+  // True only when interview finished during THIS session (not loaded from previous)
+  const finishedThisSessionRef = useRef(false);
 
   // ── Poll scan status ─────────────────────────────────────────
 
@@ -47,6 +49,7 @@ export function ScanPill() {
         if (!res.ok) return;
         const data = (await res.json()) as ScanStatus;
         setStatus(data);
+        if (data.interviewDone) setInterviewDone(true);
       } catch {
         // network error — ignore
       }
@@ -66,7 +69,13 @@ export function ScanPill() {
     }
 
     if (status.status === "running") {
-      if (status.phase === "compiling" || status.phase === "done") {
+      if (interviewDone && status.synthesisReady) {
+        // Interview already completed — show done, don't re-open
+        setPillState("done");
+        return;
+      }
+      if (status.synthesisReady && (status.phase === "compiling" || status.phase === "done")) {
+        // Synthesis exists — safe to start interview
         setPillState("interview");
         if (autoOpenedRef.current !== "interview") {
           autoOpenedRef.current = "interview";
@@ -85,15 +94,21 @@ export function ScanPill() {
     }
 
     if (status.status === "done") {
-      if (!interviewDone && autoOpenedRef.current !== "interview") {
-        // Scan done but interview not started — show interview
-        setPillState("interview");
+      if (interviewDone) {
+        // Interview finished — show persistent KB ready state
+        setPillState("done");
+        return;
+      }
+      if (!status.synthesisReady) {
+        // Scan done but synthesis missing — show as failed, not interview
+        setPillState("failed");
+        return;
+      }
+      // Synthesis ready, interview not done — show interview pill
+      setPillState("interview");
+      if (autoOpenedRef.current !== "interview") {
         autoOpenedRef.current = "interview";
         setShowInterviewModal(true);
-      } else {
-        setPillState("done");
-        const t = setTimeout(() => setFadeOut(true), 5000);
-        return () => clearTimeout(t);
       }
       return;
     }
@@ -118,6 +133,7 @@ export function ScanPill() {
   };
 
   const handleInterviewDone = () => {
+    finishedThisSessionRef.current = true;
     setInterviewDone(true);
     setShowInterviewModal(false);
     setPillState("done");
@@ -134,7 +150,7 @@ export function ScanPill() {
 
   // ── Render ────────────────────────────────────────────────────
 
-  if (pillState === "hidden" || (pillState === "done" && fadeOut)) {
+  if (pillState === "hidden" || (pillState === "done" && (fadeOut || !finishedThisSessionRef.current))) {
     return null;
   }
 

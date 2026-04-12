@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   FileText,
@@ -115,7 +114,7 @@ export function PlanPhase({ ticket, onComplete, onBack }: PlanPhaseProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col">
       {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-border bg-violet/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -229,7 +228,7 @@ export function PlanPhase({ ticket, onComplete, onBack }: PlanPhaseProps) {
       )}
 
       {/* PRD content */}
-      <ScrollArea className="flex-1 px-4">
+      <div className="flex-1 min-h-0 overflow-auto px-4">
         <div className="py-4">
           {mode === "edit" ? (
             <Textarea
@@ -243,7 +242,7 @@ export function PlanPhase({ ticket, onComplete, onBack }: PlanPhaseProps) {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">

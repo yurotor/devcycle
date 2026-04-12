@@ -1,10 +1,14 @@
 // GET /api/scan/status — returns current scan job state for the pill to poll.
 
+import fs from "fs";
+import path from "path";
 import { db } from "@/lib/db";
 import { workspace, jobs } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+const KB_ROOT = path.join(process.cwd(), "..", "kb");
 
 export interface ScanStatus {
   jobId: number | null;
@@ -14,6 +18,10 @@ export interface ScanStatus {
   error: string | null;
   failCount: number;
   events: Array<{ repo: string; message: string; type: string }>;
+  /** True when system-synthesis.json exists — interview should not start until this is true. */
+  synthesisReady: boolean;
+  /** True when interview-notes.json exists — interview already completed. */
+  interviewDone: boolean;
 }
 
 export async function GET() {
@@ -27,6 +35,8 @@ export async function GET() {
       error: null,
       failCount: 0,
       events: [],
+      synthesisReady: false,
+      interviewDone: false,
     } satisfies ScanStatus);
   }
 
@@ -47,6 +57,8 @@ export async function GET() {
       error: null,
       failCount: 0,
       events: [],
+      synthesisReady: false,
+      interviewDone: false,
     } satisfies ScanStatus);
   }
 
@@ -57,6 +69,9 @@ export async function GET() {
     // ignore
   }
 
+  const synthesisReady = fs.existsSync(path.join(KB_ROOT, "raw", "system-synthesis.json"));
+  const interviewDone = fs.existsSync(path.join(KB_ROOT, "raw", "interview-notes.json"));
+
   return Response.json({
     jobId: job.id,
     status: job.status as ScanStatus["status"],
@@ -65,5 +80,7 @@ export async function GET() {
     error: job.error,
     failCount: meta.failCount ?? 0,
     events: meta.events ?? [],
+    synthesisReady,
+    interviewDone,
   } satisfies ScanStatus);
 }

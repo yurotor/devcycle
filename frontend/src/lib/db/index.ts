@@ -121,6 +121,18 @@ CREATE TABLE IF NOT EXISTS interview_notes (
   extracted_facts TEXT,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS review_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL,
+  file TEXT NOT NULL,
+  line INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  priority TEXT NOT NULL,
+  author TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL
+);
 `;
 
 // Idempotent column additions — SQLite has no ALTER TABLE IF NOT EXISTS,

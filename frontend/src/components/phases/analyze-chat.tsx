@@ -26,6 +26,7 @@ export function AnalyzeChat({ ticket, onComplete }: AnalyzeChatProps) {
           apiUrl={`/api/tickets/${ticket.id}/chat`}
           postExtras={{ phase: "analyze" }}
           autoStartMessage={autoMsg}
+          hideAutoStart
           onReady={() => setReady(true)}
           headerText="The AI analyst will walk through each aspect of this ticket one question at a time until it's fully specified."
           placeholder="Answer the question or provide more context..."

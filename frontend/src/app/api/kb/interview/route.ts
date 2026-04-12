@@ -1,11 +1,13 @@
-// POST /api/kb/interview — system-level interview chat with choices
+// POST /api/kb/interview — gap-driven interview chat with choices
 // GET  /api/kb/interview — load interview history
 
 import { db } from "@/lib/db";
 import { interviewNotes, chatMessages, workspace } from "@/lib/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { complete, isAIAvailable } from "@/lib/anthropic";
 import { compileKnowledgeBase } from "@/lib/scan/kb-manager";
+import { runSynthesis, loadRepoAnalyses } from "@/lib/scan/engine";
+import type { SystemSynthesis } from "@/lib/scan/engine";
 import fs from "fs";
 import path from "path";
 
@@ -74,48 +76,72 @@ export async function POST(request: Request) {
     content: m.content,
   }));
 
-  // Load KB context from per-repo analysis files
-  const systemContext = loadKBContext();
+  // Load synthesis to get ambiguities — fall back to per-repo ambiguities if no synthesis
+  const synthesis = loadSynthesis();
+  let ambiguities = synthesis?.ambiguities ?? [];
+  if (ambiguities.length === 0) {
+    const repoAnalyses = loadRepoAnalyses();
+    ambiguities = Array.from(repoAnalyses.entries()).flatMap(
+      ([name, a]) => (a.ambiguities ?? []).map((amb) => `[${name}] ${amb}`)
+    );
+  }
+  const systemContext = buildSystemContext(synthesis);
 
-  const systemPrompt = `You are an expert system analyst conducting a deep-dive interview about a software system. Your goal is to extract knowledge that cannot be learned from code alone.
+  console.log(`[interview] ${ambiguities.length} ambiguities:`, ambiguities);
+  console.log(`[interview] system context length: ${systemContext.length} chars`);
 
-## Your approach
+  const systemPrompt = ambiguities.length > 0
+    ? `You are conducting a targeted follow-up interview about a software system. The codebase has already been fully analyzed. You know the architecture, tech stack, APIs, data model, and integrations — do NOT ask about any of those. You are ONLY here to resolve the specific gaps listed below.
 
-1. **Ask ONE question at a time.** Never ask multiple questions in one message.
-2. **Always provide answer choices.** At the end of every question, include a JSON block:
-   {"choices": ["Option A", "Option B", "Option C", "Other"]}
-   The last option should always be "Other" for free text. Make options specific to this system.
-3. **Cover these areas in order:**
-   - Business context: Who are the users? What business processes does this support?
-   - Team structure: Who owns which components? How is the team organized?
-   - Deployment topology: What environments exist? How is the system deployed?
-   - Data sensitivity: Is there PII? What compliance requirements exist?
-   - Known tech debt: What are the known pain points?
-   - Integration details: Manual processes, vendor relationships, SLAs
-   - Domain knowledge: Business rules, edge cases, seasonal patterns
-4. **Be concise.** 2-3 sentences per question plus choices.
-5. **When you have enough context** (after 5-8 exchanges), say "I have a good understanding of the system now." followed by a summary. Do NOT include choices in the final message.
+## STRICT RULES
 
-${systemContext ? `\n## Context from automated code analysis\n\nUse this context to ask informed, specific questions. Reference repos, APIs, entities, and features you see below. Do NOT ask generic questions that can be answered from this context — instead, ask about what the context does NOT reveal (business rules, team ownership, deployment details, compliance).\n\n${systemContext}` : ""}
+- You have EXACTLY ${ambiguities.length} gaps to ask about. Ask about one per message, then stop.
+- Do NOT ask about anything outside this list. No warm-up questions. No "tell me about your system." No architecture, tech stack, team structure, compliance, pain points, or anything deducible from code.
+- Ask ONE question at a time. Every message MUST end with: {"choices": ["Option A", "Option B", "Option C", "Other"]}
+- Be concise: 1-2 sentences stating what the scan found, then the specific question.
+- NEVER invent or fabricate names of services, classes, or entities. Only mention names that appear VERBATIM in the gap text or the system context below. If the gap doesn't name a specific service, don't invent one.
+- After the last gap is resolved, say "I have a good understanding of the system now." with a brief summary. No choices in the final message.
+
+## Gaps to resolve (ask about these IN ORDER)
+
+${ambiguities.map((a, i) => `${i + 1}. ${a}`).join("\n")}
+
+## What you already know (DO NOT ask about any of this)
+
+${systemContext}
+
+IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block.`
+    : `You are reviewing the results of an automated codebase analysis. The scan found no unresolved ambiguities. Present a brief 3-4 sentence summary of the system based on the context below, then ask: "Does this look correct? Is there anything the scan missed or got wrong?"
+
+End your message with: {"choices": ["Looks correct", "There are some things to correct", "Other"]}
+
+If the user says it looks correct, respond with "I have a good understanding of the system now." and a one-line confirmation. No choices in the final message.
+If the user has corrections, ask ONE follow-up about each correction (with choices), then conclude.
+
+## System context
+
+${systemContext}
 
 IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block.`;
 
-  const stubResponses = [
-    `Thanks for starting this interview. Let me ask about the business context first.\n\nWho are the primary users of this system?\n\n{"choices": ["Internal operations team", "External customers / borrowers", "Both internal and external users", "Partner banks / financial institutions", "Other"]}`,
-    `That's helpful. How is the team structured around this codebase?\n\n{"choices": ["Single team owns everything", "Split by frontend/backend", "Split by domain (lending, servicing, etc.)", "Multiple independent squads", "Other"]}`,
-    `Good to know. What environments does this system run in?\n\n{"choices": ["Dev + Prod only", "Dev + Staging + Prod", "Dev + QA + Staging + Prod", "Per-developer environments + shared staging + prod", "Other"]}`,
-    `Important question about data: does this system handle any PII or regulated data?\n\n{"choices": ["Yes, financial PII (SSN, bank accounts)", "Yes, basic PII (names, emails, addresses)", "No PII, only business data", "Yes, and we have specific compliance requirements (SOC2, PCI, etc.)", "Other"]}`,
-    `What are the biggest pain points or tech debt items the team is currently aware of?\n\n{"choices": ["Legacy code that's hard to maintain", "Missing test coverage", "Performance bottlenecks", "Deployment complexity", "Documentation gaps", "Other"]}`,
-    `I have a good understanding of the system now. Here's a summary of what I learned:\n\n- Business context and user base identified\n- Team structure and ownership mapped\n- Deployment and compliance requirements documented\n- Key integrations and pain points captured\n\nThis context will be incorporated into the knowledge base to enrich the documentation.`,
-  ];
-
+  // Stub responses for no-AI mode
   const userCount = history.filter((m) => m.role === "user").length;
-  const stubIndex = Math.min(userCount - 1, stubResponses.length - 1);
+  let stubResponse: string;
+  if (ambiguities.length === 0) {
+    stubResponse = userCount <= 1
+      ? `The scan analyzed your system and found no unresolved gaps. Everything looks consistent across repos.\n\nDoes this look correct? Is there anything the scan missed or got wrong?\n\n{"choices": ["Looks correct", "There are some things to correct", "Other"]}`
+      : `I have a good understanding of the system now. The automated analysis captured the system accurately.`;
+  } else if (userCount <= ambiguities.length) {
+    const gap = ambiguities[Math.min(userCount - 1, ambiguities.length - 1)];
+    stubResponse = `The scan flagged this gap: ${gap}\n\nCan you clarify?\n\n{"choices": ["Yes, I can explain", "This is no longer relevant", "I'm not sure", "Other"]}`;
+  } else {
+    stubResponse = `I have a good understanding of the system now. All ${ambiguities.length} gaps from the code analysis have been addressed. This context will be incorporated into the knowledge base.`;
+  }
 
   const aiResponse = await complete(aiMessages, {
     system: systemPrompt,
     maxTokens: 1024,
-    stubResponse: stubResponses[Math.max(0, stubIndex)],
+    stubResponse,
   });
 
   // Extract choices
@@ -132,7 +158,7 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
     createdAt: Date.now(),
   });
 
-  // If done, save transcript and recompile KB
+  // If done, save transcript, re-run synthesis with interview context, and recompile KB
   if (done) {
     const fullHistory = [...aiMessages, { role: "assistant" as const, content: cleanText }];
     const transcript = fullHistory
@@ -152,82 +178,99 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
       "utf8"
     );
 
-    try {
-      await compileKnowledgeBase();
-    } catch (err) {
-      console.error("[interview] KB recompilation failed:", err);
-    }
+    // Re-run synthesis and recompile KB in the background (don't block the response)
+    (async () => {
+      try {
+        const repoAnalyses = loadRepoAnalyses();
+        if (repoAnalyses.size > 0) {
+          await runSynthesis(repoAnalyses, transcript);
+        }
+      } catch (err) {
+        console.error("[interview] Re-synthesis failed:", err);
+      }
+
+      try {
+        await compileKnowledgeBase();
+      } catch (err) {
+        console.error("[interview] KB recompilation failed:", err);
+      }
+    })();
   }
 
   return Response.json({ response: cleanText, choices, ready: done, done });
 }
 
-// ─── KB context loader ──────────────────────────────────────────
+// ─── Load synthesis from disk ──────────────────────────────────
 
-function loadKBContext(): string {
-  const sections: string[] = [];
-
-  // Try system synthesis first
+function loadSynthesis(): SystemSynthesis | null {
   const synthPath = path.join(RAW_DIR, "system-synthesis.json");
-  if (fs.existsSync(synthPath)) {
-    try {
-      const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));
-      if (synth.systemOverview) {
-        sections.push(`## System Overview\n${synth.systemOverview}`);
-      }
-      if (synth.features?.length) {
-        sections.push(`## Known Features\n${synth.features.map((f: { name: string; description: string; repos: string[] }) =>
-          `- **${f.name}**: ${f.description || "no description"} (repos: ${f.repos.join(", ")})`
-        ).join("\n")}`);
-      }
-      if (synth.serviceMap?.length) {
-        sections.push(`## Service Map\n${synth.serviceMap.map((s: { repo: string; role: string }) =>
-          `- **${s.repo}**: ${s.role}`
-        ).join("\n")}`);
-      }
-    } catch { /* skip */ }
+  if (!fs.existsSync(synthPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
+  } catch {
+    return null;
   }
-
-  // Load per-repo analysis files
-  if (fs.existsSync(RAW_DIR)) {
-    const repoDetails: string[] = [];
-    for (const entry of fs.readdirSync(RAW_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const analysisPath = path.join(RAW_DIR, entry.name, "analysis.json");
-      if (fs.existsSync(analysisPath)) {
-        try {
-          const analysis = JSON.parse(fs.readFileSync(analysisPath, "utf8"));
-          const parts: string[] = [];
-          parts.push(`### ${entry.name}`);
-          if (analysis.purpose) parts.push(`Purpose: ${analysis.purpose}`);
-          if (analysis.apis?.length) {
-            parts.push(`APIs: ${analysis.apis.map((a: { method: string; path: string }) => `${a.method} ${a.path}`).join(", ")}`);
-          }
-          if (analysis.entities?.length) {
-            parts.push(`Entities: ${analysis.entities.map((e: { name: string }) => e.name).join(", ")}`);
-          }
-          if (analysis.features?.length) {
-            parts.push(`Features: ${analysis.features.map((f: { name: string }) => f.name).join(", ")}`);
-          }
-          if (analysis.dependencies?.length) {
-            parts.push(`Dependencies: ${analysis.dependencies.join(", ")}`);
-          }
-          if (analysis.techStack?.length) {
-            parts.push(`Tech stack: ${analysis.techStack.join(", ")}`);
-          }
-          repoDetails.push(parts.join("\n"));
-        } catch { /* skip */ }
-      }
-    }
-    if (repoDetails.length) {
-      sections.push(`## Repository Analysis\n\n${repoDetails.join("\n\n")}`);
-    }
-  }
-
-  return sections.length > 0 ? sections.join("\n\n") : "";
 }
 
-// ─── Extract choices from AI response ───────────────────────────
+// ─── Build system context string for the prompt ────────────────
+
+function buildSystemContext(synthesis: SystemSynthesis | null): string {
+  const sections: string[] = [];
+
+  if (synthesis) {
+    if (synthesis.systemOverview) {
+      sections.push(`### System Overview\n${synthesis.systemOverview}`);
+    }
+    if (synthesis.serviceMap?.length) {
+      sections.push(`### Service Map\n${synthesis.serviceMap.map((s) =>
+        `- **${s.repo}**: ${s.role} → communicates with: ${s.communicatesWith.join(", ") || "none"}`
+      ).join("\n")}`);
+    }
+    if (synthesis.features?.length) {
+      sections.push(`### Features\n${synthesis.features.map((f) =>
+        `- **${f.name}**: ${f.description} (repos: ${f.repos.join(", ")})`
+      ).join("\n")}`);
+    }
+    if (synthesis.dataFlows?.length) {
+      sections.push(`### Data Flows\n${synthesis.dataFlows.map((d) =>
+        `- **${d.name}**: ${d.description}`
+      ).join("\n")}`);
+    }
+    if (synthesis.integrations?.length) {
+      sections.push(`### Integrations\n${synthesis.integrations.map((i) =>
+        `- **${i.system}** (${i.direction}, ${i.protocol}) — repos: ${i.repos.join(", ")}`
+      ).join("\n")}`);
+    }
+    if (synthesis.dataModel?.length) {
+      sections.push(`### Data Model\n${synthesis.dataModel.map((e) =>
+        `- **${e.entity}**: ${e.description} (repos: ${e.repos.join(", ")})`
+      ).join("\n")}`);
+    }
+  }
+
+  // Fallback: if no synthesis, load per-repo analyses directly
+  if (sections.length === 0) {
+    const repoAnalyses = loadRepoAnalyses();
+    if (repoAnalyses.size > 0) {
+      const repoSections = Array.from(repoAnalyses.entries()).map(([name, a]) => {
+        const parts = [`### ${name}`];
+        if (a.purpose) parts.push(`Purpose: ${a.purpose}`);
+        if (a.apis?.length) parts.push(`APIs: ${a.apis.map((api) => `${api.method} ${api.endpoint}`).join(", ")}`);
+        if (a.dataEntities?.length) parts.push(`Entities: ${a.dataEntities.map((e) => e.name).join(", ")}`);
+        if (a.businessFeatures?.length) parts.push(`Features: ${a.businessFeatures.join(", ")}`);
+        if (a.dependencies?.length) parts.push(`Dependencies: ${a.dependencies.map((d) => `${d.target} (${d.type})`).join(", ")}`);
+        if (a.integrations?.length) parts.push(`Integrations: ${a.integrations.map((i) => `${i.system} (${i.direction})`).join(", ")}`);
+        if (a.techStack?.length) parts.push(`Tech: ${a.techStack.join(", ")}`);
+        return parts.join("\n");
+      });
+      sections.push(`### Per-Repository Analysis\n\n${repoSections.join("\n\n")}`);
+    }
+  }
+
+  return sections.join("\n\n");
+}
+
+// ─── Extract choices from AI response ──────────────────────────
 
 function extractChoices(raw: string): { text: string; choices: string[] } {
   const jsonMatch = raw.match(/\n?\s*(\{[\s\S]*"choices"\s*:\s*\[[\s\S]*\][\s\S]*\})\s*$/);

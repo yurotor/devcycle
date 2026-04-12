@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { workspace, pats, repos, scanSuggestions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptPat } from "@/lib/crypto";
-import { complete, isAIAvailable } from "@/lib/anthropic";
+import { complete, isAIAvailable as isApiAvailable } from "@/lib/anthropic";
 import { compileKnowledgeBase } from "@/lib/scan/kb-manager";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -17,6 +17,8 @@ export interface ScanEvent {
   repo: string;
   message: string;
   type: "info" | "success" | "warning" | "finding" | "phase";
+  /** Current overall progress percentage (0-85 during analysis). */
+  progress?: number;
 }
 
 export interface DoneEvent {
@@ -43,6 +45,8 @@ export interface DeepRepoAnalysis {
   architecturePatterns: string[];
   techStack: string[];
   findings: AnalysisFinding[];
+  /** Things the model encountered but couldn't resolve from code alone. */
+  ambiguities?: string[];
 }
 
 export interface SystemSynthesis {
@@ -53,6 +57,40 @@ export interface SystemSynthesis {
   integrations: Array<{ system: string; direction: string; protocol: string; repos: string[] }>;
   dataModel: Array<{ entity: string; description: string; repos: string[] }>;
   architecturePatterns: Array<{ pattern: string; description: string; repos: string[] }>;
+  /** Unresolved gaps aggregated from per-repo analyses + cross-repo observations. */
+  ambiguities?: string[];
+}
+
+// ─── Incremental synthesis types ──────────────────────────────────
+
+export interface RepoDigest {
+  repo: string;
+  purpose: string;
+  features: string[];
+  dependsOn: string[];
+  entities: string[];
+  externalSystems: string[];
+  messagePatterns: string[];
+  ambiguities: string[];
+}
+
+export interface ClusterAnalysis {
+  clusterName: string;
+  sharedEntities: Array<{ entity: string; repos: string[]; description: string }>;
+  dataFlows: Array<{ name: string; description: string; steps: string[] }>;
+  integrationPoints: Array<{ from: string; to: string; mechanism: string; description: string }>;
+  patterns: Array<{ pattern: string; description: string; repos: string[] }>;
+  ambiguities: string[];
+}
+
+export interface BusinessFlowAnalysis {
+  flowName: string;
+  description: string;
+  steps: string[];
+  repos: string[];
+  entities: string[];
+  externalSystems: string[];
+  ambiguities: string[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -81,19 +119,113 @@ const BUSINESS_LOGIC_PATTERNS = [
 
 const MAX_FILES_PER_REPO = 30;
 const MAX_FILE_CHARS = 8000;
-const CONCURRENCY = 2;
+const CONCURRENCY = 4;
 
 // ─── Async git helper ────────────────────────────────────────────
 
-function gitExec(args: string[], options?: { timeout?: number }): Promise<string> {
+function gitExec(args: string[], options?: { timeout?: number; cwd?: string }): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile("git", args, {
       timeout: options?.timeout ?? 120_000,
       maxBuffer: 10 * 1024 * 1024,
+      ...(options?.cwd ? { cwd: options.cwd } : {}),
     }, (err, stdout) => {
       if (err) reject(err);
       else resolve(stdout);
     });
+  });
+}
+
+// ─── Claude Code CLI helper ─────────────────────────────────────
+
+let _claudeCliAvailable: boolean | null = null;
+
+function isClaudeCliAvailable(): boolean {
+  if (_claudeCliAvailable !== null) return _claudeCliAvailable;
+  try {
+    require("child_process").execSync("which claude", { stdio: "ignore" });
+    _claudeCliAvailable = true;
+  } catch {
+    _claudeCliAvailable = false;
+  }
+  return _claudeCliAvailable;
+}
+
+/** Returns true if either Claude CLI or API is available. */
+export function isAIAvailable(): boolean {
+  return isClaudeCliAvailable() || isApiAvailable();
+}
+
+interface ClaudeExecOptions {
+  jsonSchema?: object;
+  addDirs?: string[];
+  model?: string;
+  maxBudget?: number;
+  systemPrompt?: string;
+  timeoutMs?: number;
+}
+
+interface ClaudeCliResponse {
+  type: string;
+  subtype: string;
+  is_error: boolean;
+  result?: string;
+  structured_output?: unknown;
+}
+
+async function claudeExec<T = string>(prompt: string, options: ClaudeExecOptions = {}): Promise<T> {
+  const args = [
+    "--print",
+    "--output-format", "json",
+    "--bare",
+    "--dangerously-skip-permissions",
+    "--model", options.model ?? "sonnet",
+    "--max-budget-usd", String(options.maxBudget ?? 0.50),
+  ];
+
+  if (options.jsonSchema) {
+    args.push("--json-schema", JSON.stringify(options.jsonSchema));
+  }
+  if (options.addDirs) {
+    for (const dir of options.addDirs) {
+      args.push("--add-dir", dir);
+    }
+  }
+  if (options.systemPrompt) {
+    args.push("--append-system-prompt", options.systemPrompt);
+  }
+
+  args.push("-p", prompt);
+
+  return new Promise<T>((resolve, reject) => {
+    const child = execFile("claude", args, {
+      timeout: options.timeoutMs ?? 600_000, // 10 min default
+      maxBuffer: 50 * 1024 * 1024,
+      encoding: "utf8",
+    }, (err, stdout, stderr) => {
+      if (err) {
+        const detail = stderr?.trim() || err.message;
+        return reject(new Error(`Claude CLI failed: ${detail.slice(0, 500)}`));
+      }
+
+      try {
+        const response = JSON.parse(stdout.trim()) as ClaudeCliResponse;
+        if (response.is_error) {
+          return reject(new Error(`Claude CLI error: ${response.result?.slice(0, 500) ?? "unknown"}`));
+        }
+        if (response.structured_output !== undefined) {
+          return resolve(response.structured_output as T);
+        }
+        if (response.result !== undefined) {
+          return resolve(response.result as T);
+        }
+        reject(new Error(`Unexpected Claude CLI response: ${stdout.slice(0, 300)}`));
+      } catch (parseErr) {
+        reject(new Error(`Failed to parse Claude CLI output: ${stdout.slice(0, 300)}`));
+      }
+    });
+    // Close stdin immediately so Claude CLI doesn't wait for input
+    child.stdin?.end();
   });
 }
 
@@ -102,6 +234,8 @@ function gitExec(args: string[], options?: { timeout?: number }): Promise<string
 export class ScanEngine {
   private completed = 0;
   private total = 0;
+  /** Fractional progress per repo: 0.25 = cloned, 0.5 = tree scanned, 1.0 = analyzed */
+  private repoProgress: Map<string, number> = new Map();
   private repoAnalyses: Map<string, DeepRepoAnalysis> = new Map();
 
   constructor(
@@ -112,11 +246,14 @@ export class ScanEngine {
   /** Returns completion percentage (0-85 during analysis, 85-95 during synthesis, 95-100 during compilation). */
   getProgress(): number {
     if (this.total === 0) return 0;
-    return Math.round((this.completed / this.total) * 85);
+    // Sum completed repos (1.0 each) + partial progress of in-flight repos
+    const fractional = Array.from(this.repoProgress.values()).reduce((a, b) => a + b, 0);
+    return Math.round((fractional / this.total) * 85);
   }
 
   private progress(repo: string, message: string, type: ScanEvent["type"] = "info") {
-    this.emit({ repo, message: `[${this.completed}/${this.total}] ${message}`, type });
+    const pct = this.getProgress();
+    this.emit({ repo, message: `[${this.completed}/${this.total}] ${message}`, type, progress: pct });
   }
 
   async run(): Promise<void> {
@@ -182,17 +319,27 @@ export class ScanEngine {
       ));
     }
 
-    // ── Phase 2: Cross-repo system synthesis ─────────────────────
+    // ── Phase 2: Cross-repo system synthesis (with retry) ────────
     this.emit({ repo: "system", message: "Phase 2: Synthesizing system-level knowledge...", type: "phase" });
 
     let synthesis: SystemSynthesis | null = null;
-    try {
-      synthesis = await this.synthesizeSystem();
-      this.emit({ repo: "system", message: "System synthesis complete.", type: "success" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[scan] Synthesis failed:", msg);
-      this.emit({ repo: "system", message: `Synthesis failed: ${msg.slice(0, 120)}`, type: "warning" });
+    const SYNTHESIS_RETRIES = 2;
+    for (let attempt = 0; attempt <= SYNTHESIS_RETRIES; attempt++) {
+      try {
+        synthesis = await this.synthesizeSystem();
+        this.emit({ repo: "system", message: "System synthesis complete.", type: "success" });
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (attempt < SYNTHESIS_RETRIES) {
+          console.warn(`[scan] Synthesis attempt ${attempt + 1} failed, retrying: ${msg}`);
+          this.emit({ repo: "system", message: `Synthesis retry ${attempt + 1}/${SYNTHESIS_RETRIES}...`, type: "info" });
+          await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        } else {
+          console.error("[scan] Synthesis failed after retries:", msg);
+          this.emit({ repo: "system", message: `Synthesis failed: ${msg.slice(0, 120)}`, type: "warning" });
+        }
+      }
     }
 
     // ── Phase 3: Compile topic-organized wiki ────────────────────
@@ -217,6 +364,7 @@ export class ScanEngine {
   ): Promise<number> {
     const repoName = repo.name;
     const repoDir = path.join(REPOS_DIR, repoName);
+    this.repoProgress.set(repoName, 0);
 
     try {
       const branch = repo.defaultBranch || "main";
@@ -231,23 +379,51 @@ export class ScanEngine {
         this.progress(repoName, "Cloned.");
       }
 
+      // ── Sub-step: clone done (0.25) ──
+      this.repoProgress.set(repoName, 0.25);
+
       this.progress(repoName, "Reading file tree...");
       const allFiles = walkDir(repoDir, repoDir);
-      const selected = selectKeyFiles(allFiles);
-      this.progress(repoName, `${allFiles.length} files found, ${selected.length} selected for analysis.`);
+      this.progress(repoName, `${allFiles.length} files found.`);
 
-      const fileContents = readLocalFiles(repoDir, selected);
+      // ── Sub-step: clone + tree done (0.5) ──
+      this.repoProgress.set(repoName, 0.5);
 
-      this.progress(repoName, "Deep analysis...");
-      const analysis = await deepAnalyzeRepo(repoName, allFiles, fileContents);
+      // ── Check cache: reuse previous analysis if HEAD hasn't changed ──
+      const headHash = await getRepoHeadHash(repoDir);
+      const kbDir = path.join(KB_ROOT, "raw", repoName);
+      const cached = headHash ? loadCachedAnalysis(kbDir, headHash) : null;
+
+      let analysis: DeepRepoAnalysis;
+      if (cached) {
+        this.progress(repoName, "Unchanged since last scan — using cached analysis.");
+        analysis = cached;
+      } else {
+        this.progress(repoName, "Deep analysis...");
+        analysis = await deepAnalyzeRepo(repoName, repoDir, allFiles);
+      }
+
+      // Ensure all required arrays exist (API fallback may return partial data)
+      analysis.findings ??= [];
+      analysis.businessFeatures ??= [];
+      analysis.apis ??= [];
+      analysis.dependencies ??= [];
+      analysis.dataEntities ??= [];
+      analysis.messagingPatterns ??= [];
+      analysis.integrations ??= [];
+      analysis.architecturePatterns ??= [];
+      analysis.techStack ??= [];
+      analysis.ambiguities ??= [];
+
+      // ── Sub-step: analysis done (1.0) ──
+      this.repoProgress.set(repoName, 1);
 
       // Store for synthesis pass
       this.repoAnalyses.set(repoName, analysis);
 
-      // Write raw output
-      const kbDir = path.join(KB_ROOT, "raw", repoName);
+      // Write raw output (include HEAD hash for future cache hits)
       fs.mkdirSync(kbDir, { recursive: true });
-      writeRepoAnalysis(kbDir, repoName, analysis);
+      writeRepoAnalysis(kbDir, repoName, analysis, headHash);
 
       // Save findings
       const findings = analysis.findings ?? [];
@@ -266,6 +442,7 @@ export class ScanEngine {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[scan] ${repoName} error:`, msg);
+      this.repoProgress.set(repoName, 1); // count as done so progress keeps moving
       this.progress(repoName, `Error: ${msg.slice(0, 120)}`, "warning");
       return 0;
     }
@@ -275,77 +452,7 @@ export class ScanEngine {
 
   private async synthesizeSystem(): Promise<SystemSynthesis | null> {
     if (this.repoAnalyses.size === 0) return null;
-
-    // Build compact summaries for all repos
-    const repoSummaries = Array.from(this.repoAnalyses.entries()).map(([name, a]) => ({
-      repo: name,
-      purpose: a.purpose,
-      businessFeatures: a.businessFeatures,
-      apis: a.apis,
-      dependencies: a.dependencies,
-      dataEntities: a.dataEntities,
-      messagingPatterns: a.messagingPatterns,
-      integrations: a.integrations,
-      architecturePatterns: a.architecturePatterns,
-      techStack: a.techStack,
-    }));
-
-    if (!isAIAvailable()) {
-      // Write stub synthesis
-      const stub: SystemSynthesis = {
-        systemOverview: `System with ${repoSummaries.length} repositories.`,
-        serviceMap: repoSummaries.map((r) => ({ repo: r.repo, role: r.purpose, communicatesWith: r.dependencies.map((d) => d.target) })),
-        features: repoSummaries.flatMap((r) => r.businessFeatures.map((f) => ({ name: f, description: "", repos: [r.repo], dataFlow: "" }))),
-        dataFlows: [],
-        integrations: repoSummaries.flatMap((r) => r.integrations.map((i) => ({ ...i, repos: [r.repo] }))),
-        dataModel: repoSummaries.flatMap((r) => r.dataEntities.map((e) => ({ entity: e.name, description: e.description, repos: [r.repo] }))),
-        architecturePatterns: [],
-      };
-      fs.writeFileSync(path.join(KB_ROOT, "raw", "system-synthesis.json"), JSON.stringify(stub, null, 2), "utf8");
-      return stub;
-    }
-
-    const raw = await complete(
-      [
-        {
-          role: "user",
-          content: `You are analyzing ${repoSummaries.length} repositories that form a single software system. Based on the per-repo analyses below, produce a system-level synthesis.
-
-Return a JSON object with exactly these fields:
-
-{
-  "systemOverview": "2-3 paragraph description of what this system is, what business it serves, and how the repos work together.",
-  "serviceMap": [{ "repo": "name", "role": "what it does in the system", "communicatesWith": ["other-repo-names"] }],
-  "features": [{ "name": "feature name", "description": "what it does", "repos": ["repo1", "repo2"], "dataFlow": "describe the data flow for this feature" }],
-  "dataFlows": [{ "name": "flow name", "description": "end-to-end description", "steps": ["step1", "step2"] }],
-  "integrations": [{ "system": "external system name", "direction": "upstream|downstream|bidirectional", "protocol": "REST|messaging|etc", "repos": ["repo1"] }],
-  "dataModel": [{ "entity": "entity name", "description": "what it represents", "repos": ["repo1"] }],
-  "architecturePatterns": [{ "pattern": "pattern name", "description": "how it's used", "repos": ["repo1"] }]
-}
-
-Be thorough — identify ALL business features, data flows, and integrations. Cross-reference repos to show how they work together.
-
-Per-repo analyses:
-${JSON.stringify(repoSummaries, null, 2)}`,
-        },
-      ],
-      {
-        system: "You are a senior enterprise architect producing a system-level synthesis. Return valid JSON only — no markdown fences, no explanation outside the JSON.",
-        maxTokens: 8192,
-      }
-    );
-
-    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
-    const synthesis = JSON.parse(cleaned) as SystemSynthesis;
-
-    // Write to disk
-    fs.writeFileSync(
-      path.join(KB_ROOT, "raw", "system-synthesis.json"),
-      JSON.stringify(synthesis, null, 2),
-      "utf8"
-    );
-
-    return synthesis;
+    return runSynthesis(this.repoAnalyses);
   }
 
   // ── Save findings ─────────────────────────────────────────────
@@ -467,66 +574,94 @@ function selectKeyFiles(tree: string[]): string[] {
 
 // ─── Deep per-repo analysis ──────────────────────────────────────
 
+const DEEP_ANALYSIS_SCHEMA = {
+  type: "object",
+  required: ["purpose", "businessFeatures", "apis", "dependencies", "dataEntities", "messagingPatterns", "integrations", "architecturePatterns", "techStack", "findings"],
+  properties: {
+    purpose: { type: "string" },
+    businessFeatures: { type: "array", items: { type: "string" } },
+    apis: { type: "array", items: { type: "object", properties: { endpoint: { type: "string" }, method: { type: "string" }, purpose: { type: "string" } }, required: ["endpoint", "method", "purpose"] } },
+    dependencies: { type: "array", items: { type: "object", properties: { target: { type: "string" }, type: { type: "string" } }, required: ["target", "type"] } },
+    dataEntities: { type: "array", items: { type: "object", properties: { name: { type: "string" }, description: { type: "string" } }, required: ["name", "description"] } },
+    messagingPatterns: { type: "array", items: { type: "object", properties: { type: { type: "string" }, name: { type: "string" }, description: { type: "string" } }, required: ["type", "name", "description"] } },
+    integrations: { type: "array", items: { type: "object", properties: { system: { type: "string" }, direction: { type: "string" }, protocol: { type: "string" } }, required: ["system", "direction", "protocol"] } },
+    architecturePatterns: { type: "array", items: { type: "string" } },
+    techStack: { type: "array", items: { type: "string" } },
+    findings: { type: "array", items: { type: "object", properties: { severity: { type: "string" }, category: { type: "string" }, title: { type: "string" }, description: { type: "string" }, files: { type: "array", items: { type: "string" } } }, required: ["severity", "category", "title", "description"] } },
+    ambiguities: { type: "array", items: { type: "string" } },
+  },
+};
+
+const REPO_ANALYSIS_PROMPT = `Deeply analyze this repository. Read the key files to understand its purpose, business features, APIs, data entities, dependencies, integrations, and architecture patterns.
+
+Adapt your focus to the type of repository:
+- Infrastructure-as-code (Terraform, Bicep, ARM, Pulumi): focus on environments, deployed resources, networking topology, service-to-service wiring, secrets/config references.
+- UI/frontend (React, Angular, Vue, Blazor): focus on screens, user flows, forms, navigation, which API endpoints the UI calls, state management.
+- WebAPI/backend service (.NET controllers, Express routes, FastAPI): focus on endpoints, request/response contracts, downstream service calls, queue consumers/producers.
+- Database/migrations: focus on tables, columns, relationships, indexes, stored procedures, seed data.
+- Multi-purpose repos: identify ALL roles the repo serves.
+
+For ambiguities: list ONLY CONCRETE things referencing a specific service, config value, entity, or code reference by name. Examples:
+- "References 'VampireClient' in LoanController but the Vampire system's purpose and API contract are unknown"
+- "Config key 'GROOMING_THRESHOLD' is used in batch processing but its business meaning is unclear"
+Do NOT flag: vague questions, auth/authz, security, tech stack, CI/CD, compliance, team structure.
+
+Be thorough. Identify ALL business features, APIs, dependencies, data entities, messaging patterns, and external integrations visible in the code. Only include critical and high severity findings.`;
+
 async function deepAnalyzeRepo(
   repoName: string,
+  repoDir: string,
   fileTree: string[],
-  fileContents: Array<{ path: string; content: string }>
 ): Promise<DeepRepoAnalysis> {
-  if (!isAIAvailable()) {
-    return deepAnalyzeStub(repoName, fileTree);
+  // Prefer Claude CLI (no API Gateway timeout, can read files directly)
+  if (isClaudeCliAvailable()) {
+    try {
+      console.log(`[scan] Analyzing ${repoName} via Claude CLI (${fileTree.length} files)...`);
+      const result = await claudeExec<DeepRepoAnalysis>(REPO_ANALYSIS_PROMPT, {
+        jsonSchema: DEEP_ANALYSIS_SCHEMA,
+        addDirs: [repoDir],
+        model: "sonnet",
+        maxBudget: 0.50,
+        systemPrompt: "You are a senior software architect performing deep codebase analysis. Explore the repository using Read, Grep, and Glob tools to understand its structure and purpose.",
+        timeoutMs: 300_000, // 5 min per repo
+      });
+      return result;
+    } catch (err) {
+      console.error(`[scan] CLI analysis failed for ${repoName}:`, err instanceof Error ? err.message : err);
+      // Fall through to API or stub
+    }
   }
 
-  const fileListSection = fileTree.slice(0, 150).join("\n");
-  const fileContentSection = fileContents
-    .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-    .join("\n\n");
+  // Fallback: use API with file-stuffing approach
+  if (isApiAvailable()) {
+    try {
+      const fileListSection = fileTree.slice(0, 150).join("\n");
+      const fileContents = readLocalFiles(repoDir, selectKeyFiles(fileTree));
+      const fileContentSection = fileContents
+        .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+        .join("\n\n");
 
-  try {
-    const raw = await complete(
-      [
+      const raw = await complete(
+        [
+          {
+            role: "user",
+            content: `${REPO_ANALYSIS_PROMPT}\n\nRepository: ${repoName}\nTotal files: ${fileTree.length}\n\nFile tree (first 150):\n${fileListSection}\n\nKey file contents:\n${fileContentSection}`,
+          },
+        ],
         {
-          role: "user",
-          content: `Deeply analyze this repository and return a JSON object with exactly these fields:
+          system: "You are a senior software architect performing deep codebase analysis. Return valid JSON only — no markdown fences, no explanation outside the JSON.",
+          maxTokens: 4096,
+        }
+      );
 
-{
-  "purpose": "2-3 sentence description of what this repo does and its role in the larger system.",
-  "businessFeatures": ["feature1", "feature2"],
-  "apis": [{ "endpoint": "/api/...", "method": "GET|POST|...", "purpose": "what it does" }],
-  "dependencies": [{ "target": "other-repo-or-service-name", "type": "http|messaging|shared-lib|database" }],
-  "dataEntities": [{ "name": "EntityName", "description": "what it represents" }],
-  "messagingPatterns": [{ "type": "outbox|queue|topic|event", "name": "pattern name", "description": "what it does" }],
-  "integrations": [{ "system": "external system name", "direction": "upstream|downstream|bidirectional", "protocol": "REST|SOAP|messaging|file|etc" }],
-  "architecturePatterns": ["pattern1", "pattern2"],
-  "techStack": ["tech1", "tech2"],
-  "findings": [{ "severity": "critical|high", "category": "security|architecture|optimization|bug", "title": "short title", "description": "detailed explanation and recommended fix", "files": ["path/to/file"] }]
-}
-
-Be thorough. Identify ALL business features, APIs, dependencies on other services/repos, data entities, messaging patterns, and external integrations visible in the code. For dependencies, infer the target from service names, URLs, message types, or shared contract references.
-
-Only include critical and high severity findings. Return valid JSON only.
-
-Repository: ${repoName}
-Total files: ${fileTree.length}
-
-File tree (first 150):
-${fileListSection}
-
-Key file contents:
-${fileContentSection}`,
-        },
-      ],
-      {
-        system: "You are a senior software architect performing deep codebase analysis. Return valid JSON only — no markdown fences, no explanation outside the JSON. Be thorough in identifying business logic, integrations, and dependencies.",
-        maxTokens: 4096,
-      }
-    );
-
-    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
-    return JSON.parse(cleaned) as DeepRepoAnalysis;
-  } catch (err) {
-    console.error(`[scan] Deep analysis failed for ${repoName}, falling back to stub:`, err);
-    return deepAnalyzeStub(repoName, fileTree);
+      const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
+      return JSON.parse(cleaned) as DeepRepoAnalysis;
+    } catch (err) {
+      console.error(`[scan] API analysis failed for ${repoName}, falling back to stub:`, err);
+    }
   }
+
+  return deepAnalyzeStub(repoName, fileTree);
 }
 
 function deepAnalyzeStub(repoName: string, fileTree: string[]): DeepRepoAnalysis {
@@ -554,16 +689,203 @@ function deepAnalyzeStub(repoName: string, fileTree: string[]): DeepRepoAnalysis
     architecturePatterns: [],
     techStack,
     findings: [],
+    ambiguities: [],
   };
+}
+
+// ─── Synthesis (reusable — called during scan and after interview) ──
+
+const cleanJson = (s: string) => s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
+
+const SYNTHESIS_SCHEMA = {
+  type: "object",
+  required: ["systemOverview", "serviceMap", "features", "dataFlows", "integrations", "dataModel", "architecturePatterns"],
+  properties: {
+    systemOverview: { type: "string" },
+    serviceMap: { type: "array", items: { type: "object", properties: { repo: { type: "string" }, role: { type: "string" }, communicatesWith: { type: "array", items: { type: "string" } } }, required: ["repo", "role", "communicatesWith"] } },
+    features: { type: "array", items: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, repos: { type: "array", items: { type: "string" } }, dataFlow: { type: "string" } }, required: ["name", "description", "repos", "dataFlow"] } },
+    dataFlows: { type: "array", items: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, steps: { type: "array", items: { type: "string" } } }, required: ["name", "description", "steps"] } },
+    integrations: { type: "array", items: { type: "object", properties: { system: { type: "string" }, direction: { type: "string" }, protocol: { type: "string" }, repos: { type: "array", items: { type: "string" } } }, required: ["system", "direction", "protocol", "repos"] } },
+    dataModel: { type: "array", items: { type: "object", properties: { entity: { type: "string" }, description: { type: "string" }, repos: { type: "array", items: { type: "string" } } }, required: ["entity", "description", "repos"] } },
+    architecturePatterns: { type: "array", items: { type: "object", properties: { pattern: { type: "string" }, description: { type: "string" }, repos: { type: "array", items: { type: "string" } } }, required: ["pattern", "description", "repos"] } },
+    ambiguities: { type: "array", items: { type: "string" } },
+  },
+};
+
+export async function runSynthesis(
+  repoAnalyses: Map<string, DeepRepoAnalysis>,
+  interviewTranscript?: string,
+): Promise<SystemSynthesis | null> {
+  if (repoAnalyses.size === 0) return null;
+
+  const rawDir = path.join(KB_ROOT, "raw");
+
+  const interviewSection = interviewTranscript
+    ? `\n\nAdditional context from user interview (takes precedence over inferences from code):\n${interviewTranscript}`
+    : "";
+
+  const synthesisPrompt = `Read all the analysis.json files in the subdirectories of the raw/ folder. Each subdirectory is a repository analysis. Cross-reference all repositories to produce a system-level synthesis.
+
+Identify:
+- System overview: what the system does, its business purpose, how repos work together
+- Service map: each repo's role and which other repos it communicates with
+- Business features: end-to-end features spanning multiple repos, with data flow descriptions
+- Data flows: major end-to-end data flows through the system
+- Integrations: external systems the system communicates with
+- Data model: shared entities across repos
+- Architecture patterns: patterns used across the system
+
+For ambiguities: ONLY flag CONCRETE gaps with specific references. Examples of GOOD ambiguities:
+- "[repo-name] References 'VampireClient' but the Vampire system's purpose is unknown"
+- "[repo-name] Config 'GROOMING_THRESHOLD' has unclear business meaning"
+Examples of BAD ambiguities (do NOT include):
+- "How pricing decisions are made" (too vague)
+- "Authentication model" (visible in code)
+Do NOT flag: auth/authz, security, tech stack, CI/CD, compliance, team structure.${interviewSection}`;
+
+  // Prefer Claude CLI (single session, reads files directly, no timeout)
+  if (isClaudeCliAvailable()) {
+    try {
+      console.log(`[synthesis] Running via Claude CLI (${repoAnalyses.size} repos)...`);
+      const synthesis = await claudeExec<SystemSynthesis>(synthesisPrompt, {
+        jsonSchema: SYNTHESIS_SCHEMA,
+        addDirs: [rawDir],
+        model: "sonnet",
+        maxBudget: 1.00,
+        systemPrompt: "You are a senior enterprise architect producing a system-level synthesis. Read the analysis.json files using the Read tool to understand each repository before synthesizing.",
+        timeoutMs: 600_000, // 10 min for full synthesis
+      });
+
+      fs.writeFileSync(
+        path.join(rawDir, "system-synthesis.json"),
+        JSON.stringify(synthesis, null, 2),
+        "utf8"
+      );
+
+      console.log(`[synthesis] Complete: ${synthesis.features?.length ?? 0} features, ${synthesis.dataFlows?.length ?? 0} flows, ${synthesis.ambiguities?.length ?? 0} ambiguities`);
+      return synthesis;
+    } catch (err) {
+      console.error("[synthesis] CLI synthesis failed:", err instanceof Error ? err.message : err);
+      // Fall through to API fallback
+    }
+  }
+
+  // Fallback: API-based synthesis (compact payload for gateway timeout)
+  if (isApiAvailable()) {
+    const repoSummaries = Array.from(repoAnalyses.entries()).map(([name, a]) => ({
+      repo: name,
+      purpose: a.purpose,
+      features: a.businessFeatures,
+      dependsOn: a.dependencies.map((d) => d.target),
+      entities: a.dataEntities.map((e) => e.name),
+      integrations: a.integrations.map((i) => i.system),
+      ambiguities: a.ambiguities ?? [],
+    }));
+
+    try {
+      const raw = await complete(
+        [
+          {
+            role: "user",
+            content: `${synthesisPrompt}\n\nRepo summaries:\n${JSON.stringify(repoSummaries)}`,
+          },
+        ],
+        {
+          system: "You are a senior enterprise architect. Return valid JSON only — no markdown fences. Be concise.",
+          maxTokens: 4096,
+        }
+      );
+      const synthesis = JSON.parse(cleanJson(raw)) as SystemSynthesis;
+      fs.writeFileSync(path.join(rawDir, "system-synthesis.json"), JSON.stringify(synthesis, null, 2), "utf8");
+      return synthesis;
+    } catch (err) {
+      console.error("[synthesis] API synthesis failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Stub fallback
+  const stub: SystemSynthesis = {
+    systemOverview: `System with ${repoAnalyses.size} repositories.`,
+    serviceMap: Array.from(repoAnalyses.entries()).map(([name, a]) => ({
+      repo: name,
+      role: a.purpose,
+      communicatesWith: a.dependencies.map((d) => d.target),
+    })),
+    features: Array.from(repoAnalyses.entries()).flatMap(([name, a]) =>
+      a.businessFeatures.map((f) => ({ name: f, description: "", repos: [name], dataFlow: "" }))
+    ),
+    dataFlows: [],
+    integrations: Array.from(repoAnalyses.entries()).flatMap(([name, a]) =>
+      a.integrations.map((i) => ({ ...i, repos: [name] }))
+    ),
+    dataModel: Array.from(repoAnalyses.entries()).flatMap(([name, a]) =>
+      a.dataEntities.map((e) => ({ entity: e.name, description: e.description, repos: [name] }))
+    ),
+    architecturePatterns: [],
+    ambiguities: Array.from(repoAnalyses.entries()).flatMap(([name, a]) =>
+      (a.ambiguities ?? []).map((amb) => `[${name}] ${amb}`)
+    ),
+  };
+  fs.writeFileSync(path.join(rawDir, "system-synthesis.json"), JSON.stringify(stub, null, 2), "utf8");
+  return stub;
+}
+
+// ─── Load repo analyses from disk (for re-synthesis after interview) ──
+
+export function loadRepoAnalyses(): Map<string, DeepRepoAnalysis> {
+  const analyses = new Map<string, DeepRepoAnalysis>();
+  const rawDir = path.join(KB_ROOT, "raw");
+  if (!fs.existsSync(rawDir)) return analyses;
+
+  for (const entry of fs.readdirSync(rawDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const jsonPath = path.join(rawDir, entry.name, "analysis.json");
+    if (!fs.existsSync(jsonPath)) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+      const { _headHash, ...analysis } = raw;
+      analyses.set(entry.name, analysis as DeepRepoAnalysis);
+    } catch { /* skip */ }
+  }
+
+  return analyses;
+}
+
+// ─── Cache helpers ──────────────────────────────────────────────
+
+async function getRepoHeadHash(repoDir: string): Promise<string | undefined> {
+  try {
+    const hash = await gitExec(["rev-parse", "HEAD"], { timeout: 5000, cwd: repoDir });
+    return hash.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function loadCachedAnalysis(kbDir: string, headHash: string): DeepRepoAnalysis | null {
+  try {
+    const jsonPath = path.join(kbDir, "analysis.json");
+    if (!fs.existsSync(jsonPath)) return null;
+    const raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+    if (raw._headHash !== headHash) return null;
+    // Reject stubs — they need re-analysis with Claude
+    if (typeof raw.purpose === "string" && raw.purpose.includes("(Stub —")) return null;
+    // Strip the cache key before returning
+    const { _headHash, ...analysis } = raw;
+    return analysis as DeepRepoAnalysis;
+  } catch {
+    return null;
+  }
 }
 
 // ─── KB file writing ─────────────────────────────────────────────
 
-function writeRepoAnalysis(kbDir: string, repoName: string, analysis: DeepRepoAnalysis): void {
-  // Write structured JSON
+function writeRepoAnalysis(kbDir: string, repoName: string, analysis: DeepRepoAnalysis, headHash?: string): void {
+  // Write structured JSON (include HEAD hash for cache validation)
+  const payload = headHash ? { _headHash: headHash, ...analysis } : analysis;
   fs.writeFileSync(
     path.join(kbDir, "analysis.json"),
-    JSON.stringify(analysis, null, 2),
+    JSON.stringify(payload, null, 2),
     "utf8"
   );
 

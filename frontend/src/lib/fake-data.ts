@@ -5,8 +5,6 @@ export type WorkflowPhase =
   | "plan"
   | "design"
   | "implement"
-  | "create-pr"
-  | "review"
   | "done";
 
 export const PHASE_LABELS: Record<WorkflowPhase, string> = {
@@ -14,8 +12,6 @@ export const PHASE_LABELS: Record<WorkflowPhase, string> = {
   plan: "Plan",
   design: "Design",
   implement: "Implement & Test",
-  "create-pr": "Create PR",
-  review: "Review",
   done: "Done",
 };
 
@@ -24,8 +20,6 @@ export const PHASE_COLORS: Record<WorkflowPhase, string> = {
   plan: "bg-violet/20 text-violet border-violet/30",
   design: "bg-amber/20 text-amber border-amber/30",
   implement: "bg-emerald/20 text-emerald border-emerald/30",
-  "create-pr": "bg-sky/20 text-sky border-sky/30",
-  review: "bg-rose/20 text-rose border-rose/30",
   done: "bg-muted text-muted-foreground border-border",
 };
 
@@ -34,8 +28,6 @@ export const PHASE_DOT_COLORS: Record<WorkflowPhase, string> = {
   plan: "bg-violet",
   design: "bg-amber",
   implement: "bg-emerald",
-  "create-pr": "bg-sky",
-  review: "bg-rose",
   done: "bg-muted-foreground",
 };
 
@@ -210,7 +202,7 @@ export const FAKE_TICKETS: Ticket[] = [
     jiraKey: "FIN-121",
     title: "Update Stripe SDK to v15 for PCI compliance",
     type: "task",
-    phase: "create-pr",
+    phase: "implement",
     priority: "critical",
     assignee: "Mike R.",
     description:
@@ -221,7 +213,7 @@ export const FAKE_TICKETS: Ticket[] = [
     jiraKey: "FIN-118",
     title: "Add rate limiting to public payment API",
     type: "story",
-    phase: "review",
+    phase: "implement",
     priority: "high",
     assignee: "Alex T.",
     description:

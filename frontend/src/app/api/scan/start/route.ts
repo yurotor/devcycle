@@ -94,16 +94,9 @@ async function runScanInBackground(workspaceId: number, jobId: number): Promise<
           : "analyzing";
       const progress = phase === "synthesizing" ? 85 : phase === "compiling" ? 95 : undefined;
       updateJob({ phase, progress }).catch(console.error);
-    } else if (scanEvent.type === "success" && scanEvent.message.includes("Done")) {
-      // Repo completed — estimate progress from message pattern [X/Y]
-      const match = scanEvent.message.match(/\[(\d+)\/(\d+)\]/);
-      if (match) {
-        const done = parseInt(match[1], 10);
-        const total = parseInt(match[2], 10);
-        if (total > 0) {
-          updateJob({ progress: Math.round((done / total) * 85) }).catch(console.error);
-        }
-      }
+    } else if (scanEvent.progress !== undefined) {
+      // Use engine-computed progress (includes sub-repo steps)
+      updateJob({ progress: scanEvent.progress }).catch(console.error);
     }
     if (scanEvent.type === "warning" && scanEvent.message.includes("Error")) {
       failCount++;

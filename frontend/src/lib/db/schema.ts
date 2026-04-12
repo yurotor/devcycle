@@ -128,6 +128,20 @@ export const interviewNotes = sqliteTable("interview_notes", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ─── Review Comments ─────────────────────────────────────────────
+
+export const reviewComments = sqliteTable("review_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: integer("task_id").notNull(),
+  file: text("file").notNull(),
+  line: integer("line").notNull(),
+  content: text("content").notNull(),
+  priority: text("priority").notNull(), // 'critical' | 'suggestion' | 'nit'
+  author: text("author").notNull(), // 'ai' | 'user'
+  status: text("status").notNull().default("open"), // 'open' | 'done' | 'deleted'
+  createdAt: integer("created_at").notNull(),
+});
+
 // ─── Chat Messages ────────────────────────────────────────────────
 
 export const chatMessages = sqliteTable("chat_messages", {

@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { complete, isAIAvailable } from "@/lib/anthropic";
-import type { DeepRepoAnalysis, SystemSynthesis } from "@/lib/scan/engine";
+import type { DeepRepoAnalysis, SystemSynthesis, ClusterAnalysis, BusinessFlowAnalysis } from "@/lib/scan/engine";
 
 const KB_ROOT = path.join(process.cwd(), "..", "kb");
 const RAW_DIR = path.join(KB_ROOT, "raw");
@@ -41,6 +41,8 @@ export async function compileKnowledgeBase(): Promise<{ repos: number; wikiFiles
   const synthesis = loadSynthesis();
   const repoAnalyses = loadRepoAnalyses();
   const repoNames = Array.from(repoAnalyses.keys());
+  const clusterAnalyses = loadClusterAnalyses();
+  const flowAnalyses = loadFlowAnalyses();
 
   // Build all pages
   const pages: WikiPage[] = [];
@@ -49,17 +51,23 @@ export async function compileKnowledgeBase(): Promise<{ repos: number; wikiFiles
   // 1. Architecture pages
   pages.push(...generateArchitecturePages(synthesis, repoNames));
 
-  // 2. Feature pages
-  const featurePages = await generateFeaturePages(synthesis, repoAnalyses);
+  // 2. Business flow pages (primary navigation)
+  pages.push(...generateFlowPages(flowAnalyses, synthesis));
+
+  // 3. Cluster pages
+  pages.push(...generateClusterPages(clusterAnalyses));
+
+  // 4. Feature pages (derived from flows if available, otherwise from synthesis)
+  const featurePages = await generateFeaturePages(synthesis, repoAnalyses, flowAnalyses);
   pages.push(...featurePages);
 
-  // 3. Integration pages
+  // 5. Integration pages
   pages.push(...generateIntegrationPages(synthesis, repoAnalyses));
 
-  // 4. Data model pages
-  pages.push(...generateDataModelPages(synthesis, repoAnalyses));
+  // 6. Data model pages (enriched from clusters)
+  pages.push(...generateDataModelPages(synthesis, repoAnalyses, clusterAnalyses));
 
-  // 5. Per-repo reference pages
+  // 7. Per-repo reference pages
   pages.push(...generateRepoPages(repoAnalyses, synthesis));
 
   // Build manifest
@@ -110,6 +118,32 @@ function loadRepoAnalyses(): Map<string, DeepRepoAnalysis> {
     }
   }
   return map;
+}
+
+function loadClusterAnalyses(): ClusterAnalysis[] {
+  const dir = path.join(RAW_DIR, "clusters");
+  if (!fs.existsSync(dir)) return [];
+  const results: ClusterAnalysis[] = [];
+  for (const file of fs.readdirSync(dir)) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      results.push(JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")) as ClusterAnalysis);
+    } catch { /* skip corrupt files */ }
+  }
+  return results;
+}
+
+function loadFlowAnalyses(): BusinessFlowAnalysis[] {
+  const dir = path.join(RAW_DIR, "flows");
+  if (!fs.existsSync(dir)) return [];
+  const results: BusinessFlowAnalysis[] = [];
+  for (const file of fs.readdirSync(dir)) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      results.push(JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")) as BusinessFlowAnalysis);
+    } catch { /* skip corrupt files */ }
+  }
+  return results;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -219,11 +253,111 @@ function generateArchitecturePages(synthesis: SystemSynthesis | null, repoNames:
   return pages;
 }
 
+// ─── Flow pages (primary navigation) ────────────────────────────
+
+function generateFlowPages(flows: BusinessFlowAnalysis[], synthesis: SystemSynthesis | null): WikiPage[] {
+  const pages: WikiPage[] = [];
+
+  if (flows.length === 0) {
+    // Fallback: generate from synthesis features if no flow analyses exist
+    return pages;
+  }
+
+  for (const flow of flows) {
+    const flowSlug = slug(flow.flowName);
+    const repoLinks = flow.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+    const entityLinks = flow.entities.map((e) => `[${e}](../data-model/entities.md)`).join(", ");
+
+    const steps = flow.steps.length > 0
+      ? flow.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")
+      : "*No steps documented.*";
+
+    const content = [
+      `# ${flow.flowName}`,
+      "",
+      flow.description || "*No description available.*",
+      "",
+      "## Steps",
+      "",
+      steps,
+      "",
+      "## Repos Involved",
+      "",
+      repoLinks,
+      "",
+      ...(flow.entities.length > 0 ? ["## Data Entities", "", entityLinks, ""] : []),
+      ...(flow.externalSystems.length > 0 ? ["## External Systems", "", ...flow.externalSystems.map((s) => `- ${s}`), ""] : []),
+      ...(flow.ambiguities.length > 0 ? ["## Open Questions", "", ...flow.ambiguities.map((a) => `- ${a}`), ""] : []),
+      "---",
+      "",
+      `> See also: [System Overview](../architecture/system-overview.md) | [Data Model](../data-model/entities.md)`,
+      "",
+      `*Generated: ${new Date().toISOString()}*`,
+    ].join("\n");
+
+    pages.push({ title: flow.flowName, path: `flows/${flowSlug}.md`, content });
+  }
+
+  return pages;
+}
+
+// ─── Cluster pages ──────────────────────────────────────────────
+
+function generateClusterPages(clusters: ClusterAnalysis[]): WikiPage[] {
+  const pages: WikiPage[] = [];
+
+  for (const cluster of clusters) {
+    const clusterSlug = slug(cluster.clusterName);
+
+    const entitySections = cluster.sharedEntities.map((e) => {
+      const repos = e.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+      return `- **${e.entity}** — ${e.description} (${repos})`;
+    });
+
+    const flowSections = cluster.dataFlows.map((f) => {
+      const steps = f.steps.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
+      return `### ${f.name}\n\n${f.description}\n\n${steps}`;
+    });
+
+    const integrationSections = cluster.integrationPoints.map((ip) =>
+      `- **[${ip.from}](../repos/${slug(ip.from)}.md)** → **[${ip.to}](../repos/${slug(ip.to)}.md)** via ${ip.mechanism}: ${ip.description}`
+    );
+
+    const content = [
+      `# ${cluster.clusterName}`,
+      "",
+      ...(entitySections.length > 0 ? ["## Shared Entities", "", ...entitySections, ""] : []),
+      ...(flowSections.length > 0 ? ["## Data Flows", "", ...flowSections, ""] : []),
+      ...(integrationSections.length > 0 ? ["## Integration Points", "", ...integrationSections, ""] : []),
+      ...(cluster.patterns.length > 0 ? [
+        "## Patterns",
+        "",
+        ...cluster.patterns.map((p) => {
+          const repos = p.repos.map((r) => `[${r}](../repos/${slug(r)}.md)`).join(", ");
+          return `- **${p.pattern}** — ${p.description} (${repos})`;
+        }),
+        "",
+      ] : []),
+      ...(cluster.ambiguities.length > 0 ? ["## Open Questions", "", ...cluster.ambiguities.map((a) => `- ${a}`), ""] : []),
+      "---",
+      "",
+      `> See also: [System Overview](../architecture/system-overview.md)`,
+      "",
+      `*Generated: ${new Date().toISOString()}*`,
+    ].join("\n");
+
+    pages.push({ title: cluster.clusterName, path: `clusters/${clusterSlug}.md`, content });
+  }
+
+  return pages;
+}
+
 // ─── Feature pages ───────────────────────────────────────────────
 
 async function generateFeaturePages(
   synthesis: SystemSynthesis | null,
-  repoAnalyses: Map<string, DeepRepoAnalysis>
+  repoAnalyses: Map<string, DeepRepoAnalysis>,
+  flowAnalyses?: BusinessFlowAnalysis[],
 ): Promise<WikiPage[]> {
   const features = synthesis?.features ?? [];
   if (features.length === 0) {
@@ -373,9 +507,23 @@ function generateIntegrationPages(
 
 function generateDataModelPages(
   synthesis: SystemSynthesis | null,
-  repoAnalyses: Map<string, DeepRepoAnalysis>
+  repoAnalyses: Map<string, DeepRepoAnalysis>,
+  clusterAnalyses?: ClusterAnalysis[],
 ): WikiPage[] {
   const entities = synthesis?.dataModel ?? [];
+
+  // Enrich from cluster shared entities
+  if (clusterAnalyses && clusterAnalyses.length > 0) {
+    const seen = new Set(entities.map((e) => e.entity.toLowerCase()));
+    for (const cluster of clusterAnalyses) {
+      for (const e of cluster.sharedEntities) {
+        if (!seen.has(e.entity.toLowerCase())) {
+          seen.add(e.entity.toLowerCase());
+          entities.push({ entity: e.entity, description: e.description, repos: e.repos });
+        }
+      }
+    }
+  }
 
   // Fallback: collect from repos
   if (entities.length === 0) {
@@ -554,6 +702,8 @@ function writeIndex(pages: WikiPage[]): void {
 
   const sectionLabels: Record<string, string> = {
     architecture: "Architecture",
+    flows: "Business Flows",
+    clusters: "Functional Clusters",
     features: "Features",
     integrations: "Integrations",
     "data-model": "Data Model",
@@ -594,6 +744,8 @@ function writeClaudeMd(
     "## Wiki Sections",
     "",
     "- [Architecture](wiki/architecture/system-overview.md) — system overview, service map, data flows, patterns",
+    "- [Business Flows](wiki/flows/) — end-to-end business flow documentation",
+    "- [Functional Clusters](wiki/clusters/) — cross-repo cluster analysis",
     "- [Features](wiki/features/) — business feature documentation",
     "- [Integrations](wiki/integrations/overview.md) — external system integrations",
     "- [Data Model](wiki/data-model/entities.md) — consolidated entity documentation",

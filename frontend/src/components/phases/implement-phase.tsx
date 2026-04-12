@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Play,
   Loader2,
@@ -18,6 +19,14 @@ import {
   FileCode,
   Plus,
   Minus,
+  MessageSquare,
+  Wrench,
+  Check,
+  Trash2,
+  AlertTriangle,
+  Lightbulb,
+  MinusCircle,
+  Send,
 } from "lucide-react";
 import { type Ticket } from "@/lib/fake-data";
 
@@ -46,6 +55,17 @@ interface FileDiff {
   hunks: { oldStart: number; newStart: number; lines: string[] }[];
 }
 
+interface ReviewComment {
+  id: number;
+  taskId: number;
+  file: string;
+  line: number;
+  content: string;
+  priority: "critical" | "suggestion" | "nit";
+  author: "ai" | "user";
+  status: "open" | "done" | "deleted";
+}
+
 interface ImplementPhaseProps {
   ticket: Ticket;
   onComplete: () => void;
@@ -62,6 +82,14 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const [diffs, setDiffs] = useState<FileDiff[]>([]);
   const [loadingDiffs, setLoadingDiffs] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+
+  // Review state
+  const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
+  const [runningReview, setRunningReview] = useState(false);
+  const [reviewRan, setReviewRan] = useState(false);
+  const [addingCommentLine, setAddingCommentLine] = useState<{ file: string; line: number } | null>(null);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [fixingCommentId, setFixingCommentId] = useState<number | null>(null);
 
   const loadTasks = async () => {
     const res = await fetch(`/api/tickets/${ticket.id}/tasks`);
@@ -173,18 +201,96 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     setViewingTask(task);
     setSelectedFile(null);
     setLoadingDiffs(true);
+    setReviewComments([]);
+    setReviewRan(false);
+    setAddingCommentLine(null);
+    setNewCommentText("");
     try {
-      const res = await fetch(
-        `/api/tickets/${ticket.id}/implement?action=diff&taskId=${task.id}`
-      );
-      const data = await res.json();
-      const files = data.files ?? [];
+      const [diffRes, reviewRes] = await Promise.all([
+        fetch(`/api/tickets/${ticket.id}/implement?action=diff&taskId=${task.id}`),
+        fetch(`/api/tickets/${ticket.id}/review?taskId=${task.id}`),
+      ]);
+      const diffData = await diffRes.json();
+      const reviewData = await reviewRes.json();
+      const files = diffData.files ?? [];
       setDiffs(files);
       if (files.length > 0) setSelectedFile(files[0].path);
+      const comments = (reviewData.comments ?? []).filter((c: ReviewComment) => c.status !== "deleted");
+      setReviewComments(comments);
+      if (comments.length > 0) setReviewRan(true);
     } catch {
       setDiffs([]);
     } finally {
       setLoadingDiffs(false);
+    }
+  };
+
+  // ── Review actions ──────────────────────────────────────────
+
+  const runReview = async () => {
+    if (!viewingTask) return;
+    setRunningReview(true);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run-review", taskId: viewingTask.id }),
+      });
+      const data = await res.json();
+      setReviewComments(data.comments ?? []);
+      setReviewRan(true);
+    } finally {
+      setRunningReview(false);
+    }
+  };
+
+  const addUserComment = async () => {
+    if (!viewingTask || !addingCommentLine || !newCommentText.trim()) return;
+    const res = await fetch(`/api/tickets/${ticket.id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add-comment",
+        taskId: viewingTask.id,
+        file: addingCommentLine.file,
+        line: addingCommentLine.line,
+        content: newCommentText.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.comment) {
+      setReviewComments((prev) => [...prev, data.comment]);
+    }
+    setAddingCommentLine(null);
+    setNewCommentText("");
+  };
+
+  const updateCommentStatus = async (commentId: number, status: "done" | "deleted") => {
+    await fetch(`/api/tickets/${ticket.id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update-comment", commentId, status }),
+    });
+    setReviewComments((prev) =>
+      status === "deleted"
+        ? prev.filter((c) => c.id !== commentId)
+        : prev.map((c) => (c.id === commentId ? { ...c, status } : c))
+    );
+  };
+
+  const fixThis = async (commentId: number) => {
+    setFixingCommentId(commentId);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "fix-this", commentId }),
+      });
+      setReviewComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, status: "done" as const } : c))
+      );
+    } finally {
+      setFixingCommentId(null);
     }
   };
 
@@ -203,6 +309,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     (t) => t.status === "done" || t.implementedManually
   );
   const allDone = allTasks.length > 0 && doneTasks.length === allTasks.length;
+  const allPRsCreated = allDone && doneTasks.every((t) => t.prUrl);
 
   const isTaskDone = (task: TaskRow) =>
     task.status === "done" || !!task.implementedManually;
@@ -276,8 +383,24 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                       : "Changes review"}
                     {diffs.length > 0 &&
                       ` — ${diffs.length} file${diffs.length > 1 ? "s" : ""} changed`}
+                    {reviewComments.filter((c) => c.status === "open").length > 0 &&
+                      ` · ${reviewComments.filter((c) => c.status === "open").length} open comment${reviewComments.filter((c) => c.status === "open").length > 1 ? "s" : ""}`}
                   </p>
                 </div>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  variant={reviewRan ? "outline" : "default"}
+                  onClick={runReview}
+                  disabled={runningReview || diffs.length === 0}
+                >
+                  {runningReview ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <MessageSquare className="w-3 h-3" />
+                  )}
+                  {reviewRan ? "Re-run Review" : "Run Review"}
+                </Button>
                 <button
                   onClick={() => setViewingTask(null)}
                   className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -377,41 +500,173 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                                       const type = line[0];
                                       let ln1 = "";
                                       let ln2 = "";
+                                      let currentLine = 0;
                                       if (type === "-") {
-                                        ln1 = String(oldLine++);
+                                        ln1 = String(oldLine);
+                                        currentLine = oldLine++;
                                       } else if (type === "+") {
-                                        ln2 = String(newLine++);
+                                        ln2 = String(newLine);
+                                        currentLine = newLine++;
                                       } else {
                                         ln1 = String(oldLine++);
-                                        ln2 = String(newLine++);
+                                        ln2 = String(newLine);
+                                        currentLine = newLine++;
                                       }
+
+                                      // Find comments pinned to this line in this file
+                                      const lineComments = reviewComments.filter(
+                                        (c) => c.file === activeFile.path && c.line === currentLine && c.status !== "deleted"
+                                      );
+                                      const isAddingHere =
+                                        addingCommentLine?.file === activeFile.path &&
+                                        addingCommentLine?.line === currentLine;
+
                                       return (
-                                        <div
-                                          key={li}
-                                          className={`flex ${
-                                            type === "+"
-                                              ? "bg-emerald/8"
-                                              : type === "-"
-                                              ? "bg-rose/8"
-                                              : ""
-                                          }`}
-                                        >
-                                          <span className="w-10 shrink-0 text-right pr-1 select-none text-muted-foreground/30 border-r border-border/20">
-                                            {ln1}
-                                          </span>
-                                          <span className="w-10 shrink-0 text-right pr-1 select-none text-muted-foreground/30 border-r border-border/20">
-                                            {ln2}
-                                          </span>
-                                          <span className={`w-5 shrink-0 text-center select-none ${
-                                            type === "+" ? "text-emerald" : type === "-" ? "text-rose" : "text-transparent"
-                                          }`}>
-                                            {type === "+" ? "+" : type === "-" ? "−" : " "}
-                                          </span>
-                                          <span className={`whitespace-pre-wrap break-all px-2 ${
-                                            type === "+" ? "text-emerald" : type === "-" ? "text-rose" : "text-muted-foreground"
-                                          }`}>
-                                            {line.slice(1)}
-                                          </span>
+                                        <div key={li}>
+                                          {/* Diff line */}
+                                          <div
+                                            className={`group flex cursor-pointer ${
+                                              type === "+"
+                                                ? "bg-emerald/8"
+                                                : type === "-"
+                                                ? "bg-rose/8"
+                                                : ""
+                                            } ${lineComments.length > 0 ? "border-l-2 border-l-violet/50" : ""}`}
+                                            onClick={() => {
+                                              setAddingCommentLine({ file: activeFile.path, line: currentLine });
+                                              setNewCommentText("");
+                                            }}
+                                          >
+                                            {/* Comment indicator */}
+                                            <span className="w-5 shrink-0 flex items-center justify-center">
+                                              {lineComments.length > 0 ? (
+                                                <MessageSquare className="w-2.5 h-2.5 text-violet" />
+                                              ) : (
+                                                <Plus className="w-2.5 h-2.5 text-transparent group-hover:text-muted-foreground/40" />
+                                              )}
+                                            </span>
+                                            <span className="w-10 shrink-0 text-right pr-1 select-none text-muted-foreground/30 border-r border-border/20">
+                                              {ln1}
+                                            </span>
+                                            <span className="w-10 shrink-0 text-right pr-1 select-none text-muted-foreground/30 border-r border-border/20">
+                                              {ln2}
+                                            </span>
+                                            <span className={`w-5 shrink-0 text-center select-none ${
+                                              type === "+" ? "text-emerald" : type === "-" ? "text-rose" : "text-transparent"
+                                            }`}>
+                                              {type === "+" ? "+" : type === "-" ? "−" : " "}
+                                            </span>
+                                            <span className={`whitespace-pre-wrap break-all px-2 ${
+                                              type === "+" ? "text-emerald" : type === "-" ? "text-rose" : "text-muted-foreground"
+                                            }`}>
+                                              {line.slice(1)}
+                                            </span>
+                                          </div>
+
+                                          {/* Inline comments for this line */}
+                                          {lineComments.map((comment) => (
+                                            <div
+                                              key={comment.id}
+                                              className={`ml-5 mr-4 my-1 rounded-lg border text-xs font-sans ${
+                                                comment.status === "done"
+                                                  ? "bg-muted/50 border-border/50 opacity-60"
+                                                  : comment.priority === "critical"
+                                                  ? "bg-rose/5 border-rose/20"
+                                                  : comment.priority === "suggestion"
+                                                  ? "bg-amber/5 border-amber/20"
+                                                  : "bg-muted/30 border-border"
+                                              }`}
+                                            >
+                                              <div className="px-3 py-2 flex items-start gap-2">
+                                                <span className="shrink-0 mt-0.5">
+                                                  {comment.priority === "critical" ? (
+                                                    <AlertTriangle className="w-3 h-3 text-rose" />
+                                                  ) : comment.priority === "suggestion" ? (
+                                                    <Lightbulb className="w-3 h-3 text-amber" />
+                                                  ) : (
+                                                    <MinusCircle className="w-3 h-3 text-muted-foreground" />
+                                                  )}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <span className="font-medium text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                      {comment.author === "ai" ? "AI Review" : "You"}
+                                                    </span>
+                                                    {comment.status === "done" && (
+                                                      <span className="text-[10px] text-emerald">✓ resolved</span>
+                                                    )}
+                                                  </div>
+                                                  <p className="text-foreground/80 leading-relaxed">{comment.content}</p>
+                                                </div>
+                                                {comment.status === "open" && (
+                                                  <div className="flex items-center gap-0.5 shrink-0">
+                                                    <button
+                                                      onClick={(e) => { e.stopPropagation(); fixThis(comment.id); }}
+                                                      disabled={fixingCommentId === comment.id}
+                                                      className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-violet hover:bg-violet/10 transition-colors"
+                                                      title="Fix this"
+                                                    >
+                                                      {fixingCommentId === comment.id ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                      ) : (
+                                                        <Wrench className="w-3 h-3" />
+                                                      )}
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => { e.stopPropagation(); updateCommentStatus(comment.id, "done"); }}
+                                                      className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-emerald hover:bg-emerald/10 transition-colors"
+                                                      title="Mark as done"
+                                                    >
+                                                      <Check className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => { e.stopPropagation(); updateCommentStatus(comment.id, "deleted"); }}
+                                                      className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-rose hover:bg-rose/10 transition-colors"
+                                                      title="Delete"
+                                                    >
+                                                      <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+
+                                          {/* Add comment form */}
+                                          {isAddingHere && (
+                                            <div className="ml-5 mr-4 my-1 rounded-lg border border-violet/30 bg-violet/5 p-2 font-sans">
+                                              <Textarea
+                                                autoFocus
+                                                value={newCommentText}
+                                                onChange={(e) => setNewCommentText(e.target.value)}
+                                                placeholder="Add a comment..."
+                                                className="min-h-[60px] text-xs bg-background/50 border-border resize-none"
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Escape") setAddingCommentLine(null);
+                                                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addUserComment();
+                                                }}
+                                              />
+                                              <div className="flex justify-end gap-1.5 mt-1.5">
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-6 text-[11px] px-2"
+                                                  onClick={() => setAddingCommentLine(null)}
+                                                >
+                                                  Cancel
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  className="h-6 text-[11px] px-2 gap-1"
+                                                  onClick={addUserComment}
+                                                  disabled={!newCommentText.trim()}
+                                                >
+                                                  <Send className="w-2.5 h-2.5" />
+                                                  Comment
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -606,16 +861,19 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald" />
               <span className="text-sm text-emerald">
-                All tasks implemented
+                {allPRsCreated
+                  ? "All tasks implemented and PRs created"
+                  : "All tasks implemented — create PRs to complete"}
               </span>
             </div>
             <Button
               size="sm"
               className="h-8 text-sm bg-emerald text-background hover:bg-emerald/90 gap-1"
               onClick={onComplete}
+              disabled={!allPRsCreated}
             >
               <ArrowRight className="w-3.5 h-3.5" />
-              Create PR
+              Complete
             </Button>
           </div>
         )}

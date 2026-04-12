@@ -1,20 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   ChevronLeft,
-  ChevronRight,
   ExternalLink,
   Lock,
 } from "lucide-react";
 import {
   PHASE_LABELS,
   PHASE_COLORS,
-  PHASE_DOT_COLORS,
   type Ticket,
   type WorkflowPhase,
 } from "@/lib/fake-data";
@@ -22,8 +16,6 @@ import { AnalyzeChat } from "@/components/phases/analyze-chat";
 import { PlanPhase } from "@/components/phases/plan-phase";
 import { DesignPhase } from "@/components/phases/design-phase";
 import { ImplementPhase } from "@/components/phases/implement-phase";
-import { CreatePRPhase } from "@/components/phases/create-pr-phase";
-import { ReviewPhase } from "@/components/phases/review-phase";
 
 interface TicketDetailProps {
   ticket: Ticket;
@@ -36,8 +28,6 @@ const PHASE_ORDER: WorkflowPhase[] = [
   "plan",
   "design",
   "implement",
-  "create-pr",
-  "review",
   "done",
 ];
 
@@ -47,8 +37,6 @@ export function TicketDetail({
   onPhaseChange,
 }: TicketDetailProps) {
   const currentIndex = PHASE_ORDER.indexOf(ticket.phase);
-  const canAdvance = currentIndex < PHASE_ORDER.length - 1;
-  const nextPhase = canAdvance ? PHASE_ORDER[currentIndex + 1] : null;
 
   return (
     <div className="h-full flex flex-col">
@@ -115,8 +103,8 @@ export function TicketDetail({
         </div>
       </div>
 
-      {/* Phase content */}
-      <div className="flex-1 overflow-auto">
+      {/* Phase content — overflow-hidden so inner ScrollAreas handle their own scroll */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {ticket.phase === "analyze" && (
           <AnalyzeChat
             key={ticket.id}
@@ -141,18 +129,6 @@ export function TicketDetail({
         {ticket.phase === "implement" && (
           <ImplementPhase
             ticket={ticket}
-            onComplete={() => onPhaseChange("create-pr")}
-          />
-        )}
-        {ticket.phase === "create-pr" && (
-          <CreatePRPhase
-            ticket={ticket}
-            onComplete={() => onPhaseChange("review")}
-          />
-        )}
-        {ticket.phase === "review" && (
-          <ReviewPhase
-            ticket={ticket}
             onComplete={() => onPhaseChange("done")}
           />
         )}
@@ -171,22 +147,7 @@ export function TicketDetail({
         )}
       </div>
 
-      {/* Footer with advance button — hidden for analyze (it has its own) */}
-      {canAdvance && ticket.phase !== "done" && ticket.phase !== "analyze" && ticket.phase !== "plan" && ticket.phase !== "design" && (
-        <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            {ticket.assignee && `Assigned to ${ticket.assignee}`}
-          </span>
-          <Button
-            size="sm"
-            className="h-8 text-sm bg-cyan text-background hover:bg-cyan/90 gap-1"
-            onClick={() => nextPhase && onPhaseChange(nextPhase)}
-          >
-            Advance to {nextPhase && PHASE_LABELS[nextPhase]}
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      )}
+      {/* No generic footer — each phase handles its own advance button */}
     </div>
   );
 }

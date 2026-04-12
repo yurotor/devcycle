@@ -23,8 +23,6 @@ const PHASES: WorkflowPhase[] = [
   "plan",
   "design",
   "implement",
-  "create-pr",
-  "review",
   "done",
 ];
 
@@ -46,8 +44,6 @@ const COLUMN_BORDER_TOP: Record<WorkflowPhase, string> = {
   plan: "border-t-violet",
   design: "border-t-amber",
   implement: "border-t-emerald",
-  "create-pr": "border-t-sky",
-  review: "border-t-rose",
   done: "border-t-muted-foreground/30",
 };
 
@@ -90,7 +86,7 @@ export function KanbanBoard({
             return (
               <div
                 key={phase}
-                className={`w-64 flex flex-col rounded-lg bg-card/30 border border-border/40 border-t-2 ${COLUMN_BORDER_TOP[phase]} shrink-0`}
+                className={`w-80 flex flex-col rounded-lg bg-card/30 border border-border/40 border-t-2 ${COLUMN_BORDER_TOP[phase]} shrink-0`}
               >
                 {/* Column header */}
                 <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
