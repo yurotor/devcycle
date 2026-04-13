@@ -16,6 +16,7 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { KBBrowser } from "@/components/kb-browser";
@@ -40,6 +41,7 @@ export function AppShell() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [findingsCount, setFindingsCount] = useState(0);
+  const [boardFilter, setBoardFilter] = useState("");
 
   // ── Bootstrap: load workspace + tickets + suggestions count ──
 
@@ -238,6 +240,16 @@ export function AppShell() {
                   <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
                     {tickets.length} tickets
                   </span>
+                  <div className="relative max-w-[250px] w-full">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+                    <input
+                      type="text"
+                      value={boardFilter}
+                      onChange={(e) => setBoardFilter(e.target.value)}
+                      placeholder="Filter tickets..."
+                      className="w-full h-7 pl-7 pr-3 text-xs bg-secondary/50 border border-border/50 rounded-md outline-none focus:border-cyan/40 focus:ring-1 focus:ring-cyan/20 placeholder:text-muted-foreground/40 transition-colors"
+                    />
+                  </div>
                 </>
               )}
               {mainView === "file" && filePath && (
@@ -281,6 +293,7 @@ export function AppShell() {
                       tickets={tickets}
                       onTicketClick={handleTicketClick}
                       activeTicketId={ticketPanel?.ticket.id}
+                      filter={boardFilter}
                     />
                   )}
                 </motion.div>

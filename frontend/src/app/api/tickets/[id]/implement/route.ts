@@ -224,7 +224,7 @@ async function runImplementInBackground(
   ticketId: number,
   jobId: number,
   repo: { id: number; name: string; project: string; defaultBranch: string },
-  ticket: { jiraKey: string; title: string; description: string | null; prdPath: string | null }
+  ticket: { id: number; jiraKey: string; title: string; description: string | null; prdPath: string | null }
 ) {
   const repoDir = path.join(REPOS_DIR, repo.name);
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
@@ -361,6 +361,7 @@ async function runImplementInBackground(
       // Load context for Claude
       const prdContent = loadPRD(ticket);
       const synthesisContext = loadSynthesisOverview();
+      const analysisContext = loadAnalysisContext({ jiraKey: ticket.jiraKey, id: ticket.id });
 
       const prompt = `You are implementing a code change in this repository.
 
@@ -375,6 +376,7 @@ ${ticket.description || ""}
 ## PRD
 ${prdContent}
 
+${analysisContext ? `## Analysis Context\n\nThe following analysis was conducted before implementation. It may contain specific file paths, function names, and implementation decisions:\n\n${analysisContext}\n` : ""}
 ## System Context
 ${synthesisContext}
 
@@ -383,22 +385,27 @@ ${synthesisContext}
 - Follow existing code patterns and conventions in the repository
 - Do NOT modify unrelated files
 - If the repo has tests, add or update tests for your changes
-- Do NOT commit your changes — just edit the files`;
+- Do NOT commit your changes — just edit the files
+- Do NOT create documentation files, summaries, checklists, or .md files — only edit source code
+- If the analysis context mentions specific files or functions, start there`;
 
       // Let Claude implement the changes (streaming for real-time progress)
       await updateJob({ progress: 20, meta: JSON.stringify({ label: "Claude analyzing codebase..." }) });
       console.log(`[implement] Task ${taskId}: starting Claude CLI (streaming) in ${repo.name} (branch: ${branchName})...`);
 
+      let claudeResponse = "";
       try {
-        await claudeExecStreaming(prompt, {
+        const streamResult = await claudeExecStreaming(prompt, {
           cwd: repoDir,
           addDirs: [KB_ROOT],
           model: "sonnet",
           maxBudget: 2.00,
           timeoutMs: 600_000,
-          systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits.",
+          systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits. NEVER create documentation files (.md), summaries, checklists, or implementation plans — only modify source code files.",
           onToolUse,
+          onText: (text) => { claudeResponse = text; },
         });
+        claudeResponse = streamResult.result as string;
       } finally {
         if (flushTimer) clearTimeout(flushTimer);
         await flushProgress();
@@ -415,7 +422,13 @@ ${synthesisContext}
       // Check if there are actually changes to commit
       const statusOutput = await gitExec(["status", "--porcelain"], { cwd: repoDir });
       if (!statusOutput.trim()) {
-        const noChangesErr = new Error("Claude completed analysis but made no file changes. The task may already be done or may need clarification.");
+        // Include Claude's explanation (truncated) so the user understands why
+        const explanation = claudeResponse.trim().slice(0, 500);
+        const noChangesErr = new Error(
+          explanation
+            ? `No file changes. Claude's response: ${explanation}`
+            : "Claude completed but made no file changes. The task may already be done or may need clarification."
+        );
         (noChangesErr as Error & { errorType: string }).errorType = "no_changes";
         throw noChangesErr;
       }
@@ -546,6 +559,50 @@ function loadPRD(ticket: { prdPath: string | null }): string {
   } catch {
     return "(Failed to read PRD)";
   }
+}
+
+// ─── Load analysis context (transcript + wiki) ──────────────────
+
+function loadAnalysisContext(ticket: { jiraKey: string; id: number }): string {
+  const sections: string[] = [];
+
+  // Try wiki analysis (concise summary of the interview)
+  const slug = ticket.jiraKey.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const wikiPath = path.join(KB_ROOT, "wiki", "tickets", slug, "analysis.md");
+  if (fs.existsSync(wikiPath)) {
+    try {
+      const content = fs.readFileSync(wikiPath, "utf8");
+      sections.push("### Analysis Summary\n" + content);
+    } catch { /* skip */ }
+  }
+
+  // Try raw transcript (full interview Q&A)
+  const rawPath = path.join(KB_ROOT, "raw", "transcripts", slug, "analyze.md");
+  if (fs.existsSync(rawPath)) {
+    try {
+      const content = fs.readFileSync(rawPath, "utf8");
+      // Truncate very long transcripts to keep prompt reasonable
+      const truncated = content.length > 8000 ? content.slice(0, 8000) + "\n\n... (transcript truncated)" : content;
+      sections.push("### Analysis Transcript\n" + truncated);
+    } catch { /* skip */ }
+  }
+
+  // Try ticket-specific wiki (by numeric ID too)
+  if (ticket.id) {
+    const numericWikiDir = path.join(KB_ROOT, "wiki", "tickets", String(ticket.id));
+    if (fs.existsSync(numericWikiDir)) {
+      for (const file of fs.readdirSync(numericWikiDir)) {
+        if (file === "prd.md") continue; // PRD is already included separately
+        const filePath = path.join(numericWikiDir, file);
+        try {
+          const content = fs.readFileSync(filePath, "utf8");
+          sections.push(`### ${file.replace(".md", "")}\n` + content.slice(0, 4000));
+        } catch { /* skip */ }
+      }
+    }
+  }
+
+  return sections.join("\n\n");
 }
 
 // ─── Load system synthesis overview ───────────────────────────────

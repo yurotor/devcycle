@@ -4,7 +4,7 @@
 import fs from "fs";
 import path from "path";
 import { db } from "@/lib/db";
-import { tickets, chatMessages, repos } from "@/lib/db/schema";
+import { tickets, chatMessages } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { claudeExec, isClaudeCliAvailable } from "@/lib/claude-cli";
 import { complete } from "@/lib/anthropic";
@@ -12,7 +12,7 @@ import { complete } from "@/lib/anthropic";
 export const dynamic = "force-dynamic";
 
 const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const REPOS_DIR = path.join(KB_ROOT, "repos");
+
 
 const PRD_TEMPLATE = `## Problem Statement
 
@@ -79,12 +79,6 @@ export async function POST(
   // Load KB context
   const kbContext = loadKBContext();
 
-  // Load repo directories
-  const repoRows = await db.select().from(repos).where(eq(repos.workspaceId, ticket.workspaceId));
-  const repoDirs = repoRows
-    .map((r) => path.join(REPOS_DIR, r.name))
-    .filter((d) => fs.existsSync(d));
-
   const systemPrompt = skip
     ? `You are generating a quick PRD from limited information. Make reasonable assumptions for any gaps. Be concise but cover all sections. Speed over perfection.`
     : `You are a senior technical architect creating a PRD. Use the full interview transcript and codebase knowledge to make every section specific and actionable.`;
@@ -108,30 +102,28 @@ Write the PRD now. Be specific and reference actual repos, entities, APIs, and p
   let prd: string;
 
   if (isClaudeCliAvailable()) {
-    try {
-      prd = await claudeExec(userContent, {
-        addDirs: [KB_ROOT, ...repoDirs],
-        model: "sonnet",
-        maxBudget: skip ? 0.30 : 1.00,
-        timeoutMs: skip ? 60_000 : 300_000,
-        systemPrompt,
-      });
-    } catch (err) {
-      console.error("[analysis/complete] Claude CLI failed:", err instanceof Error ? err.message : err);
-      prd = await complete(
-        [{ role: "user", content: userContent }],
-        { system: systemPrompt, maxTokens: 4096 }
-      );
-    }
+    // PRD generation is pure text synthesis from the transcript + KB context already in the prompt.
+    // No need for addDirs (repo exploration) — that just slows it down.
+    prd = await claudeExec(userContent, {
+      model: "sonnet",
+      maxBudget: skip ? 0.15 : 0.50,
+      timeoutMs: skip ? 30_000 : 120_000,
+      systemPrompt,
+    });
   } else {
+    // Fallback: truncate prompt to avoid Bedrock timeouts on large transcripts
+    const truncatedContent = userContent.length > 12000
+      ? userContent.slice(0, 12000) + "\n\n... (truncated for length)\n\nWrite the PRD now."
+      : userContent;
     prd = await complete(
-      [{ role: "user", content: userContent }],
+      [{ role: "user", content: truncatedContent }],
       { system: systemPrompt, maxTokens: 4096 }
     );
   }
 
   // Save PRD to KB filesystem
-  const prdDir = path.join(KB_ROOT, "wiki", "tickets", String(ticketId));
+  const slug = ticket.jiraKey.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const prdDir = path.join(KB_ROOT, "wiki", "tickets", slug);
   fs.mkdirSync(prdDir, { recursive: true });
   fs.writeFileSync(path.join(prdDir, "prd.md"), prd, "utf8");
 
@@ -144,7 +136,7 @@ Write the PRD now. Be specific and reference actual repos, entities, APIs, and p
   await db
     .update(tickets)
     .set({
-      prdPath: `wiki/tickets/${ticketId}/prd.md`,
+      prdPath: `wiki/tickets/${slug}/prd.md`,
       phase: "plan",
       phaseLocked: 1,
       updatedAt: Date.now(),

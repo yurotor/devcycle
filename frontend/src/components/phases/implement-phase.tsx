@@ -195,11 +195,6 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
         setBusyTaskIds((prev) => { const next = new Set(prev); next.delete(taskId); return next; });
         return;
       }
-      // Auto-open the unified viewer for the in-progress task
-      const task = waves.flatMap((w) => w.tasks).find((t) => t.id === taskId);
-      if (task) {
-        viewChanges({ ...task, status: "in-progress" });
-      }
       // Poll until task completes or fails
       await waitForTask(taskId);
       // Fetch final job status to capture any error info
@@ -970,30 +965,33 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
             {waves.map((wave) => {
               const pendingCount = wavePendingCount(wave);
               const isRunningWave = runningWaveId === wave.id;
+              const singleWave = waves.length === 1;
               return (
                 <div
                   key={wave.id}
-                  className="border border-border rounded-lg overflow-hidden"
+                  className={singleWave ? "" : "border border-border rounded-lg overflow-hidden"}
                 >
-                  <div className="px-3 py-2 bg-secondary/50 border-b border-border flex items-center justify-between">
-                    <span className="text-sm font-medium">{wave.name}</span>
-                    {pendingCount > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs px-2 gap-1 text-emerald hover:text-emerald"
-                        onClick={() => runWave(wave)}
-                        disabled={busyTaskIds.size > 0 || runningAll || isRunningWave}
-                      >
-                        {isRunningWave ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                        Run Wave
-                      </Button>
-                    )}
-                  </div>
+                  {!singleWave && (
+                    <div className="px-3 py-2 bg-secondary/50 border-b border-border flex items-center justify-between">
+                      <span className="text-sm font-medium">{wave.name}</span>
+                      {pendingCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs px-2 gap-1 text-emerald hover:text-emerald"
+                          onClick={() => runWave(wave)}
+                          disabled={busyTaskIds.size > 0 || runningAll || isRunningWave}
+                        >
+                          {isRunningWave ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Play className="w-3 h-3" />
+                          )}
+                          Run Wave
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <div className="divide-y divide-border/50">
                     {wave.tasks.map((task) => {
                       const isDone = isTaskDone(task);

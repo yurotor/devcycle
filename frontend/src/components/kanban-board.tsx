@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search } from "lucide-react";
 import {
   PHASE_LABELS,
   PHASE_DOT_COLORS,
@@ -15,6 +14,7 @@ interface KanbanBoardProps {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
   activeTicketId?: string;
+  filter?: string;
 }
 
 const PHASES: WorkflowPhase[] = [
@@ -50,9 +50,8 @@ export function KanbanBoard({
   tickets,
   onTicketClick,
   activeTicketId,
+  filter = "",
 }: KanbanBoardProps) {
-  const [filter, setFilter] = useState("");
-
   const filteredTickets = useMemo(() => {
     if (!filter.trim()) return tickets;
     const q = filter.toLowerCase();
@@ -65,20 +64,6 @@ export function KanbanBoard({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Filter bar */}
-      <div className="shrink-0 px-4 pt-3 pb-1">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-          <input
-            type="text"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by ticket ID or title..."
-            className="w-full h-8 pl-8 pr-3 text-xs bg-secondary/50 border border-border/50 rounded-md outline-none focus:border-cyan/40 focus:ring-1 focus:ring-cyan/20 placeholder:text-muted-foreground/40 transition-colors"
-          />
-        </div>
-      </div>
-
       {/* Columns */}
       <div className="flex-1 overflow-x-auto overflow-y-auto">
         <div className="flex gap-3 p-4 h-full min-w-max">

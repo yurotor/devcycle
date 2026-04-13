@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertCircle, RefreshCw, ArrowRight, FileText } from "lucide-react";
+import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { type Ticket } from "@/lib/fake-data";
 
 interface PlanPhaseProps {
@@ -15,10 +15,6 @@ export function PlanPhase({ ticket, onComplete }: PlanPhaseProps) {
   const [prd, setPrd] = useState<string | null>(null);
   const [loadingPrd, setLoadingPrd] = useState(true);
 
-  // Task generation state (runs in background)
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   // Load PRD content
@@ -31,39 +27,14 @@ export function PlanPhase({ ticket, onComplete }: PlanPhaseProps) {
       .finally(() => setLoadingPrd(false));
   }, [ticket.id]);
 
-  // Auto-start task generation in background
-  const generate = async () => {
-    setGenerating(true);
-    setGenError(null);
-    try {
-      const res = await fetch(`/api/tickets/${ticket.id}/design/generate`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setGenError(data.error ?? "Generation failed");
-        return;
-      }
-      const waves = data.waves ?? [];
-      if (waves.length === 0) {
-        setGenError("No tasks were generated.");
-        return;
-      }
-      setGenerated(true);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Generation failed");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
+  // Fire-and-forget task generation in background
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    generate();
+    fetch(`/api/tickets/${ticket.id}/design/generate`, { method: "POST" }).catch(() => {});
   }, [ticket.id]);
 
-  // Approve handler — only advances if generation is done
+  // Approve immediately advances to design — task generation continues in background
   const handleApprove = () => {
     onComplete();
   };
@@ -84,44 +55,15 @@ export function PlanPhase({ ticket, onComplete }: PlanPhaseProps) {
           <FileText className="w-3.5 h-3.5 text-violet" />
           <span className="text-sm font-medium">Product Requirements Document</span>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Generation status indicator */}
-          {generating && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Generating tasks...
-            </span>
-          )}
-          {genError && (
-            <span className="flex items-center gap-1.5 text-xs text-amber">
-              <AlertCircle className="w-3 h-3" />
-              Task generation failed
-              <button
-                onClick={generate}
-                className="underline hover:no-underline ml-1"
-              >
-                Retry
-              </button>
-            </span>
-          )}
-          {generated && !generating && !genError && (
-            <span className="text-xs text-emerald">Tasks ready</span>
-          )}
-
-          <Button
-            size="sm"
-            className="h-8 text-sm bg-violet text-background hover:bg-violet/90 gap-1.5"
-            onClick={handleApprove}
-            disabled={!generated || generating}
-          >
-            {generating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ArrowRight className="w-3.5 h-3.5" />
-            )}
-            Approve PRD
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          className="h-8 text-sm bg-violet text-background hover:bg-violet/90 gap-1.5"
+          onClick={handleApprove}
+          disabled={!prd}
+        >
+          <ArrowRight className="w-3.5 h-3.5" />
+          Approve PRD
+        </Button>
       </div>
 
       {/* PRD content */}
