@@ -12,94 +12,104 @@ The prototype runs on localhost with SQLite for structured data and flat files f
 
 ## User Stories
 
+### Setup
 1. As a team lead, I want to connect my Azure DevOps project by providing a PAT, so that the tool can access our repositories.
 2. As a team lead, I want to select which repos to scan from my Azure DevOps project, so that I control what enters the knowledge base.
 3. As a team lead, I want to override the default branch per repo, so that repos with non-standard branch names (not `main`) are scanned correctly.
-4. As a developer, I want the AI to autonomously scan selected repos via the Azure DevOps API, so that I don't have to manually document the codebase.
-5. As a developer, I want the AI to ask me targeted questions during scanning only when it can't infer something from the code, so that the scan is mostly hands-off.
-6. As a developer, I want scanning to run in parallel across repos, so that it completes faster.
-7. As a developer, I want to see the knowledge base populate in real-time during scanning via the file browser, so that I can watch progress and feel confident in the output.
-8. As a developer, I want the scan to produce a project summary, architecture overview, and compiled wiki docs per repo, so that the team has instant documentation.
-9. As a developer, I want the scan to produce a machine-readable schema (JSON) and human-readable schema (Markdown), so that both humans and AI can reference the codebase structure.
-10. As a developer, I want the scan to produce prioritized fix suggestions (security, architecture, optimization, bugs — critical and high only), so that I can see the most important issues immediately.
-11. As a developer, I want to dismiss or promote each fix suggestion into a Jira ticket that enters the 7-stage workflow, so that discovered issues become trackable work.
-12. As a developer, I want the knowledge base to have a lean CLAUDE.md at the root linking to wiki/INDEX.md, raw/INDEX.md, and the schema, so that AI interactions have fast access to the full KB.
-13. As a developer, I want raw/ and wiki/ folders each with their own INDEX.md that auto-updates as files are added, so that the KB stays navigable.
-14. As a team lead, I want to connect my Jira project by providing a PAT while repo scanning continues in the background, so that setup doesn't block on scanning.
-15. As a team lead, I want to optionally map which Jira statuses mean "done" (defaulting to "Done" and "Won't Do"), so that only active tickets are loaded.
-16. As a developer, I want all Jira issue types except epics to be loaded, so that I see actionable work items.
-17. As a developer, I want to see all loaded tickets on a kanban board with 7 columns representing internal workflow statuses (Analyze, Plan, Design, Implement & Test, Create PR, Review, Done), so that I can track work through the full lifecycle.
-18. As a developer, I want to click a ticket on the kanban board to open its detail view, so that I can work on it.
-19. As a developer, I want the Analyze phase to present a chat-like interface where the AI asks business questions about the ticket using the KB as context, so that tickets are fully specified before planning.
-20. As a developer, I want the AI to offer multiple-choice answers (derived from the KB and codebase) with a free-text option, so that analysis is fast and guided.
-21. As a developer, I want the AI to determine when a ticket has enough detail for implementation planning (no rigid templates), so that the process adapts to each ticket.
-22. As a developer, I want any team member to be able to contribute to a ticket during the Analyze phase, so that analysis is collaborative.
-23. As a developer, I want tickets to be locked once promoted from Analyze to Plan, so that the basis for planning doesn't shift.
-24. As a developer, I want the option to sync analysis findings back to the Jira ticket (as description updates or comments — TBD), so that Jira stays up to date.
+4. As a team lead, I want to connect my Jira project by providing a PAT (email + API token) while repo scanning continues in the background, so that setup doesn't block on scanning.
+5. As a team lead, I want to optionally map which Jira statuses mean "done" (defaulting to "Done" and "Won't Do"), so that only active tickets are loaded.
+
+### Scanning & Knowledge Base
+6. As a developer, I want the AI to clone and deeply analyze selected repos via Claude Code CLI, so that I don't have to manually document the codebase.
+7. As a developer, I want the AI to ask me targeted questions after synthesis completes (interview phase), so that the scan is mostly hands-off with human input only for ambiguities.
+8. As a developer, I want scanning to run in parallel across repos (max 4 concurrent), so that it completes faster.
+9. As a developer, I want to see scan progress via a floating pill in the bottom-right corner, so that I know what's happening without leaving my current view.
+10. As a developer, I want the scan to produce per-repo analysis (raw/) and compiled wiki docs (wiki/), so that the team has instant documentation.
+11. As a developer, I want the scan to produce a machine-readable schema (JSON) and human-readable schema (Markdown), so that both humans and AI can reference the codebase structure.
+12. As a developer, I want the scan to produce prioritized fix suggestions (security, architecture, optimization, bugs — critical and high only), so that I can see the most important issues immediately.
+13. As a developer, I want to dismiss or promote each fix suggestion into a Jira ticket that enters the 5-phase workflow, so that discovered issues become trackable work.
+14. As a developer, I want the knowledge base to have a lean CLAUDE.md at the root linking to wiki/INDEX.md, raw/INDEX.md, and the schema, so that AI interactions have fast access to the full KB.
+15. As a developer, I want raw/ and wiki/ folders each with their own INDEX.md that auto-updates as files are added, so that the KB stays navigable.
+16. As a developer, I want scan results cached by HEAD commit hash, so that re-scans skip unchanged repos.
+
+### Kanban Board
+17. As a developer, I want all Jira issue types except epics to be loaded, so that I see actionable work items.
+18. As a developer, I want to see all loaded tickets on a kanban board with 5 columns (Analysis, Plan, Design, Execute, Done), so that I can track work through the full lifecycle.
+19. As a developer, I want to click a ticket on the kanban board to open its detail view, so that I can work on it.
+20. As a developer, I want to filter tickets by search text, so that I can find specific tickets quickly.
+
+### Analysis Phase
+21. As a developer, I want the Analysis phase to present a chat-like interface where the AI asks business questions about the ticket using the KB as context, so that tickets are fully specified before planning.
+22. As a developer, I want the AI to offer multiple-choice answers (derived from the KB and codebase) with a free-text option, so that analysis is fast and guided.
+23. As a developer, I want the AI to determine when a ticket has enough detail for implementation planning (no rigid templates), so that the process adapts to each ticket.
+24. As a developer, I want tickets to be locked once promoted from Analysis to Plan, so that the basis for planning doesn't shift.
+
+### Plan Phase
 25. As a developer, I want the Plan phase to generate a mid-level PRD covering architecture decisions, affected repos/services, API changes, data model changes, and technical risks, so that implementation has a clear blueprint.
-26. As a developer, I want the AI to lead me through technical questions during the Plan phase using the KB, so that the PRD is grounded in codebase reality.
-27. As a developer, I want the PRD stored as a markdown file in the wiki folder and linked from the ticket, so that it becomes part of the KB.
-28. As a developer, I want any team member to approve the PRD before it moves to Design, so that there's a quality gate.
-29. As a developer, I want the Design phase to break the PRD into tasks where each task equals one PR in one repo, so that deliverables are atomic and reviewable.
-30. As a developer, I want tasks grouped into waves where tasks within a wave have no dependencies on each other, and dependencies flow from later waves to earlier waves, so that work can be parallelized.
-31. As a developer, I want tasks requiring tests in an external repo (e.g., e2e/automation) to include those tests in the same wave, so that testing isn't an afterthought.
-32. As a developer, I want to see the wave breakdown as a swimlane grid (repos as rows, waves as columns) with dependency arrows, so that the structure is visually clear.
-33. As a developer, I want to drag tasks between waves, reorder waves, split and merge tasks in the swimlane editor, so that I can adjust the AI's proposed breakdown.
-34. As a developer, I want the AI to warn me if an edit creates a dependency violation, so that I don't break the execution order.
-35. As a developer, I want to kick off implementation for a task or wave, where the AI clones the repo, creates a branch, and writes code with unit/integration tests, so that implementation is automated.
-36. As a developer, I want to see the AI's implementation progress streamed in real-time via SSE, so that I can watch what's happening.
-37. As a developer, I want multiple tasks to run in parallel (up to 2-3 concurrent jobs), so that waves can be implemented efficiently.
-38. As a developer, I want to review the AI's code changes as a diff, so that I can assess quality before creating a PR.
-39. As a developer, I want to re-run implementation with additional guidance if the result isn't right, so that I can iterate without starting over.
-40. As a developer, I want to mark a task as "implementing manually" and push my own branch, so that the tool tracks my work even when I code by hand.
-41. As a developer, I want to click "Create PR" on a task to create a PR on Azure DevOps with an auto-generated description (from task + PRD context, linked to the Jira ticket), so that PRs are self-documenting.
-42. As a developer, I want a "Create all PRs in wave" batch button, so that I can promote a whole wave at once.
-43. As a developer, I want to run AI-powered code review on a PR, which proposes comments by priority, so that review is thorough and consistent.
-44. As a developer, I want to choose how to submit review comments: send all at once, send one-by-one, or skip and review manually, so that I control what feedback is posted.
-45. As a developer, I want a ticket to move to Done when its PR is approved, so that the board reflects reality.
-46. As a developer, I want the left sidebar to toggle between KB file browser and kanban board, so that I can switch contexts quickly.
-47. As a developer, I want an Obsidian-like markdown viewer when browsing KB files, so that documentation is readable.
-48. As a developer, I want every conversation transcript stored in raw/ and compiled to a clean wiki page on phase transition, so that institutional knowledge accumulates.
-49. As a developer, I want the UI to have a dark-mode Linear + Obsidian aesthetic, so that it looks polished and professional for demos and daily use.
+26. As a developer, I want the PRD stored as a markdown file in the wiki folder and linked from the ticket, so that it becomes part of the KB.
+27. As a developer, I want to approve the PRD before it moves to Design, so that there's a quality gate.
+
+### Design Phase
+28. As a developer, I want the Design phase to break the PRD into tasks where each task equals one PR in one repo, so that deliverables are atomic and reviewable.
+29. As a developer, I want tasks grouped into waves where tasks within a wave have no dependencies on each other, and dependencies flow from later waves to earlier waves, so that work can be parallelized.
+30. As a developer, I want tasks requiring tests in an external repo (e.g., e2e/automation) to include those tests in the same wave, so that testing isn't an afterthought.
+31. As a developer, I want to see the wave breakdown as a swimlane grid (repos as rows, waves as columns), so that the structure is visually clear.
+
+### Execute Phase
+32. As a developer, I want to kick off implementation for a task, where the AI clones the repo, creates a branch (`JIRA-KEY/task-slug`), and writes code with unit/integration tests, so that implementation is automated.
+33. As a developer, I want to see the AI's implementation progress streamed in real-time via SSE with phase labels (reading/editing/verifying), so that I can watch what's happening.
+34. As a developer, I want to see a live diff preview while the AI is still working, so that I can assess progress before completion.
+35. As a developer, I want to review the AI's code changes as a diff after completion, so that I can assess quality.
+36. As a developer, I want to re-run implementation with additional guidance if the result isn't right, so that I can iterate without starting over.
+37. As a developer, I want to mark a task as "implementing manually" and push my own branch, so that the tool tracks my work even when I code by hand.
+
+### UI & Navigation
+38. As a developer, I want the left sidebar to toggle between KB file browser and kanban board, so that I can switch contexts quickly.
+39. As a developer, I want an Obsidian-like markdown viewer when browsing KB files, so that documentation is readable.
+40. As a developer, I want every conversation transcript stored in raw/ and compiled to a clean wiki page on phase transition, so that institutional knowledge accumulates.
+41. As a developer, I want the UI to have a dark-mode Linear + Obsidian aesthetic, so that it looks polished and professional for demos and daily use.
 
 ## Implementation Decisions
 
 ### Architecture
 - **Next.js webapp** running on localhost for the prototype
-- **SQLite** (via an ORM) for structured data: workspace config, encrypted PATs, tickets, tasks, waves, jobs, scan suggestions, chat messages
-- **Flat files** for the knowledge base: raw/, wiki/, schema/ directories with INDEX.md files and a root CLAUDE.md
+- **SQLite** (via Drizzle ORM) for structured data: workspace config, encrypted PATs, tickets, tasks, waves, jobs, scan suggestions, chat messages
+- **Flat files** for the knowledge base: raw/, wiki/ directories with INDEX.md files and a root CLAUDE.md
 - **No authentication** for the prototype — to be added later (corporate SSO via Microsoft Entra ID)
 - **Shared workspace model** — one workspace per team, all members see the same data
 
 ### Modules
-1. **Azure DevOps Client** — REST API wrapper for project/repo listing, file tree browsing, file content fetching, branch resolution, PR creation, PR commenting
-2. **Jira Client** — REST API wrapper for ticket loading (all types except epics), ticket reading, description updating, comment adding
+1. **Azure DevOps Client** — REST API wrapper for project/repo listing, file tree browsing, file content fetching, branch resolution, PR creation (stubbed)
+2. **Jira Client** — REST API wrapper for ticket loading (all types except epics), ticket reading
 3. **Knowledge Base Manager** — flat file CRUD, INDEX.md maintenance, CLAUDE.md updates, raw-to-wiki compilation on phase transitions
-4. **AI Chat Service** — direct Claude API calls for streaming chat interactions during Analyze and Plan phases, with KB as context
-5. **Agent Runner** — Claude Code CLI subprocess manager for agentic work (scanning, implementation). Background jobs tracked in SQLite, SSE streaming, capped at 2-3 concurrent processes
-6. **Scan Engine** — orchestrates parallel repo scanning via Azure DevOps API (no clone), produces KB artifacts and fix suggestions
-7. **Workflow Engine** — 7-stage state machine (Analyze → Plan → Design → Implement & Test → Create PR → Review → Done) with phase locking and transition validation
-8. **Task Planner** — generates wave-based task breakdowns from PRDs, validates dependencies, supports drag-and-drop restructuring
-9. **PR Manager** — creates PRs on Azure DevOps, generates descriptions from task + PRD context with Jira links, runs AI code review, manages comment submission modes
-10. **SQLite Store** — data access layer for all structured data
+4. **Claude CLI Wrapper** — Claude Code CLI subprocess manager for all AI interactions: streaming chat sessions (analysis, plan), agentic work (scanning, implementation). Supports session resumption via `resumeSessionId`. Background jobs tracked in SQLite, SSE streaming.
+5. **Scan Engine** — orchestrates parallel repo scanning: clones repos locally, deep analysis via Claude Code CLI (API fallback), cross-repo synthesis, KB compilation, fix suggestions. Results cached by HEAD commit hash.
+6. **Workflow Engine** — 5-phase state machine (Analysis → Plan → Design → Execute → Done) with phase locking and transition validation
+7. **Task Planner** — generates wave-based task breakdowns from PRDs via Claude Code CLI with prd-to-issues skill, validates dependencies
+8. **SQLite Store** — data access layer for all structured data via Drizzle ORM
 
 ### UI Components
-11. **UI Shell** — left sidebar (KB browser / kanban toggle) + main content area. shadcn/ui + Tailwind, dark mode only, Linear + Obsidian aesthetic
-12. **Kanban Board** — 7 columns for internal statuses, ticket cards, drag-and-drop via @dnd-kit
-13. **KB File Browser** — Obsidian-like tree view with markdown viewer, bidirectional wiki links, re-scan button in header
-14. **Chat Interface** — streaming chat for Analyze/Plan phases, multiple-choice + free-text input
-15. **Swimlane Editor** — repos as rows, waves as columns, dependency arrows, drag-and-drop task movement
-16. **Diff Viewer** — code change review before PR creation
-17. **Scan Pill** — floating bottom-right overlay showing background scan progress, expandable to detail dialog. Auto-opens on interview ready or repeated failures
+9. **App Shell** — left sidebar (KB browser / kanban toggle) + main content area. shadcn/ui + Tailwind, dark mode only, Linear + Obsidian aesthetic
+10. **Kanban Board** — 5 columns (Analysis, Plan, Design, Execute, Done), ticket cards with priority/type badges, search filter
+11. **KB File Browser** — Obsidian-like tree view with markdown viewer, re-scan button in header
+12. **Chat Interface** (ChoiceChat) — streaming chat for Analysis phase, multiple-choice + free-text input, tool event accordion showing Claude's tool usage
+13. **Swimlane Editor** — repos as rows, waves as columns, task cards with expand/collapse
+14. **Diff Viewer** — code change review with live diff updates during implementation
+15. **Scan Pill** — floating bottom-right overlay showing background scan progress (scanning/interview/failed/complete states), expandable to detail dialog, auto-opens on interview ready or repeated failures
+16. **Suggestions Panel** — scan findings list with dismiss/promote-to-ticket actions
+17. **Setup Flow** — multi-step wizard: workspace name → Azure DevOps connection → repo selection → Jira connection → ticket sync
 
 ### Key Technical Decisions
-- Azure DevOps repos are browsed via API (no cloning) during scanning. Repos are cloned locally only during the Implement phase.
+- Repos are cloned locally for both scanning and implementation (not API-only browsing).
 - Default branch is scanned (usually `main`) with per-repo override support.
-- AI interactions use direct Claude API calls (no Vercel AI SDK or other abstractions).
-- Claude Code CLI is used for agentic work (scanning, code implementation) via child processes.
+- Claude Code CLI is the primary AI interface for all interactions — chat sessions, scanning, plan generation, code implementation. Direct Claude API is used only as a fallback.
+- No Vercel AI SDK or other abstractions — direct CLI subprocess management.
 - Background jobs use SSE for real-time progress streaming to the frontend.
-- Jira sync is one-directional: analysis info is pushed to Jira (description update or comments), but Jira statuses are not synced with internal workflow statuses.
-- KB compilation (raw → wiki) triggers on phase transitions, not in real-time.
+- Jira statuses are not synced with internal workflow statuses — internal 5-phase workflow is independent.
+- KB compilation (raw → wiki) triggers on phase transitions and scan completion.
+- Implementation creates feature branches named `JIRA-KEY/task-slug` with automatic commit.
+- Live diff snapshots (`.devcycle-live-diff.json`) written during implementation for real-time diff preview.
+- Scan results cached by HEAD commit hash — re-scan skips repos whose HEAD hasn't changed.
 
 ### Async Background Scanning UX
 Scanning runs asynchronously in the background while the user continues setup and work.
@@ -121,11 +131,10 @@ Scanning runs asynchronously in the background while the user continues setup an
 - **Auto-open triggers:** (a) interview ready, (b) 3 consecutive failures
 
 **Scan Resilience:**
-- Max 2 concurrent repo analyses (reduced from 4 to avoid gateway rate limits)
-- Retry with exponential backoff: 3 retries at 2s, 4s, 8s delays for 429/504 errors
-- 300-second curl timeout for large synthesis calls
-- Sequential per-feature Claude calls with 1s delay during KB compilation
+- Max 4 concurrent repo analyses
+- Retry with exponential backoff for transient errors
 - Individual repo failures don't block other repos (fail gracefully, continue)
+- Results cached by HEAD commit hash — re-scan skips unchanged repos
 
 **Interview Flow:**
 - Interview is triggered after synthesis completes successfully
@@ -137,6 +146,7 @@ Scanning runs asynchronously in the background while the user continues setup an
 - Scan state stored in `jobs` table (type='scan', status='running'|'done'|'failed', progress=0-100, meta=JSON with phase/events)
 - `GET /api/scan/status` returns current scan state for pill polling
 - `POST /api/scan/start` triggers scan (fire-and-forget, returns immediately)
+- `GET /api/scan/stream` provides SSE stream of scan events
 - On page refresh, pill reads job state from DB and resumes display
 
 **Re-scan:**
@@ -150,7 +160,7 @@ A good test validates external behavior through the module's public interface. I
 ### Modules to test:
 - **Azure DevOps Client** — mock HTTP layer, verify correct API endpoints are called, request payloads are built correctly, and responses are parsed into expected shapes. Cover: auth header injection, pagination handling, error responses (403/404).
 - **Jira Client** — same approach as Azure DevOps Client. Cover: status filtering, issue type exclusion (epics), pagination.
-- **Workflow Engine** — test the state machine transitions: valid transitions succeed, invalid transitions fail, phase locking works, edge cases (e.g., transitioning from Analyze to Plan compiles raw → wiki).
+- **Workflow Engine** — test the state machine transitions: valid transitions succeed, invalid transitions fail, phase locking works, edge cases (e.g., transitioning from Analysis to Plan compiles raw → wiki).
 - **Task Planner** — test dependency validation: moving a task to an earlier wave than its dependency should fail, wave reordering should cascade dependency checks, split/merge operations maintain validity.
 
 ### Modules NOT tested (prototype):
@@ -166,35 +176,38 @@ A good test validates external behavior through the module's public interface. I
 - **TFVC repos** — Git repos in Azure DevOps only
 - **Epic-level tracking** — epics are excluded from ticket loading
 - **Bidirectional Jira status sync** — internal workflow statuses are independent of Jira statuses
-- **Periodic/re-scanning** of repos — one-time scan only
+- **Jira write-back** — analysis findings are not synced back to Jira yet
+- **Real PR creation** — PR creation on Azure DevOps is stubbed, not yet functional
+- **AI code review** — review phase UI exists but is not wired to the workflow
 - **Wiki editing** in the browser — KB files are read-only in the UI
 - **Light mode** — dark mode only for the prototype
-- **Going back from Plan to Analyze** — phase transitions are forward-only
+- **Going back from Plan to Analysis** — phase transitions are forward-only
 - **Auto-assigning PR reviewers** — reviewers are not set automatically
 - **Feature branch scanning** — only the default (or overridden) branch is scanned
 - **Real database** — SQLite only, no PostgreSQL/cloud DB
+- **Drag-and-drop on kanban board** — tickets are advanced through phase-specific UI, not by dragging
 
 ## Further Notes
 
 ### Demo Priority Tiers
 The prototype is built to secure management buy-in. Prioritization if time is constrained:
 
-**Must-have:**
-- Killer UX/UI (this is the top priority — the UI sells it)
+**Must-have (all implemented):**
+- Killer UX/UI (dark-mode Linear + Obsidian aesthetic)
 - Connect to Azure DevOps + repo scanning with real-time KB generation
 - Obsidian-like file browser showing the KB
-- Jira integration with kanban board (7 internal statuses)
-- Analyze phase with chat-like Q&A
+- Jira integration with kanban board (5 columns: Analysis, Plan, Design, Execute, Done)
+- Analysis phase with chat-like Q&A
 
-**Should-have:**
-- Fix suggestions from scanning (with promote-to-ticket)
-- Plan phase (PRD generation)
+**Should-have (all implemented):**
+- Fix suggestions from scanning (with dismiss/promote-to-ticket)
+- Plan phase (PRD generation via Claude Code CLI)
 - Design phase (wave/swimlane visualization)
 
-**Nice-to-have:**
-- Implement & test (AI writing code with streaming output)
-- Create PR + review phases
-- Promoting scan suggestions to tickets
+**Nice-to-have (partially implemented):**
+- Execute phase (AI writing code with streaming output + live diff) ✓
+- Create PR (stubbed — not yet creating real PRs on Azure DevOps)
+- AI code review (UI exists, not wired to workflow)
 
 ### Future Considerations (post-prototype)
 - Corporate SSO via Microsoft Entra ID
