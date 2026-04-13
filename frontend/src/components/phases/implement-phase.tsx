@@ -74,7 +74,7 @@ interface ImplementPhaseProps {
 export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const [waves, setWaves] = useState<WaveRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
+  const [busyTaskIds, setBusyTaskIds] = useState<Set<number>>(new Set());
   const [runningAll, setRunningAll] = useState(false);
   const [runningWaveId, setRunningWaveId] = useState<number | null>(null);
   const [creatingPrTaskId, setCreatingPrTaskId] = useState<number | null>(null);
@@ -91,6 +91,12 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const [newCommentText, setNewCommentText] = useState("");
   const [fixingCommentId, setFixingCommentId] = useState<number | null>(null);
 
+  // Per-task job progress: { [taskId]: { progress, label, status, error?, errorType? } }
+  const [jobProgress, setJobProgress] = useState<Record<number, { progress: number; label: string; status: string; error?: string; errorType?: string }>>({});
+  // Live diff state
+  const [isLive, setIsLive] = useState(false);
+  const livePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadTasks = useCallback(async () => {
@@ -102,8 +108,58 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
 
   useEffect(() => {
     loadTasks().finally(() => setLoading(false));
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (livePollRef.current) clearInterval(livePollRef.current);
+    };
   }, [ticket.id, loadTasks]);
+
+  // ── Poll job progress for in-progress tasks ────────────────
+  const jobProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const inProgressTasks = waves
+      .flatMap((w) => w.tasks)
+      .filter((t) => t.status === "in-progress");
+
+    if (inProgressTasks.length === 0) {
+      if (jobProgressRef.current) {
+        clearInterval(jobProgressRef.current);
+        jobProgressRef.current = null;
+      }
+      return;
+    }
+
+    const pollJobStatus = async () => {
+      const updates: Record<number, { progress: number; label: string; status: string; error?: string; errorType?: string }> = {};
+      await Promise.all(
+        inProgressTasks.map(async (t) => {
+          try {
+            const res = await fetch(
+              `/api/tickets/${ticket.id}/implement?action=job-status&taskId=${t.id}`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              updates[t.id] = {
+                progress: data.progress ?? 0,
+                label: data.label ?? "Working...",
+                status: data.status ?? "running",
+                error: data.error,
+                errorType: data.errorType,
+              };
+            }
+          } catch { /* ignore */ }
+        })
+      );
+      setJobProgress((prev) => ({ ...prev, ...updates }));
+    };
+
+    pollJobStatus();
+    jobProgressRef.current = setInterval(pollJobStatus, 3000);
+    return () => {
+      if (jobProgressRef.current) clearInterval(jobProgressRef.current);
+    };
+  }, [waves, ticket.id]);
 
   // ── Poll until a task leaves "in-progress" ──────────────────
 
@@ -126,7 +182,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   // ── Single task actions ──────────────────────────────────────
 
   const startTask = async (taskId: number) => {
-    setBusyTaskId(taskId);
+    setBusyTaskIds((prev) => new Set(prev).add(taskId));
     try {
       const res = await fetch(`/api/tickets/${ticket.id}/implement`, {
         method: "POST",
@@ -136,19 +192,41 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("[implement] Start failed:", data.error);
-        setBusyTaskId(null);
+        setBusyTaskIds((prev) => { const next = new Set(prev); next.delete(taskId); return next; });
         return;
+      }
+      // Auto-open the unified viewer for the in-progress task
+      const task = waves.flatMap((w) => w.tasks).find((t) => t.id === taskId);
+      if (task) {
+        viewChanges({ ...task, status: "in-progress" });
       }
       // Poll until task completes or fails
       await waitForTask(taskId);
-      setBusyTaskId(null);
+      // Fetch final job status to capture any error info
+      try {
+        const jobRes = await fetch(`/api/tickets/${ticket.id}/implement?action=job-status&taskId=${taskId}`);
+        if (jobRes.ok) {
+          const jobData = await jobRes.json();
+          setJobProgress((prev) => ({
+            ...prev,
+            [taskId]: {
+              progress: jobData.progress ?? 0,
+              label: jobData.label ?? "",
+              status: jobData.status ?? "done",
+              error: jobData.error,
+              errorType: jobData.errorType,
+            },
+          }));
+        }
+      } catch { /* ignore */ }
+      setBusyTaskIds((prev) => { const next = new Set(prev); next.delete(taskId); return next; });
     } catch {
-      setBusyTaskId(null);
+      setBusyTaskIds((prev) => { const next = new Set(prev); next.delete(taskId); return next; });
     }
   };
 
   const markManual = async (taskId: number) => {
-    setBusyTaskId(taskId);
+    setBusyTaskIds((prev) => new Set(prev).add(taskId));
     try {
       await fetch(`/api/tickets/${ticket.id}/implement`, {
         method: "POST",
@@ -157,7 +235,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
       });
       await loadTasks();
     } finally {
-      setBusyTaskId(null);
+      setBusyTaskIds((prev) => { const next = new Set(prev); next.delete(taskId); return next; });
     }
   };
 
@@ -167,14 +245,21 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     const pending = taskList.filter(
       (t) => t.status !== "done" && !t.implementedManually
     );
-    for (const task of pending) {
-      await startTask(task.id);
-    }
+    await Promise.allSettled(pending.map((task) => startTask(task.id)));
   };
 
   const runAll = async () => {
     setRunningAll(true);
-    await runTasks(waves.flatMap((w) => w.tasks));
+    for (const wave of waves) {
+      const pending = wave.tasks.filter(
+        (t) => t.status !== "done" && !t.implementedManually
+      );
+      if (pending.length > 0) {
+        setRunningWaveId(wave.id);
+        await Promise.allSettled(pending.map((task) => startTask(task.id)));
+        setRunningWaveId(null);
+      }
+    }
     setRunningAll(false);
   };
 
@@ -210,24 +295,126 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     setReviewRan(false);
     setAddingCommentLine(null);
     setNewCommentText("");
+
+    const taskIsLive = task.status === "in-progress";
+    setIsLive(taskIsLive);
+
+    // Stop any previous live poll
+    if (livePollRef.current) { clearInterval(livePollRef.current); livePollRef.current = null; }
+
     try {
-      const [diffRes, reviewRes] = await Promise.all([
-        fetch(`/api/tickets/${ticket.id}/implement?action=diff&taskId=${task.id}`),
-        fetch(`/api/tickets/${ticket.id}/review?taskId=${task.id}`),
-      ]);
-      const diffData = await diffRes.json();
-      const reviewData = await reviewRes.json();
-      const files = diffData.files ?? [];
-      setDiffs(files);
-      if (files.length > 0) setSelectedFile(files[0].path);
-      const comments = (reviewData.comments ?? []).filter((c: ReviewComment) => c.status !== "deleted");
-      setReviewComments(comments);
-      if (comments.length > 0) setReviewRan(true);
+      if (taskIsLive) {
+        // Load initial job progress
+        try {
+          const jobRes = await fetch(`/api/tickets/${ticket.id}/implement?action=job-status&taskId=${task.id}`);
+          if (jobRes.ok) {
+            const jobData = await jobRes.json();
+            setJobProgress((prev) => ({
+              ...prev,
+              [task.id]: { progress: jobData.progress ?? 0, label: jobData.label ?? "Working...", status: jobData.status ?? "running" },
+            }));
+          }
+        } catch { /* ignore */ }
+
+        // Live mode — load from live-diff endpoint
+        const res = await fetch(`/api/tickets/${ticket.id}/implement?action=live-diff&taskId=${task.id}`);
+        const data = await res.json();
+        const files = data.files ?? [];
+        setDiffs(files);
+        if (files.length > 0) setSelectedFile(files[0].path);
+
+        // Start polling live diff every 5s
+        livePollRef.current = setInterval(async () => {
+          try {
+            // Check if task is still in-progress
+            const statusRes = await fetch(`/api/tickets/${ticket.id}/implement?action=job-status&taskId=${task.id}`);
+            const statusData = await statusRes.json();
+
+            if (statusData.status === "done") {
+              // Task finished — switch to final diff
+              clearInterval(livePollRef.current!);
+              livePollRef.current = null;
+              setIsLive(false);
+
+              const finalRes = await fetch(`/api/tickets/${ticket.id}/implement?action=diff&taskId=${task.id}`);
+              const finalData = await finalRes.json();
+              const finalFiles = finalData.files ?? [];
+              setDiffs(finalFiles);
+              if (finalFiles.length > 0) setSelectedFile((prev) => {
+                // Keep the current file selected if it still exists
+                if (prev && finalFiles.some((f: FileDiff) => f.path === prev)) return prev;
+                return finalFiles[0].path;
+              });
+
+              // Load review comments now that task is done
+              const reviewRes = await fetch(`/api/tickets/${ticket.id}/review?taskId=${task.id}`);
+              const reviewData = await reviewRes.json();
+              const comments = (reviewData.comments ?? []).filter((c: ReviewComment) => c.status !== "deleted");
+              setReviewComments(comments);
+              if (comments.length > 0) setReviewRan(true);
+
+              // Refresh tasks list
+              loadTasks();
+              return;
+            }
+
+            if (statusData.status === "failed") {
+              clearInterval(livePollRef.current!);
+              livePollRef.current = null;
+              setIsLive(false);
+              loadTasks();
+              return;
+            }
+
+            // Update job progress for the modal view
+            setJobProgress((prev) => ({
+              ...prev,
+              [task.id]: {
+                progress: statusData.progress ?? 0,
+                label: statusData.label ?? "Working...",
+                status: statusData.status ?? "running",
+              },
+            }));
+
+            // Still running — refresh live diff
+            const liveRes = await fetch(`/api/tickets/${ticket.id}/implement?action=live-diff&taskId=${task.id}`);
+            const liveData = await liveRes.json();
+            const liveFiles = liveData.files ?? [];
+            setDiffs(liveFiles);
+            // Auto-select first file if nothing selected yet
+            if (liveFiles.length > 0) setSelectedFile((prev) => {
+              if (prev && liveFiles.some((f: FileDiff) => f.path === prev)) return prev;
+              return liveFiles[0].path;
+            });
+          } catch { /* ignore poll errors */ }
+        }, 5000);
+      } else {
+        // Static mode — load from DB
+        const [diffRes, reviewRes] = await Promise.all([
+          fetch(`/api/tickets/${ticket.id}/implement?action=diff&taskId=${task.id}`),
+          fetch(`/api/tickets/${ticket.id}/review?taskId=${task.id}`),
+        ]);
+        const diffData = await diffRes.json();
+        const reviewData = await reviewRes.json();
+        const files = diffData.files ?? [];
+        setDiffs(files);
+        if (files.length > 0) setSelectedFile(files[0].path);
+        const comments = (reviewData.comments ?? []).filter((c: ReviewComment) => c.status !== "deleted");
+        setReviewComments(comments);
+        if (comments.length > 0) setReviewRan(true);
+      }
     } catch {
       setDiffs([]);
     } finally {
       setLoadingDiffs(false);
     }
+  };
+
+  // Clean up live poll when modal closes
+  const closeViewer = () => {
+    if (livePollRef.current) { clearInterval(livePollRef.current); livePollRef.current = null; }
+    setViewingTask(null);
+    setIsLive(false);
   };
 
   // ── Review actions ──────────────────────────────────────────
@@ -324,10 +511,12 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
       return <CheckCircle2 className="w-3.5 h-3.5 text-emerald shrink-0" />;
     if (task.implementedManually)
       return <Hand className="w-3.5 h-3.5 text-amber shrink-0" />;
-    if (task.status === "in-progress" || busyTaskId === task.id)
+    if (task.status === "in-progress" || busyTaskIds.has(task.id))
       return (
         <Loader2 className="w-3.5 h-3.5 text-cyan animate-spin shrink-0" />
       );
+    if (jobProgress[task.id]?.status === "failed")
+      return <AlertTriangle className="w-3.5 h-3.5 text-amber shrink-0" />;
     return <Circle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />;
   };
 
@@ -364,7 +553,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
           >
             <div
               className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-              onClick={() => setViewingTask(null)}
+              onClick={closeViewer}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -375,39 +564,56 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
             >
               {/* Modal header */}
               <div className="px-5 py-3 border-b border-border flex items-center gap-3 shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center">
-                  <FileCode className="w-3.5 h-3.5 text-cyan" />
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                  isLive ? "bg-emerald/10 border border-emerald/20" : "bg-cyan/10 border border-cyan/20"
+                }`}>
+                  <FileCode className={`w-3.5 h-3.5 ${isLive ? "text-emerald" : "text-cyan"}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold truncate">
-                    {viewingTask.title}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold truncate">
+                      {viewingTask.title}
+                    </h3>
+                    {isLive && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald/15 border border-emerald/25 text-emerald text-[10px] font-semibold uppercase tracking-wider shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {viewingTask.branchName
-                      ? `Branch: ${viewingTask.branchName}`
-                      : "Changes review"}
-                    {diffs.length > 0 &&
-                      ` — ${diffs.length} file${diffs.length > 1 ? "s" : ""} changed`}
-                    {reviewComments.filter((c) => c.status === "open").length > 0 &&
-                      ` · ${reviewComments.filter((c) => c.status === "open").length} open comment${reviewComments.filter((c) => c.status === "open").length > 1 ? "s" : ""}`}
+                    {isLive
+                      ? `Watching changes... ${diffs.length} file${diffs.length !== 1 ? "s" : ""} so far`
+                      : <>
+                          {viewingTask.branchName
+                            ? `Branch: ${viewingTask.branchName}`
+                            : "Changes review"}
+                          {diffs.length > 0 &&
+                            ` — ${diffs.length} file${diffs.length > 1 ? "s" : ""} changed`}
+                          {reviewComments.filter((c) => c.status === "open").length > 0 &&
+                            ` · ${reviewComments.filter((c) => c.status === "open").length} open comment${reviewComments.filter((c) => c.status === "open").length > 1 ? "s" : ""}`}
+                        </>
+                    }
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  className="h-7 text-xs gap-1.5"
-                  variant={reviewRan ? "outline" : "default"}
-                  onClick={runReview}
-                  disabled={runningReview || diffs.length === 0}
-                >
-                  {runningReview ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <MessageSquare className="w-3 h-3" />
-                  )}
-                  {reviewRan ? "Re-run Review" : "Run Review"}
-                </Button>
+                {!isLive && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    variant={reviewRan ? "outline" : "default"}
+                    onClick={runReview}
+                    disabled={runningReview || diffs.length === 0}
+                  >
+                    {runningReview ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <MessageSquare className="w-3 h-3" />
+                    )}
+                    {reviewRan ? "Re-run Review" : "Run Review"}
+                  </Button>
+                )}
                 <button
-                  onClick={() => setViewingTask(null)}
+                  onClick={closeViewer}
                   className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -421,8 +627,35 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
                 ) : diffs.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                    No changes to display.
+                  <div className="flex-1 flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
+                    {isLive ? (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin text-emerald" />
+                        <span className="font-medium">
+                          {viewingTask && jobProgress[viewingTask.id]
+                            ? jobProgress[viewingTask.id].label
+                            : "Starting..."}
+                        </span>
+                        {viewingTask && jobProgress[viewingTask.id] && (
+                          <div className="w-48 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full bg-emerald rounded-full transition-all duration-500"
+                                style={{ width: `${jobProgress[viewingTask.id].progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-mono text-muted-foreground/60">
+                              {jobProgress[viewingTask.id].progress}%
+                            </span>
+                          </div>
+                        )}
+                        <span className="text-xs text-muted-foreground/50">
+                          Claude is analyzing the codebase. File changes will appear here in real-time.
+                        </span>
+                      </>
+                    ) : (
+                      "No changes to display."
+                    )}
                   </div>
                 ) : (
                   <>
@@ -530,7 +763,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                                         <div key={li}>
                                           {/* Diff line */}
                                           <div
-                                            className={`group flex cursor-pointer ${
+                                            className={`group flex ${isLive ? "" : "cursor-pointer"} ${
                                               type === "+"
                                                 ? "bg-emerald/8"
                                                 : type === "-"
@@ -538,6 +771,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                                                 : ""
                                             } ${lineComments.length > 0 ? "border-l-2 border-l-violet/50" : ""}`}
                                             onClick={() => {
+                                              if (isLive) return;
                                               setAddingCommentLine({ file: activeFile.path, line: currentLine });
                                               setNewCommentText("");
                                             }}
@@ -710,7 +944,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                 size="sm"
                 className="h-7 text-xs bg-emerald text-background hover:bg-emerald/90 gap-1"
                 onClick={runAll}
-                disabled={runningAll || !!busyTaskId}
+                disabled={runningAll || busyTaskIds.size > 0}
               >
                 {runningAll ? (
                   <Loader2 className="w-3 h-3 animate-spin" />
@@ -749,7 +983,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                         size="sm"
                         className="h-6 text-xs px-2 gap-1 text-emerald hover:text-emerald"
                         onClick={() => runWave(wave)}
-                        disabled={!!busyTaskId || runningAll || isRunningWave}
+                        disabled={busyTaskIds.size > 0 || runningAll || isRunningWave}
                       >
                         {isRunningWave ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -763,7 +997,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                   <div className="divide-y divide-border/50">
                     {wave.tasks.map((task) => {
                       const isDone = isTaskDone(task);
-                      const isBusy = busyTaskId === task.id;
+                      const isBusy = busyTaskIds.has(task.id);
                       return (
                         <div
                           key={task.id}
@@ -776,6 +1010,32 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                             >
                               {task.title}
                             </p>
+                            {/* Per-task progress bar + label for in-progress tasks */}
+                            {task.status === "in-progress" && jobProgress[task.id] && (
+                              <div className="mt-1.5 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full bg-cyan rounded-full transition-all duration-500"
+                                      style={{ width: `${jobProgress[task.id].progress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                    {jobProgress[task.id].progress}%
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {jobProgress[task.id].label}
+                                </p>
+                              </div>
+                            )}
+                            {/* Error message for failed tasks */}
+                            {task.status === "pending" && jobProgress[task.id]?.status === "failed" && jobProgress[task.id]?.error && (
+                              <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber">
+                                <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                                <span>{jobProgress[task.id].error}</span>
+                              </div>
+                            )}
                             {task.branchName && (
                               <div className="flex items-center gap-1 mt-1">
                                 <GitBranch className="w-3 h-3 text-muted-foreground" />
@@ -799,18 +1059,18 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                             )}
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            {isDone && (
+                            {(isDone || task.status === "in-progress") && (
                               <>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 text-xs px-2 gap-1"
+                                  className={`h-6 text-xs px-2 gap-1 ${task.status === "in-progress" ? "text-emerald" : ""}`}
                                   onClick={() => viewChanges(task)}
                                 >
                                   <Eye className="w-3 h-3" />
                                   View
                                 </Button>
-                                {!task.prUrl && (
+                                {isDone && !task.prUrl && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -828,28 +1088,45 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
                                 )}
                               </>
                             )}
-                            {!isDone && !isBusy && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-xs px-2 gap-1"
-                                  onClick={() => startTask(task.id)}
-                                >
-                                  <Play className="w-3 h-3" />
-                                  Run
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-xs px-2 gap-1"
-                                  onClick={() => markManual(task.id)}
-                                >
-                                  <Hand className="w-3 h-3" />
-                                  Manual
-                                </Button>
-                              </>
-                            )}
+                            {!isDone && task.status !== "in-progress" && !isBusy && (() => {
+                              const hasFailed = jobProgress[task.id]?.status === "failed";
+                              const isNoChanges = hasFailed && jobProgress[task.id]?.errorType === "no_changes";
+                              return (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs px-2 gap-1"
+                                    onClick={() => startTask(task.id)}
+                                  >
+                                    <Play className="w-3 h-3" />
+                                    {hasFailed ? "Retry" : "Run"}
+                                  </Button>
+                                  {isNoChanges && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-xs px-2 gap-1 text-emerald"
+                                      onClick={() => markManual(task.id)}
+                                    >
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Mark Done
+                                    </Button>
+                                  )}
+                                  {!isNoChanges && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-xs px-2 gap-1"
+                                      onClick={() => markManual(task.id)}
+                                    >
+                                      <Hand className="w-3 h-3" />
+                                      Manual
+                                    </Button>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       );

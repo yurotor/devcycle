@@ -6,11 +6,11 @@ This repository provides an AI-powered question-answering system for the CRB Len
 
 ## Communicates With
 
-[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [AWS Bedrock](../repos/aws-bedrock.md), [AWS DynamoDB](../repos/aws-dynamodb.md), [Identity Server](../repos/identity-server.md)
+[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [AWS Bedrock](../repos/aws-bedrock.md), [AWS DynamoDB](../repos/aws-dynamodb.md), [CRB Identity Provider](../repos/crb-identity-provider.md)
 
 ## Features Implemented
 
-- [Natural Language Loan Queries](../features/natural-language-loan-queries.md)
+- [AI-Powered Loan History Queries](../features/ai-powered-loan-history-queries.md)
 
 ## Business Features
 
@@ -111,4 +111,4 @@ While there is retry logic for Bedrock API calls, the error messages may not pro
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T14:26:15.921Z*
+*Generated: 2026-04-13T06:20:47.565Z*

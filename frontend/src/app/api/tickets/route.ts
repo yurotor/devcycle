@@ -27,6 +27,7 @@ export async function GET() {
       priority: t.priority,
       assignee: t.assignee ?? undefined,
       description: t.description ?? "",
+      prdPath: t.prdPath ?? null,
     })),
   });
 }

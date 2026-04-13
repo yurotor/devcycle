@@ -51,4 +51,4 @@ Complete loan lifecycle testing from origination through purchase
 
 > See also: [System Overview](../architecture/system-overview.md)
 
-*Generated: 2026-04-12T14:23:22.320Z*
+*Generated: 2026-04-13T06:16:29.481Z*

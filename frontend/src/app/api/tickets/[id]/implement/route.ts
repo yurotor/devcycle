@@ -6,7 +6,7 @@ import { tickets, tasks, repos, workspace, pats, jobs } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { decryptPat } from "@/lib/crypto";
 import { AzureDevOpsClient } from "@/lib/azure-devops/client";
-import { gitExec, claudeExec, withRepoLock } from "@/lib/claude-cli";
+import { gitExec, claudeExecStreaming, withRepoLock } from "@/lib/claude-cli";
 import fs from "fs";
 import path from "path";
 
@@ -48,6 +48,55 @@ export async function GET(
     return Response.json({ files });
   }
 
+  // Live diff — read from temp file on disk (during in-progress tasks)
+  if (action === "live-diff") {
+    const taskId = parseInt(url.searchParams.get("taskId") ?? "0", 10);
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    if (!task || !task.repoId) return Response.json({ files: [], live: false });
+
+    const [repo] = await db.select().from(repos).where(eq(repos.id, task.repoId));
+    if (!repo) return Response.json({ files: [], live: false });
+
+    const livePath = path.join(REPOS_DIR, repo.name, ".devcycle-live-diff.json");
+    if (!fs.existsSync(livePath)) return Response.json({ files: [], live: true });
+
+    try {
+      const data = JSON.parse(fs.readFileSync(livePath, "utf8"));
+      return Response.json({ files: data.files ?? [], live: true, ts: data.ts });
+    } catch {
+      return Response.json({ files: [], live: true });
+    }
+  }
+
+  // Job status — return progress + label for a task's running job
+  if (action === "job-status") {
+    const taskId = parseInt(url.searchParams.get("taskId") ?? "0", 10);
+    const jobRows = await db.select().from(jobs).where(
+      and(eq(jobs.relatedId, taskId), eq(jobs.type, "implement"))
+    );
+    // Get the most recent job
+    const job = jobRows.sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (!job) return Response.json({ progress: 0, label: "Queued..." });
+
+    let label = "Working...";
+    let errorType: string | undefined;
+    if (job.meta) {
+      try {
+        const meta = JSON.parse(job.meta);
+        label = meta.label ?? label;
+        errorType = meta.errorType;
+      } catch { /* ignore */ }
+    }
+
+    return Response.json({
+      progress: job.progress ?? 0,
+      label,
+      status: job.status,
+      error: job.error,
+      errorType,
+    });
+  }
+
   // Default: return status
   const taskRows = await db
     .select()
@@ -71,13 +120,14 @@ export async function POST(
   const { id } = await params;
   const ticketId = parseInt(id, 10);
   const body = await request.json();
-  const { action, taskId } = body as {
+  const { action, taskId, force } = body as {
     action: "start" | "manual" | "create-pr";
     taskId?: number;
+    force?: boolean;
   };
 
   if (action === "start" && taskId) {
-    return handleStart(ticketId, taskId);
+    return handleStart(ticketId, taskId, force);
   }
 
   if (action === "manual" && taskId) {
@@ -97,7 +147,7 @@ export async function POST(
 
 // ─── Start implementation (background job) ────────────────────────
 
-async function handleStart(ticketId: number, taskId: number) {
+async function handleStart(ticketId: number, taskId: number, force?: boolean) {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
 
@@ -121,13 +171,22 @@ async function handleStart(ticketId: number, taskId: number) {
     return Response.json({ error: `Repo "${repo.name}" is not cloned. Run a scan first.` }, { status: 400 });
   }
 
-  // Check no job already running for this task
+  // Check no job already running for this task (with stale detection)
   const existingJobs = await db.select().from(jobs).where(
     and(eq(jobs.relatedId, taskId), eq(jobs.type, "implement"), eq(jobs.status, "running"))
   );
-  if (existingJobs.length > 0) {
-    return Response.json({ ok: true, jobId: existingJobs[0].id, status: "already_running" });
+  const STALE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+  for (const ej of existingJobs) {
+    if (force || Date.now() - ej.updatedAt > STALE_THRESHOLD) {
+      // Job is stale or forced — mark as failed so we can retry
+      await db.update(jobs).set({ status: "failed", error: force ? "Force restart" : "Timed out (stale)", updatedAt: Date.now() }).where(eq(jobs.id, ej.id));
+    } else {
+      return Response.json({ ok: true, jobId: ej.id, status: "already_running" });
+    }
   }
+
+  // Reset task if it was left in-progress from a stale job
+  await db.update(tasks).set({ status: "pending", updatedAt: Date.now() }).where(eq(tasks.id, taskId));
 
   // Create job row
   const now = Date.now();
@@ -144,9 +203,15 @@ async function handleStart(ticketId: number, taskId: number) {
   // Mark task in-progress
   await db.update(tasks).set({ status: "in-progress", updatedAt: now }).where(eq(tasks.id, taskId));
 
-  // Fire-and-forget
-  runImplementInBackground(taskId, ticketId, job.id, repo, ticket).catch((err) => {
-    console.error("[implement] Background implementation crashed:", err);
+  // Fire-and-forget (with crash safety net)
+  runImplementInBackground(taskId, ticketId, job.id, repo, ticket).catch(async (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[implement] Background implementation crashed:", msg);
+    // Safety net: reset task + job if the outer catch didn't fire
+    try {
+      await db.update(tasks).set({ status: "pending", updatedAt: Date.now() }).where(eq(tasks.id, taskId));
+      await db.update(jobs).set({ status: "failed", error: `Crash: ${msg.slice(0, 400)}`, updatedAt: Date.now() }).where(eq(jobs.id, job.id));
+    } catch { /* best effort */ }
   });
 
   return Response.json({ ok: true, jobId: job.id });
@@ -173,15 +238,102 @@ async function runImplementInBackground(
   const branchName = `${ticket.jiraKey}/${slug}`.replace(/-$/, "");
   const defaultBranch = repo.defaultBranch || "main";
 
-  const updateJob = async (updates: { status?: string; progress?: number; error?: string }) => {
+  const liveDiffPath = path.join(repoDir, ".devcycle-live-diff.json");
+
+  const updateJob = async (updates: { status?: string; progress?: number; error?: string; meta?: string }) => {
     await db.update(jobs).set({
       ...updates,
       updatedAt: Date.now(),
     }).where(eq(jobs.id, jobId));
   };
 
+  const cleanupLiveDiff = () => {
+    try { fs.unlinkSync(liveDiffPath); } catch { /* ignore */ }
+  };
+
+  const snapshotLiveDiff = async () => {
+    try {
+      const raw = await gitExec(["diff", "--unified=3"], { cwd: repoDir });
+      const staged = await gitExec(["diff", "--cached", "--unified=3"], { cwd: repoDir });
+      const combined = [staged, raw].filter(Boolean).join("\n");
+      const files = parseUnifiedDiff(combined);
+      fs.writeFileSync(liveDiffPath, JSON.stringify({ files, ts: Date.now() }));
+    } catch {
+      // git diff can fail mid-edit — ignore
+    }
+  };
+
+  // ── Phase-based progress tracking ──
+  // Phases: Reading (10-40%), Editing (40-75%), Verifying (75-85%)
+  // Within each phase, asymptotic smoothing: new = current + (ceiling - current) * 0.4
+  const READ_TOOLS = new Set(["Read", "Grep", "Glob", "Bash"]);
+  const WRITE_TOOLS = new Set(["Edit", "Write"]);
+  type Phase = "reading" | "editing" | "verifying";
+  const PHASE_RANGES: Record<Phase, { floor: number; ceiling: number; label: string }> = {
+    reading:   { floor: 10, ceiling: 40, label: "Reading codebase..." },
+    editing:   { floor: 40, ceiling: 75, label: "Editing files..." },
+    verifying: { floor: 75, ceiling: 85, label: "Verifying changes..." },
+  };
+  let currentPhase: Phase = "reading";
+  let currentProgress = 20; // starts at 20 after branch creation
+  let hasSeenWrite = false;
+
+  // Throttle DB writes to at most once per second
+  let lastDbWrite = 0;
+  let pendingUpdate: { progress: number; label: string } | null = null;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const flushProgress = async () => {
+    if (!pendingUpdate) return;
+    const update = pendingUpdate;
+    pendingUpdate = null;
+    lastDbWrite = Date.now();
+    await updateJob({ progress: Math.round(update.progress), meta: JSON.stringify({ label: update.label }) });
+  };
+
+  const throttledProgressUpdate = (progress: number, label: string) => {
+    pendingUpdate = { progress, label };
+    const elapsed = Date.now() - lastDbWrite;
+    if (elapsed >= 1000) {
+      flushProgress().catch(() => {});
+    } else if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flushProgress().catch(() => {});
+      }, 1000 - elapsed);
+    }
+  };
+
+  const onToolUse = (toolName: string, _toolInput: unknown) => {
+    // Determine phase transition
+    if (!hasSeenWrite && WRITE_TOOLS.has(toolName)) {
+      hasSeenWrite = true;
+      currentPhase = "editing";
+      currentProgress = PHASE_RANGES.editing.floor;
+      // Snapshot diff when files are written
+      snapshotLiveDiff().catch(() => {});
+    } else if (hasSeenWrite && toolName === "Bash") {
+      currentPhase = "verifying";
+      if (currentProgress < PHASE_RANGES.verifying.floor) {
+        currentProgress = PHASE_RANGES.verifying.floor;
+      }
+    }
+
+    // Snapshot live diff on every write tool
+    if (WRITE_TOOLS.has(toolName)) {
+      snapshotLiveDiff().catch(() => {});
+    }
+
+    // Asymptotic progress within current phase
+    const range = PHASE_RANGES[currentPhase];
+    currentProgress = currentProgress + (range.ceiling - currentProgress) * 0.4;
+    throttledProgressUpdate(currentProgress, range.label);
+  };
+
   try {
+    console.log(`[implement] Task ${taskId}: acquiring repo lock for ${repo.name}...`);
     await withRepoLock(repo.name, async () => {
+      console.log(`[implement] Task ${taskId}: lock acquired. Preparing repo...`);
       // Ensure we're on the default branch with a clean state
       try {
         await gitExec(["checkout", defaultBranch], { cwd: repoDir });
@@ -193,14 +345,18 @@ async function runImplementInBackground(
 
       // Delete branch if it exists (retry scenario)
       try {
+        // Force checkout default branch first in case we're on the target branch
+        await gitExec(["checkout", defaultBranch], { cwd: repoDir });
         await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+        console.log(`[implement] Task ${taskId}: deleted existing branch ${branchName}`);
       } catch {
         // Branch doesn't exist — fine
       }
 
       // Create feature branch
+      console.log(`[implement] Task ${taskId}: creating branch ${branchName}...`);
       await gitExec(["checkout", "-b", branchName], { cwd: repoDir });
-      await updateJob({ progress: 10 });
+      await updateJob({ progress: 10, meta: JSON.stringify({ label: "Creating branch..." }) });
 
       // Load context for Claude
       const prdContent = loadPRD(ticket);
@@ -229,27 +385,39 @@ ${synthesisContext}
 - If the repo has tests, add or update tests for your changes
 - Do NOT commit your changes — just edit the files`;
 
-      // Let Claude implement the changes
-      await updateJob({ progress: 20 });
-      console.log(`[implement] Starting Claude CLI for task ${taskId} in ${repo.name}...`);
+      // Let Claude implement the changes (streaming for real-time progress)
+      await updateJob({ progress: 20, meta: JSON.stringify({ label: "Claude analyzing codebase..." }) });
+      console.log(`[implement] Task ${taskId}: starting Claude CLI (streaming) in ${repo.name} (branch: ${branchName})...`);
 
-      await claudeExec(prompt, {
-        addDirs: [repoDir],
-        model: "sonnet",
-        maxBudget: 2.00,
-        timeoutMs: 600_000,
-        systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits.",
-      });
+      try {
+        await claudeExecStreaming(prompt, {
+          cwd: repoDir,
+          addDirs: [KB_ROOT],
+          model: "sonnet",
+          maxBudget: 2.00,
+          timeoutMs: 600_000,
+          systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits.",
+          onToolUse,
+        });
+      } finally {
+        if (flushTimer) clearTimeout(flushTimer);
+        await flushProgress();
+        // One final snapshot after Claude finishes
+        await snapshotLiveDiff();
+      }
 
-      await updateJob({ progress: 80 });
+      await updateJob({ progress: 80, meta: JSON.stringify({ label: "Committing changes..." }) });
 
-      // Stage and commit changes
+      // Stage and commit changes (exclude our temp file)
+      cleanupLiveDiff();
       await gitExec(["add", "-A"], { cwd: repoDir });
 
       // Check if there are actually changes to commit
       const statusOutput = await gitExec(["status", "--porcelain"], { cwd: repoDir });
       if (!statusOutput.trim()) {
-        throw new Error("Claude did not make any file changes");
+        const noChangesErr = new Error("Claude completed analysis but made no file changes. The task may already be done or may need clarification.");
+        (noChangesErr as Error & { errorType: string }).errorType = "no_changes";
+        throw noChangesErr;
       }
 
       await gitExec(
@@ -261,7 +429,7 @@ ${synthesisContext}
       const rawDiff = await gitExec(["diff", "HEAD~1", "--unified=5"], { cwd: repoDir });
       const fileDiffs = parseUnifiedDiff(rawDiff);
 
-      await updateJob({ progress: 95 });
+      await updateJob({ progress: 95, meta: JSON.stringify({ label: "Capturing diff..." }) });
 
       // Store results
       await db.update(tasks).set({
@@ -271,11 +439,13 @@ ${synthesisContext}
         updatedAt: Date.now(),
       }).where(eq(tasks.id, taskId));
 
-      await updateJob({ status: "done", progress: 100 });
+      cleanupLiveDiff();
+      await updateJob({ status: "done", progress: 100, meta: JSON.stringify({ label: "Done" }) });
       console.log(`[implement] Task ${taskId} completed — ${fileDiffs.length} files changed`);
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const errorType = (err as Error & { errorType?: string })?.errorType ?? "unknown";
     console.error(`[implement] Task ${taskId} failed:`, msg);
 
     // Clean up: return to default branch
@@ -286,8 +456,9 @@ ${synthesisContext}
       // Best effort cleanup
     }
 
+    cleanupLiveDiff();
     await db.update(tasks).set({ status: "pending", updatedAt: Date.now() }).where(eq(tasks.id, taskId));
-    await updateJob({ status: "failed", error: msg.slice(0, 500) });
+    await updateJob({ status: "failed", error: msg.slice(0, 500), meta: JSON.stringify({ label: "Failed", errorType }) });
   }
 }
 

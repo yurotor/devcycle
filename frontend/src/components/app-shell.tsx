@@ -137,11 +137,6 @@ export function AppShell() {
   return (
     <div className="h-full flex relative">
 
-      {/* Scan pill — fixed top-right, below board header area */}
-      <div className="fixed top-14 right-4 z-50">
-        <ScanPill />
-      </div>
-
       {/* Icon rail */}
       <div className="w-12 border-r border-border bg-sidebar flex flex-col items-center py-3 gap-1 shrink-0">
         <div className="w-8 h-8 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center mb-3">
@@ -223,58 +218,89 @@ export function AppShell() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0 bg-background flex">
-        <div className={ticketPanel ? "flex-1 min-w-0" : "flex-1"}>
-          <AnimatePresence mode="wait">
-            {mainView === "board" && (
-              <motion.div
-                key="board"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="h-full"
-              >
-                {noJira ? (
-                  <NoJiraState onConnected={(t) => { setTickets(t); setJiraUrl("connected"); }} />
-                ) : (
-                  <KanbanBoard
-                    tickets={tickets}
-                    onTicketClick={handleTicketClick}
-                    activeTicketId={ticketPanel?.ticket.id}
-                    onSync={jiraUrl ? syncTickets : undefined}
-                    syncing={syncing}
-                  />
-                )}
-              </motion.div>
-            )}
-            {mainView === "file" && filePath && (
-              <motion.div
-                key={`file-${filePath}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="h-full flex flex-col"
-              >
-                <div className="h-12 flex items-center px-4 gap-3 border-b border-border shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
-                    onClick={() => setMainView("board")}
+        <div className={ticketPanel ? "flex-1 min-w-0 flex flex-col" : "flex-1 flex flex-col"}>
+          {/* Global top bar */}
+          {!noJira && (
+            <div className="sticky top-0 z-10 shrink-0 h-12 flex items-center px-5 border-b border-border bg-background gap-3">
+              {mainView === "file" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setMainView("board")}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              )}
+              {mainView === "board" && (
+                <>
+                  <h2 className="text-base font-semibold tracking-tight">Board</h2>
+                  <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
+                    {tickets.length} tickets
+                  </span>
+                </>
+              )}
+              {mainView === "file" && filePath && (
+                <code className="text-xs text-muted-foreground font-mono">
+                  {filePath}
+                </code>
+              )}
+              <div className="ml-auto flex items-center gap-3">
+                <ScanPill />
+                {jiraUrl && mainView === "board" && (
+                  <button
+                    onClick={syncTickets}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                    title="Sync from Jira"
                   >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <code className="text-xs text-muted-foreground font-mono">
-                    {filePath}
-                  </code>
-                </div>
-                <div className="flex-1 overflow-auto">
-                  <MarkdownViewer path={filePath} onNavigate={handleFileClick} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+                    {syncing ? "Syncing..." : "Sync Jira"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* View content */}
+          <div className="flex-1 min-h-0">
+            <AnimatePresence mode="wait">
+              {mainView === "board" && (
+                <motion.div
+                  key="board"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  {noJira ? (
+                    <NoJiraState onConnected={(t) => { setTickets(t); setJiraUrl("connected"); }} />
+                  ) : (
+                    <KanbanBoard
+                      tickets={tickets}
+                      onTicketClick={handleTicketClick}
+                      activeTicketId={ticketPanel?.ticket.id}
+                    />
+                  )}
+                </motion.div>
+              )}
+              {mainView === "file" && filePath && (
+                <motion.div
+                  key={`file-${filePath}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <div className="h-full overflow-auto">
+                    <MarkdownViewer path={filePath} onNavigate={handleFileClick} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Ticket detail panel */}

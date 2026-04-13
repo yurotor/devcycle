@@ -40,4 +40,4 @@ Results are delivered back to the user interface where they are presented in a c
 
 > See also: [System Overview](../architecture/system-overview.md) | [Data Model](../data-model/entities.md)
 
-*Generated: 2026-04-12T14:23:22.318Z*
+*Generated: 2026-04-13T06:16:29.479Z*

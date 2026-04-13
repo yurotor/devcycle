@@ -2,282 +2,295 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  FileText,
-  Loader2,
-  RefreshCw,
-  ThumbsUp,
-  Pencil,
-  MessageSquare,
-  ChevronLeft,
-  Send,
-  X,
-  Check,
-} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, AlertCircle, RefreshCw, ArrowRight, FileText } from "lucide-react";
 import { type Ticket } from "@/lib/fake-data";
 
 interface PlanPhaseProps {
   ticket: Ticket;
   onComplete: () => void;
-  onBack?: () => void;
 }
 
-type Mode = "view" | "edit" | "chat";
-
-export function PlanPhase({ ticket, onComplete, onBack }: PlanPhaseProps) {
+export function PlanPhase({ ticket, onComplete }: PlanPhaseProps) {
   const [prd, setPrd] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [approving, setApproving] = useState(false);
-  const [mode, setMode] = useState<Mode>("view");
-  const [editDraft, setEditDraft] = useState("");
-  const [chatInput, setChatInput] = useState("");
-  const [chatSending, setChatSending] = useState(false);
-  const autoStartedRef = useRef(false);
+  const [loadingPrd, setLoadingPrd] = useState(true);
 
-  const generatePrd = async () => {
+  // Task generation state (runs in background)
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const startedRef = useRef(false);
+
+  // Load PRD content
+  useEffect(() => {
+    setLoadingPrd(true);
+    fetch(`/api/tickets/${ticket.id}/prd`)
+      .then((r) => r.json())
+      .then((data) => setPrd(data.prd ?? null))
+      .catch(() => setPrd(null))
+      .finally(() => setLoadingPrd(false));
+  }, [ticket.id]);
+
+  // Auto-start task generation in background
+  const generate = async () => {
     setGenerating(true);
+    setGenError(null);
     try {
-      const res = await fetch(`/api/tickets/${ticket.id}/plan/generate`, {
+      const res = await fetch(`/api/tickets/${ticket.id}/design/generate`, {
         method: "POST",
       });
       const data = await res.json();
-      setPrd(data.prd ?? null);
+      if (!res.ok) {
+        setGenError(data.error ?? "Generation failed");
+        return;
+      }
+      const waves = data.waves ?? [];
+      if (waves.length === 0) {
+        setGenError("No tasks were generated.");
+        return;
+      }
+      setGenerated(true);
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setGenerating(false);
     }
   };
 
-  // Auto-generate PRD on mount
   useEffect(() => {
-    if (autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    generatePrd();
+    if (startedRef.current) return;
+    startedRef.current = true;
+    generate();
   }, [ticket.id]);
 
-  const approvePrd = async () => {
-    setApproving(true);
-    try {
-      await fetch(`/api/tickets/${ticket.id}/plan/approve`, {
-        method: "POST",
-      });
-      onComplete();
-    } finally {
-      setApproving(false);
-    }
+  // Approve handler — only advances if generation is done
+  const handleApprove = () => {
+    onComplete();
   };
 
-  const startEdit = () => {
-    setEditDraft(prd ?? "");
-    setMode("edit");
-  };
-
-  const saveEdit = () => {
-    setPrd(editDraft);
-    setMode("view");
-  };
-
-  const sendChatRequest = async () => {
-    if (!chatInput.trim() || chatSending) return;
-    setChatSending(true);
-    try {
-      const res = await fetch(`/api/tickets/${ticket.id}/plan/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPrd: prd, feedback: chatInput.trim() }),
-      });
-      const data = await res.json();
-      if (data.prd) setPrd(data.prd);
-      setChatInput("");
-      setMode("view");
-    } finally {
-      setChatSending(false);
-    }
-  };
-
-  if (generating) {
+  if (loadingPrd) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-violet mb-3" />
-        <p className="text-sm text-muted-foreground">Generating PRD...</p>
-      </div>
-    );
-  }
-
-  if (!prd) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-violet mb-3" />
-        <p className="text-sm text-muted-foreground">Preparing PRD...</p>
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-border bg-violet/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="w-3.5 h-3.5 text-violet" />
-          <span className="text-sm font-medium">
-            Product Requirements Document
-          </span>
+          <span className="text-sm font-medium">Product Requirements Document</span>
         </div>
-        <div className="flex items-center gap-1">
-          {mode === "view" && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-sm gap-1.5"
-                onClick={startEdit}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-sm gap-1.5"
-                onClick={() => setMode("chat")}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Request Changes
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-sm gap-1.5"
-                onClick={generatePrd}
-                disabled={generating}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${generating ? "animate-spin" : ""}`} />
-                Regenerate
-              </Button>
-            </>
+        <div className="flex items-center gap-2">
+          {/* Generation status indicator */}
+          {generating && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Generating tasks...
+            </span>
           )}
-          {mode === "edit" && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => setMode("view")}
+          {genError && (
+            <span className="flex items-center gap-1.5 text-xs text-amber">
+              <AlertCircle className="w-3 h-3" />
+              Task generation failed
+              <button
+                onClick={generate}
+                className="underline hover:no-underline ml-1"
               >
-                <X className="w-3 h-3" />
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="h-7 text-xs gap-1 bg-violet text-background hover:bg-violet/90"
-                onClick={saveEdit}
-              >
-                <Check className="w-3 h-3" />
-                Save
-              </Button>
-            </>
+                Retry
+              </button>
+            </span>
           )}
-          {mode === "chat" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => setMode("view")}
-            >
-              <X className="w-3 h-3" />
-              Cancel
-            </Button>
+          {generated && !generating && !genError && (
+            <span className="text-xs text-emerald">Tasks ready</span>
           )}
+
+          <Button
+            size="sm"
+            className="h-8 text-sm bg-violet text-background hover:bg-violet/90 gap-1.5"
+            onClick={handleApprove}
+            disabled={!generated || generating}
+          >
+            {generating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ArrowRight className="w-3.5 h-3.5" />
+            )}
+            Approve PRD
+          </Button>
         </div>
       </div>
 
-      {/* Chat input bar */}
-      {mode === "chat" && (
-        <div className="shrink-0 px-4 py-3 border-b border-border bg-violet/5">
-          <p className="text-xs text-muted-foreground mb-2">
-            Describe what you want to change in the PRD. AI will regenerate it with your feedback.
-          </p>
-          <div className="flex gap-2">
-            <Textarea
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="e.g. Add error handling section, remove the migration step..."
-              className="min-h-[36px] max-h-[100px] text-sm resize-none bg-secondary border-border/50"
-              rows={2}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendChatRequest();
-                }
-              }}
-            />
-            <Button
-              size="sm"
-              className="h-9 w-9 p-0 shrink-0 bg-violet text-background hover:bg-violet/90"
-              onClick={sendChatRequest}
-              disabled={!chatInput.trim() || chatSending}
-            >
-              {chatSending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* PRD content */}
-      <div className="flex-1 min-h-0 overflow-auto px-4">
-        <div className="py-4">
-          {mode === "edit" ? (
-            <Textarea
-              value={editDraft}
-              onChange={(e) => setEditDraft(e.target.value)}
-              className="min-h-[400px] text-sm leading-relaxed font-mono bg-secondary/50 border border-border rounded-lg p-4 resize-none"
-            />
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-6 max-w-3xl mx-auto">
+          {prd ? (
+            <div className="prose prose-sm prose-invert max-w-none
+              prose-headings:text-foreground prose-headings:font-semibold
+              prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-border/50 prose-h2:pb-2
+              prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
+              prose-p:text-muted-foreground prose-p:leading-relaxed
+              prose-li:text-muted-foreground
+              prose-strong:text-foreground
+              prose-code:text-violet prose-code:bg-violet/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
+              prose-hr:border-border/30
+            ">
+              <PRDRenderer content={prd} />
+            </div>
           ) : (
-            <div className="text-sm leading-relaxed whitespace-pre-wrap font-mono bg-secondary/50 border border-border rounded-lg p-4">
-              {prd}
+            <div className="text-center py-12 space-y-2">
+              <p className="text-sm text-muted-foreground">No PRD has been generated yet.</p>
+              <p className="text-xs text-muted-foreground/60">
+                Go back to the Analysis phase to generate a PRD.
+              </p>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-sm gap-1 text-muted-foreground"
-              onClick={onBack}
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              Back to Analysis
-            </Button>
-          )}
-          {!onBack && (
-            <p className="text-sm text-muted-foreground">
-              Review the PRD, then approve to move to Design.
-            </p>
-          )}
-        </div>
-        <Button
-          size="sm"
-          className="h-8 text-sm bg-violet text-background hover:bg-violet/90 gap-1"
-          onClick={approvePrd}
-          disabled={approving || mode !== "view"}
-        >
-          {approving ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <ThumbsUp className="w-3.5 h-3.5" />
-          )}
-          Approve PRD
-        </Button>
-      </div>
+      </ScrollArea>
     </div>
   );
+}
+
+// Simple markdown-to-JSX renderer for PRD content (handles headings, lists, paragraphs, bold, code)
+function PRDRenderer({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Headings
+    if (line.startsWith("## ")) {
+      elements.push(<h2 key={key++}>{formatInline(line.slice(3))}</h2>);
+      i++;
+      continue;
+    }
+    if (line.startsWith("### ")) {
+      elements.push(<h3 key={key++}>{formatInline(line.slice(4))}</h3>);
+      i++;
+      continue;
+    }
+    if (line.startsWith("# ")) {
+      elements.push(<h2 key={key++}>{formatInline(line.slice(2))}</h2>);
+      i++;
+      continue;
+    }
+
+    // Horizontal rule
+    if (line.match(/^---+$/)) {
+      elements.push(<hr key={key++} />);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^[-*] /)) {
+      const items: string[] = [];
+      while (i < lines.length && lines[i].match(/^[-*] /)) {
+        items.push(lines[i].replace(/^[-*] /, ""));
+        i++;
+      }
+      elements.push(
+        <ul key={key++}>
+          {items.map((item, j) => (
+            <li key={j}>{formatInline(item)}</li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^\d+\. /)) {
+      const items: string[] = [];
+      while (i < lines.length && lines[i].match(/^\d+\. /)) {
+        items.push(lines[i].replace(/^\d+\. /, ""));
+        i++;
+      }
+      elements.push(
+        <ol key={key++}>
+          {items.map((item, j) => (
+            <li key={j}>{formatInline(item)}</li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    // Blank line
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // Paragraph — collect consecutive non-empty, non-special lines
+    const paraLines: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !lines[i].startsWith("#") &&
+      !lines[i].match(/^[-*] /) &&
+      !lines[i].match(/^\d+\. /) &&
+      !lines[i].match(/^---+$/)
+    ) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      elements.push(<p key={key++}>{formatInline(paraLines.join(" "))}</p>);
+    }
+  }
+
+  return <>{elements}</>;
+}
+
+// Format inline markdown: **bold**, `code`, *italic*
+function formatInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let partKey = 0;
+
+  while (remaining.length > 0) {
+    // Bold
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    // Code
+    const codeMatch = remaining.match(/`([^`]+)`/);
+    // Italic
+    const italicMatch = remaining.match(/(?<!\*)\*([^*]+)\*(?!\*)/);
+
+    // Find the earliest match
+    const matches = [
+      boldMatch ? { type: "bold", match: boldMatch, index: boldMatch.index! } : null,
+      codeMatch ? { type: "code", match: codeMatch, index: codeMatch.index! } : null,
+      italicMatch ? { type: "italic", match: italicMatch, index: italicMatch.index! } : null,
+    ].filter(Boolean).sort((a, b) => a!.index - b!.index);
+
+    if (matches.length === 0) {
+      parts.push(remaining);
+      break;
+    }
+
+    const first = matches[0]!;
+    if (first.index > 0) {
+      parts.push(remaining.slice(0, first.index));
+    }
+
+    if (first.type === "bold") {
+      parts.push(<strong key={partKey++}>{first.match![1]}</strong>);
+      remaining = remaining.slice(first.index + first.match![0].length);
+    } else if (first.type === "code") {
+      parts.push(<code key={partKey++}>{first.match![1]}</code>);
+      remaining = remaining.slice(first.index + first.match![0].length);
+    } else {
+      parts.push(<em key={partKey++}>{first.match![1]}</em>);
+      remaining = remaining.slice(first.index + first.match![0].length);
+    }
+  }
+
+  return parts.length === 1 && typeof parts[0] === "string" ? parts[0] : <>{parts}</>;
 }

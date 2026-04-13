@@ -2,65 +2,61 @@
 
 ## Overview
 
-The Loan Inventory Management feature provides a comprehensive system for tracking, categorizing, and managing loan portfolios throughout their lifecycle. It enables users to maintain visibility and control over loans in various states, including Held For Sale (HFS), Loans To Be Held For Sale (LTHF), and those with pending approvals.
+The Loan Inventory Management feature provides a comprehensive user interface for tracking, managing, and analyzing the bank's loan portfolio. It serves as the primary dashboard for financial officers and loan administrators to monitor loan statuses, particularly those marked as Held For Sale (HFS), and process pending approvals.
 
-This feature exists to give Cross River Bank and its Marketplace Lender (MPL) partners a unified view of loan inventory, facilitating efficient secondary market operations and ensuring proper loan lifecycle management from origination through sale and servicing.
+This feature exists to:
+- Provide visibility into the current loan portfolio
+- Track loans throughout their lifecycle
+- Facilitate efficient decision-making through data filtering and sorting
+- Streamline the approval process for loan-related actions
 
 ## How It Works
 
-The feature operates on a client-server architecture where:
+The Loan Inventory Management system primarily operates as a read-focused UI layer that:
 
-1. **Data Sourcing**: The backend WebAPI retrieves loan data from the core banking system and various loan servicing platforms, normalizes it, and maintains state information.
+1. **Retrieves loan data**: Fetches loan inventory information from the backend APIs
+2. **Presents filterable views**: Allows users to narrow down the loan inventory by various criteria including:
+   - Loan status
+   - Origination date
+   - Loan amount
+   - Borrower information
+   - Current stage in the selling process
 
-2. **Classification Logic**: Loans are categorized into:
-   - **HFS (Held For Sale)**: Loans ready for sale to MPL partners
-   - **LTHF (Loans To Be Held For Sale)**: Loans designated for future sale but not yet ready
-   - **Pending Approval**: Loans awaiting review/approval before changing status
+3. **Status tracking**: Visually represents the current status of each loan (e.g., New, In Review, HFS, Sold)
 
-3. **User Interface Flow**:
-   - Users access loan inventories through the React frontend
-   - They can apply filters, sorting, and search criteria to locate specific loans
-   - Detailed loan information is available on demand
-   - Loan status changes trigger appropriate workflows
+4. **Approval queue**: Displays loans awaiting approval actions with relevant metadata and decision options
 
-4. **Loan Purchase Flow**: The system tracks loans as they move through the purchase pipeline, maintaining history of all actions and state transitions.
+5. **History tracking**: Maintains and displays an audit trail of all actions taken on each loan
+
+The UI communicates with the backend APIs to retrieve this data in real-time, with most operations being read-only. Write operations typically occur through separate transaction-specific workflows.
 
 ## Repos Involved
 
-- [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md): React frontend providing the user interface for loan inventory display, filtering, and management
-- [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md): Backend service that provides loan data, processes status changes, and maintains the inventory state machine
+- [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md) - React frontend providing the user interface for loan inventory management
+- [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md) - Backend service providing data access and business logic
 
 ## Key APIs
 
-### Frontend Consumption APIs
-- `GET /selling/api/loans/HFS/*` - Retrieves loans in Held For Sale status with various filter options
-- `POST /selling/api/sessions` - Creates a new session for loan interaction tracking
-- `GET /selling/api/sessions/{sessionId}/history` - Retrieves history of actions for a specific session
-- `GET /selling/api/loans/{id}` - Retrieves detailed information for a specific loan
+### Loan Data Retrieval
+- `GET /selling/api/loans/HFS/*` - Retrieves loans marked as Held For Sale with various filter options
+- `GET /selling/api/loans/{id}` - Gets detailed information about a specific loan
 
-### Backend Services
-- `GET /api/loans` - Returns collection of loans based on query parameters
-- `GET /api/loans/{id}` - Returns detailed information for a specific loan
-- `GET /api/batches` - Retrieves loan batches for inventory management
-- `POST /api/reports` - Generates inventory reports based on specified criteria
-- `POST /api/transfers` - Initiates loan transfers between statuses or owners
+### Session Management
+- `POST /selling/api/sessions` - Creates a new session for tracking user interactions
+- `GET /selling/api/sessions/{sessionId}/history` - Retrieves the history of actions for a given session
 
 ## Data Entities
 
-- [Loan](../data-model/entities.md#loan): Core loan data including status, amounts, and identifiers
-- [LoanDetails](../data-model/entities.md#loandetails): Extended loan information including term, interest rate, and borrower attributes
-- [PendingApproval](../data-model/entities.md#pendingapproval): Represents loans awaiting approval with associated metadata
-- [ChatSession](../data-model/entities.md#chatsession): Tracks communication related to specific loans
-- [LoanAction](../data-model/entities.md#loanaction): Records actions taken on loans
-- [Transfer](../data-model/entities.md#transfer): Documents movement of loans between statuses or owners
-- [Batch](../data-model/entities.md#batch): Represents grouped loans for processing
-- [InterestHistory](../data-model/entities.md#interesthistory): Tracks interest accruals on loans
+- [Loan](../data-model/entities.md#loan) - Core entity representing a loan in the system
+- [LoanDetails](../data-model/entities.md#loandetails) - Extended information about a loan
+- [PendingApproval](../data-model/entities.md#pendingapproval) - Represents a loan awaiting approval action
+- [ChatSession](../data-model/entities.md#chatsession) - Tracks communication sessions related to loans
 
-The Loan Inventory Management feature provides the foundation for all secondary market operations in the COS Lending platform, enabling efficient loan portfolio management and sales facilitation.
+The feature primarily interacts with these entities in read-only mode, with updates occurring through separate transaction workflows.
 
 ---
 
 > **Repos:** [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md) | [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md)
 > See also: [System Overview](../architecture/system-overview.md) | [Data Flows](../architecture/data-flows.md)
 
-*Generated: 2026-04-12T14:25:31.622Z*
+*Generated: 2026-04-13T06:18:34.285Z*

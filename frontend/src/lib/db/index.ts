@@ -143,6 +143,8 @@ const MIGRATIONS = [
   `ALTER TABLE workspace ADD COLUMN jira_project_key TEXT`,
   `ALTER TABLE pats ADD COLUMN username TEXT`,
   `ALTER TABLE tasks ADD COLUMN diff TEXT`,
+  `ALTER TABLE tickets ADD COLUMN plan_session_id TEXT`,
+  `ALTER TABLE tasks ADD COLUMN subtitle TEXT`,
 ];
 
 function createDb() {

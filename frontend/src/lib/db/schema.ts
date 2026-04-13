@@ -54,6 +54,7 @@ export const tickets = sqliteTable("tickets", {
   assignee: text("assignee"),
   description: text("description"),
   prdPath: text("prd_path"), // kb/wiki path for the PRD markdown file
+  planSessionId: text("plan_session_id"), // Claude CLI session ID for plan phase chat
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -76,6 +77,7 @@ export const tasks = sqliteTable("tasks", {
   waveId: integer("wave_id"),
   repoId: integer("repo_id"),
   title: text("title").notNull(),
+  subtitle: text("subtitle"),
   description: text("description"),
   status: text("status").notNull().default("pending"), // 'pending' | 'in-progress' | 'done'
   dependsOn: text("depends_on"), // JSON: number[]

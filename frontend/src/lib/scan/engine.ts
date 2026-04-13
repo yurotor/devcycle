@@ -325,8 +325,10 @@ export class ScanEngine {
       fs.mkdirSync(kbDir, { recursive: true });
       writeRepoAnalysis(kbDir, repoName, analysis, headHash);
 
-      // Save findings
-      const findings = analysis.findings ?? [];
+      // Save findings (filter out malformed entries from Claude)
+      const findings = (analysis.findings ?? []).filter(
+        (f) => f.severity && f.category && f.title
+      );
       await this.saveFindings(repoName, findings);
 
       const criticalCount = findings.filter((f) => f.severity === "critical").length;
@@ -352,6 +354,25 @@ export class ScanEngine {
 
   private async synthesizeSystem(): Promise<SystemSynthesis | null> {
     if (this.repoAnalyses.size === 0) return null;
+
+    // Skip synthesis if cached result is newer than all repo analyses
+    const rawDir = path.join(KB_ROOT, "raw");
+    const synthPath = path.join(rawDir, "system-synthesis.json");
+    if (fs.existsSync(synthPath)) {
+      const synthMtime = fs.statSync(synthPath).mtimeMs;
+      const analysisPaths = Array.from(this.repoAnalyses.keys()).map(
+        (name) => path.join(rawDir, name, "analysis.json")
+      );
+      const allOlder = analysisPaths.every((p) => {
+        try { return fs.statSync(p).mtimeMs <= synthMtime; } catch { return true; }
+      });
+      if (allOlder) {
+        console.log("[synthesis] Cached synthesis is up to date — skipping.");
+        this.emit({ repo: "system", message: "Synthesis unchanged — using cached result.", type: "info" });
+        return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
+      }
+    }
+
     return runSynthesis(this.repoAnalyses);
   }
 
@@ -824,10 +845,11 @@ function writeRepoAnalysis(kbDir: string, repoName: string, analysis: DeepRepoAn
   }
   sections.push(`## Tech Stack`, ...analysis.techStack.map((t) => `- ${t}`), "");
 
-  if (analysis.findings.length > 0) {
+  const validFindings = analysis.findings.filter((f) => f.severity && f.category && f.title);
+  if (validFindings.length > 0) {
     sections.push(
       `## Findings`,
-      ...analysis.findings.map(
+      ...validFindings.map(
         (f) =>
           `### [${f.severity.toUpperCase()}] ${f.title}\n\n**Category:** ${f.category}  \n**Files:** ${f.files?.join(", ") || "N/A"}\n\n${f.description}`
       ),

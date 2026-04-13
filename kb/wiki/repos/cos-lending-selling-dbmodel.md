@@ -4,9 +4,19 @@
 
 This repository serves as the database model and context for the Cos.Lending.Selling system, defining the data schema and relationships for a financial loan selling and servicing platform. It provides entity models, configurations, and migration capabilities to support the persistence layer of the lending system.
 
-## Communicates With
+## Features Implemented
 
-[PostgreSQL Database](../repos/postgresql-database.md)
+- [Loan Purchase and Funding](../features/loan-purchase-and-funding.md)
+- [Daily Interest Accrual and Collection](../features/daily-interest-accrual-and-collection.md)
+- [Fee Management and Collection](../features/fee-management-and-collection.md)
+- [Volume Fee Calculation and True-Up](../features/volume-fee-calculation-and-true-up.md)
+- [Loan Grooming (Investor and Type Changes)](../features/loan-grooming-investor-and-type-changes.md)
+- [AI-Powered Loan History Queries](../features/ai-powered-loan-history-queries.md)
+- [Servicing Data Ingestion and Reconciliation](../features/servicing-data-ingestion-and-reconciliation.md)
+- [Event Notifications and Hooks](../features/event-notifications-and-hooks.md)
+- [Transfer Monitoring and Status Sync](../features/transfer-monitoring-and-status-sync.md)
+- [Reporting and Analytics](../features/reporting-and-analytics.md)
+- [Account Resolution and Mapping](../features/account-resolution-and-mapping.md)
 
 ## Business Features
 
@@ -87,4 +97,4 @@ The system has a multi-tenant architecture with different tenant types (SellingI
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T14:26:15.921Z*
+*Generated: 2026-04-13T06:20:47.565Z*

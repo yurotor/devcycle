@@ -2,44 +2,49 @@
 
 Shared architectural patterns across the system.
 
-## Event-Driven Architecture with Outbox Pattern
+## Outbox Pattern
 
-WebApi uses multiple outbox tables (TransferOutbox, FeeOutbox, NotificationOutbox, etc.) to ensure reliable event publishing to downstream systems. The outbox processors poll these tables and dispatch events via SQS and HTTP, guaranteeing at-least-once delivery semantics.
-
-**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
-## Microservices with Domain Separation
-
-System is decomposed into focused services: WebApi for business logic, Hooks for notifications, AI for natural language queries, Ingestion for data synchronization, and DAGs for orchestration. Each service owns its domain and communicates via REST APIs and messaging.
-
-**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [COS.Lending.Selling.Hooks](../repos/cos-lending-selling-hooks.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md)
-## Multi-Tenant Architecture with Tenant Isolation
-
-System supports multiple tenant types (SellingITAdmin, InternalTenant, MplTenant, BankTenant, InvestorTenant) with application-level tenant filtering applied to database queries. Each user session is scoped to a specific tenant context.
+Used throughout the system for reliable message delivery. The DbModel defines 9 different outbox tables (TransferOutbox, FeeOutbox, BatchInitOutbox, DailyInterestOutbox, NotificationOutbox, VolumeFeeOutbox, ReportingOutbox, MaturedLoanOutbox, TrueUpVolumeFeeOutbox), and WebApi implements outbox processors that ensure reliable async operations.
 
 **Used in:** [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md)
-## Functional Core, Imperative Shell
+## Event-Driven Architecture
 
-WebApi implements business logic in F# (functional core) for interest calculations, fee processing, and loan operations, while C# handles API layer, infrastructure, and I/O (imperative shell). This separates pure business rules from side effects.
+The system uses NServiceBus and hooks pattern for publishing domain events. Events are published for loan status changes, batch completions, fee charges, and other significant business events.
 
-**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md)
-## Extract-Load-Transform (ELT) Data Pipeline
+**Used in:** [COS.Lending.Selling.Hooks](../repos/cos-lending-selling-hooks.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
+## Microservices Architecture
 
-Airflow DAGs orchestrate data movement from source systems (Arix, Contracts, Volume, SOFR) into PostgreSQL warehouse, then transform using DBT. Raw data is loaded first, then transformed in-database for performance.
+The system is decomposed into specialized services: WebApi for core business logic, Hooks for notifications, UI for presentation, AI for natural language queries, and supporting data services.
+
+**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [COS.Lending.Selling.Hooks](../repos/cos-lending-selling-hooks.md), [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md)
+## Multi-Language Architecture (Polyglot)
+
+F# is used for core business logic and domain modeling (contracts and business rules), while C# handles infrastructure concerns in the WebApi. Python is used for data engineering and AI services.
+
+**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md), [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md)
+## ELT (Extract-Load-Transform)
+
+Data is extracted from source systems, loaded into PostgreSQL warehouse, then transformed using dbt. Orchestrated by Airflow DAGs running on AWS MWAA.
 
 **Used in:** [cos-lending-selling-dags](../repos/cos-lending-selling-dags.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md)
-## Contract-First Design with Shared Libraries
+## CQRS-like Separation
 
-Cos.Lending.Selling.Contracts defines canonical data types in F# that are shared across all services, ensuring type safety and consistent domain modeling across the distributed system.
+The WebApi separates read and write operations. Write operations go through business logic and outbox processors, while read operations (via UI and AI) query optimized views.
 
-**Used in:** [Cos.Lending.Selling.Contracts](../repos/cos-lending-selling-contracts.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
-## Repository Pattern with Entity Framework
+**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md)
+## Repository Pattern
 
-Data access is abstracted through repository interfaces, with Entity Framework Core providing ORM capabilities. This allows business logic to remain database-agnostic and facilitates testing.
+Used across multiple services for data access abstraction with specialized repositories for each entity type.
 
-**Used in:** [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md)
+**Used in:** [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md), [cos-lending-selling-ai](../repos/cos-lending-selling-ai.md)
+## Multi-Tenant Architecture
+
+The system supports different tenant types (SellingITAdmin, InternalTenant, MplTenant, BankTenant, InvestorTenant) with role-based access control.
+
+**Used in:** [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [COS.Lending.Selling.UI](../repos/cos-lending-selling-ui.md)
 
 ---
 
 > See also: [System Overview](./system-overview.md)
 
-*Generated: 2026-04-12T14:23:22.318Z*
+*Generated: 2026-04-13T06:16:29.479Z*

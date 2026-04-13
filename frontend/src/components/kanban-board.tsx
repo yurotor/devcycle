@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RefreshCw } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   PHASE_LABELS,
   PHASE_DOT_COLORS,
@@ -14,8 +15,6 @@ interface KanbanBoardProps {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
   activeTicketId?: string;
-  onSync?: () => void;
-  syncing?: boolean;
 }
 
 const PHASES: WorkflowPhase[] = [
@@ -51,44 +50,47 @@ export function KanbanBoard({
   tickets,
   onTicketClick,
   activeTicketId,
-  onSync,
-  syncing,
 }: KanbanBoardProps) {
+  const [filter, setFilter] = useState("");
+
+  const filteredTickets = useMemo(() => {
+    if (!filter.trim()) return tickets;
+    const q = filter.toLowerCase();
+    return tickets.filter(
+      (t) =>
+        t.jiraKey.toLowerCase().includes(q) ||
+        t.title.toLowerCase().includes(q)
+    );
+  }, [tickets, filter]);
+
   return (
     <div className="h-full flex flex-col">
-      {/* Board header */}
-      <div className="shrink-0 h-12 flex items-center px-5 border-b border-border gap-3">
-        <h2 className="text-base font-semibold tracking-tight">Board</h2>
-        <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
-          {tickets.length} tickets
-        </span>
-        <div className="ml-auto flex items-center gap-3">
-          {onSync && (
-            <button
-              onClick={onSync}
-              disabled={syncing}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Sync from Jira"
-            >
-              <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing..." : "Sync Jira"}
-            </button>
-          )}
+      {/* Filter bar */}
+      <div className="shrink-0 px-4 pt-3 pb-1">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter by ticket ID or title..."
+            className="w-full h-8 pl-8 pr-3 text-xs bg-secondary/50 border border-border/50 rounded-md outline-none focus:border-cyan/40 focus:ring-1 focus:ring-cyan/20 placeholder:text-muted-foreground/40 transition-colors"
+          />
         </div>
       </div>
 
       {/* Columns */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+      <div className="flex-1 overflow-x-auto overflow-y-auto">
         <div className="flex gap-3 p-4 h-full min-w-max">
           {PHASES.map((phase) => {
-            const phaseTickets = tickets.filter((t) => t.phase === phase);
+            const phaseTickets = filteredTickets.filter((t) => t.phase === phase);
             return (
               <div
                 key={phase}
                 className={`w-80 flex flex-col rounded-lg bg-card/30 border border-border/40 border-t-2 ${COLUMN_BORDER_TOP[phase]} shrink-0`}
               >
                 {/* Column header */}
-                <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
+                <div className="flex items-center gap-2 px-3 py-2.5 shrink-0 sticky top-0 z-10 bg-card/30 backdrop-blur-sm rounded-t-lg">
                   <div
                     className={`w-2 h-2 rounded-full shrink-0 ${PHASE_DOT_COLORS[phase]}`}
                   />

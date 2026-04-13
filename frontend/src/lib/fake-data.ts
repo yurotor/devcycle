@@ -8,10 +8,10 @@ export type WorkflowPhase =
   | "done";
 
 export const PHASE_LABELS: Record<WorkflowPhase, string> = {
-  analyze: "Analyze",
+  analyze: "Analysis",
   plan: "Plan",
   design: "Design",
-  implement: "Implement & Test",
+  implement: "Execute",
   done: "Done",
 };
 
@@ -40,6 +40,7 @@ export interface Ticket {
   priority: "critical" | "high" | "medium" | "low";
   assignee?: string;
   description: string;
+  prdPath?: string | null;
 }
 
 export interface Repo {
@@ -80,6 +81,7 @@ export interface KBFile {
 export interface WaveTask {
   id: string;
   title: string;
+  subtitle?: string;
   repo: string;
   description: string;
   status: "pending" | "in-progress" | "done";
@@ -661,6 +663,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt1",
         title: "Add currency field to refunds table",
+        subtitle: "Schema migration for original_currency and display_currency columns",
         repo: "payments-api",
         description:
           "Add original_currency and display_currency columns to the refunds table. Create migration.",
@@ -669,6 +672,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt2",
         title: "Create exchange rate service client",
+        subtitle: "Shared ECB API client with 1-hour cache TTL",
         repo: "shared-libs",
         description:
           "Create a shared client for fetching exchange rates from ECB API. Cache rates for 1 hour.",
@@ -683,6 +687,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt3",
         title: "Update refund processor for multi-currency",
+        subtitle: "Pass original transaction currency to Stripe refund API",
         repo: "payments-api",
         description:
           "Modify refund processing to use original transaction currency. Pass currency to Stripe refund API.",
@@ -692,6 +697,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt4",
         title: "Add currency display component",
+        subtitle: "CurrencyDisplay showing original amount + local equivalent",
         repo: "payments-frontend",
         description:
           "Create CurrencyDisplay component that shows amount in original currency with local equivalent.",
@@ -707,6 +713,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt5",
         title: "Update refund UI flow",
+        subtitle: "Refund dialog with original currency + local equivalent preview",
         repo: "payments-frontend",
         description:
           "Update the refund dialog to show original currency amount with local equivalent preview.",
@@ -716,6 +723,7 @@ export const FAKE_WAVES: Wave[] = [
       {
         id: "wt6",
         title: "Add multi-currency refund e2e tests",
+        subtitle: "Playwright tests for EUR, GBP, and JPY refund flows",
         repo: "e2e-tests",
         description:
           "Add Playwright tests for refund flow in EUR, GBP, and JPY currencies.",

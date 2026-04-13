@@ -1,6 +1,6 @@
 # Analysis Transcript — CLN-2216: Moment/LTHFS process.  Difference in money and loans
 
-*Generated: 2026-04-12T07:38:26.298Z*
+*Generated: 2026-04-13T12:57:40.462Z*
 
 ---
 
@@ -12,104 +12,133 @@ Here's the ticket: "Moment/LTHFS process.  Difference in money and loans". Hi.  
 
 **AI Analyst**:
 
-I need to understand the specifics of this ticket related to the Moment/LTHFS process and the loan amount discrepancy. Let me start with clarifying which system or repository this change applies to.
+Based on my exploration of the codebase, I found the core issue. The loan purchase logic in `PurchaseAction.fs` currently uses `adjustedLoanAmount` (servicing-adjusted) for LTHFS loans, but the ticket indicates it should use `loanAmount` (original loan amount) for Moment/LTHFS.
 
-Based on the context, this appears to be related to loan purchases and draws in the selling system, possibly affecting how we calculate amounts for purchases from the Moment/LTHFS marketplace lender.
+**Question 1: Scope of the change - Which MPL(s) and loan types should be affected?**
 
-My recommendation: This likely impacts the COS.Lending.Selling.WebApi repository, which handles loan purchasing and associated financial transfers.
+The ticket specifically mentions "Moment/LTHFS process" but the current code logic applies to all LTHFS loans regardless of MPL. I can see three distinct amount fields:
+- `loanAmount` - original loan amount from origination
+- `adjustedLoanAmount` - updated by servicing data from MPL
+- `loanAmountFunded` - actual funded amount
 
-Which repository or service contains the code that needs to be modified for this change?
+Currently (PurchaseAction.fs, line 195):
+- HFS loans with `useNetFundingAsSource=true` → uses `loanAmountFunded`
+- All other cases (including ALL LTHFS) → uses `adjustedLoanAmount`
 
----
+**My recommendation:** This change should only apply to **Momnt MPL + LTHFS loan type combination**, not all LTHFS loans. Other MPLs may legitimately expect adjusted loan amounts to be used. This would require adding MPL-specific logic to the purchase amount calculation.
 
-**User**:
-
-COS.Lending.Selling.WebApi
-
----
-
-**AI Analyst**:
-
-Thanks for confirming we're working with COS.Lending.Selling.WebApi. Now let's pinpoint the specific process that needs modification related to Moment/LTHFS.
-
-Based on the ticket, there appears to be a discrepancy between using the loan amount versus the adjusted loan amount during the draw/purchase process, which is causing numerical differences.
-
-My recommendation: This likely involves modifying the loan purchase service or controller that handles draw calculations for Moment/LTHFS.
-
-Which specific component or class in the WebApi handles the draw calculation for Moment/LTHFS purchases?
+Should this change apply to:
+1. **Only Momnt LTHFS loans** (targeted fix)
+2. **All LTHFS loans regardless of MPL** (broad fix)
+3. **Some specific set of MPLs** (if multiple MPLs have this requirement)
 
 ---
 
 **User**:
 
-LoanPurchaseService
+Only Momnt LTHFS loans
 
 ---
 
 **AI Analyst**:
 
-Thank you. Now I understand we need to modify the LoanPurchaseService in the COS.Lending.Selling.WebApi repository. Let's get more specific about the exact change needed.
+Now let me confirm which amount field to use. Looking at the Loan entity, I see three distinct amount fields:
 
-Currently, it seems the system is using the adjusted loan amount for calculating draws during the purchase process for Moment/LTHFS loans, but it should be using the original loan amount instead.
+1. **`LoanAmount`** - Original loan amount at origination (from Arix)
+2. **`AdjustedLoanAmount`** - Updated amount from MPL servicing data (can change over time)
+3. **`LoanAmountFunded`** - The actual funded amount
 
-My recommendation: We should modify the draw calculation logic in LoanPurchaseService to use the loan amount field instead of the adjusted loan amount when processing Moment/LTHFS loans.
+The ticket says: *"We should be using the loan amount for the draw, not the adjusted loan amount"*
 
-Is this change specific only to Moment/LTHFS loans, or should it apply to all loan purchases in the system?
+Currently, the purchase logic uses:
+- **HFS + useNetFundingAsSource** → `loanAmountFunded`
+- **All other cases (including LTHFS)** → `adjustedLoanAmount`
+
+**Question 2: Which amount field should be used for Momnt LTHFS loan purchases?**
+
+Based on the ticket description "loan amount for the draw, not the adjusted loan amount", my recommendation is to use **`LoanAmount`** (the original loan amount from origination), as this represents the initial "draw" amount rather than the servicing-adjusted balance.
+
+However, there's a nuance: the term "draw" might also refer to the funded amount. Can you confirm which field represents the amount that should be transferred during purchase?
 
 ---
 
 **User**:
 
-Yes
+LoanAmount (original loan amount from origination)
 
 ---
 
 **AI Analyst**:
 
-I need to clarify your answer. When you say "yes," does that mean this change should only apply to Moment/LTHFS loans specifically, or should it apply to all loan purchases in the system?
+I see that `PassThroughInterest` calculations use `adjustedLoanAmount` as the principal basis. This is important to understand.
 
-My recommendation: Based on the ticket mentioning "Moment/LTHFS process" specifically, I believe this change should only apply to Moment/LTHFS loans and not all loans in the system.
+**Question 3: Should interest calculations and other operations continue to use `adjustedLoanAmount` (servicing balance), or should they also switch to `loanAmount`?**
+
+My recommendation: **Interest calculations should continue using `adjustedLoanAmount`** (the servicing-adjusted balance) because interest accrues on the current outstanding loan balance, not the original loan amount. The ticket specifically mentions "the loan amount for **the draw**" (the purchase principal transfer), not interest calculations.
+
+This means:
+- **Purchase principal transfer** → change to use `loanAmount` for Momnt LTHFS
+- **Interest calculations** → keep using `adjustedLoanAmount` (actual balance)
+- **Invoices/receipts** → already use `loanAmount`, will stay consistent
+
+Is this understanding correct?
 
 ---
 
 **User**:
 
-Only apply to Moment/LTHFS loans
+Yes - only change the purchase principal transfer amount
 
 ---
 
 **AI Analyst**:
 
-Thanks for confirming. Let's nail down the implementation approach for this change.
-
-Since this change should only apply to Moment/LTHFS loans, we'll need to add conditional logic in the LoanPurchaseService to check if a loan is from Moment/LTHFS before using the loan amount instead of the adjusted loan amount for the draw calculation.
-
-My recommendation: Add a conditional check in the relevant method of LoanPurchaseService that identifies Moment/LTHFS loans (perhaps by originator ID or loan program) and uses the loan amount instead of adjusted loan amount specifically for these loans.
-
-Do we need to modify any database tables or models as part of this change, or is this purely a code logic change?
+Perfect! I now have all the information needed to implement this fix. Let me provide a complete summary:
 
 ---
 
-**User**:
+## ****
 
-Purely code logic change - no DB changes needed
+### **Ticket Summary**
+**CLN-2216**: Momnt/LTHFS loans should use the original loan amount (not adjusted loan amount) for purchase principal transfers to match their accounting numbers.
 
----
+### **Root Cause**
+The purchase logic in `PurchaseAction.fs` (line 189-216) currently uses `adjustedLoanAmount` for all LTHFS loans. For Momnt specifically, this creates a discrepancy because they expect the original loan amount to be transferred during purchase, not the servicing-adjusted balance.
 
-**AI Analyst**:
+### **Implementation Plan**
 
-Based on our discussion, I can summarize the requirements for this ticket:
+**File to modify**: `/home/ukeselman/workspace/devcycle/kb/repos/COS.Lending.Selling.WebApi/CRB.Cos.Lending.Selling.Model/PurchaseAction.fs`
 
-1. **Problem**: Currently, the system is using the adjusted loan amount instead of the original loan amount for draws during the purchase process for Moment/LTHFS loans, causing numerical discrepancies compared to their expected numbers.
+**Function**: `createPrincipal` (lines 189-216)
 
-2. **Solution**: We need to modify the LoanPurchaseService in the COS.Lending.Selling.WebApi repository to use the loan amount (original) rather than the adjusted loan amount specifically for Moment/LTHFS loans.
+**Current logic**:
+```fsharp
+let amount =
+    if loan.useNetFundingAsSource && loan.loanType = LoanType.HFS
+    then loan.loanAmountFunded
+    else loan.adjustedLoanAmount
+```
 
-3. **Scope**: This change should only be applied to Moment/LTHFS loans, requiring conditional logic to identify these specific loans in the purchase process.
+**New logic**:
+```fsharp
+let amount =
+    if loan.useNetFundingAsSource && loan.loanType = LoanType.HFS
+    then loan.loanAmountFunded
+    elif loan.loanType = LoanType.LTHFS && loan.mplId = "MMT"
+    then loan.loanAmount
+    else loan.adjustedLoanAmount
+```
 
-4. **Implementation Details**:
-   - This is purely a code logic change with no database modifications required
-   - The change will involve adding conditional logic in LoanPurchaseService to check if a loan is from Moment/LTHFS
-   - For Moment/LTHFS loans, use the loan amount field for draw calculations
-   - For all other loans, continue using the current adjusted loan amount logic
+### **Key Decisions**
+1. ✅ **Scope**: Only Momnt (MPL ID = `"MMT"`) LTHFS loans
+2. ✅ **Amount field**: Use `loanAmount` (original loan amount from origination)
+3. ✅ **Change scope**: Only purchase principal transfer amount
+4. ✅ **Unchanged**: Interest calculations, pass-through interest, invoices/receipts remain using their current logic
 
-This focused change should help align our calculations with Moment/LTHFS's expected numbers as mentioned in the ticket description.
+### **Impact Assessment**
+- **Low risk**: Targeted change affecting only Momnt LTHFS purchases
+- **No downstream changes needed**: Invoices/receipts already use `loanAmount` field
+- **Interest calculations unaffected**: Continue using `adjustedLoanAmount` as appropriate
+- **Testing required**: Verify Momnt LTHFS purchase transfers use correct amount
+
+Should I proceed with implementing this change?

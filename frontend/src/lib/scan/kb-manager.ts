@@ -662,12 +662,13 @@ function generateRepoPages(
 
     sections.push(`## Tech Stack`, "", ...analysis.techStack.map((t) => `- ${t}`), "");
 
-    if (analysis.findings.length > 0) {
+    const validFindings = analysis.findings.filter((f: { severity?: string; category?: string; title?: string }) => f.severity && f.category && f.title);
+    if (validFindings.length > 0) {
       sections.push(
         `## Findings`,
         "",
-        ...analysis.findings.map(
-          (f) => `### [${f.severity.toUpperCase()}] ${f.title}\n\n**Category:** ${f.category}  \n**Files:** ${f.files?.join(", ") || "N/A"}\n\n${f.description}`
+        ...validFindings.map(
+          (f: { severity: string; category: string; title: string; description: string; files?: string[] }) => `### [${f.severity.toUpperCase()}] ${f.title}\n\n**Category:** ${f.category}  \n**Files:** ${f.files?.join(", ") || "N/A"}\n\n${f.description}`
         ),
         ""
       );

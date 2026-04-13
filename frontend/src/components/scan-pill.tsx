@@ -86,12 +86,6 @@ export function ScanPill() {
           autoOpenedRef.current = "interview";
           setShowInterviewModal(true);
         }
-      } else if (status.failCount >= 3) {
-        setPillState("failed");
-        if (autoOpenedRef.current !== "failed") {
-          autoOpenedRef.current = "failed";
-          setExpanded(true);
-        }
       } else {
         setPillState("scanning");
       }

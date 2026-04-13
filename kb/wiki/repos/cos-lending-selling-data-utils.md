@@ -6,7 +6,7 @@ This repository contains utilities for resolving and mapping accounts for loans 
 
 ## Communicates With
 
-[CRB.CosLending.Accounting.Api](../repos/crb-coslending-accounting-api.md), [MPLConsumerLoansOperations Database](../repos/mplconsumerloansoperations-database.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [OAuth Authorization Server](../repos/oauth-authorization-server.md)
+[CRB.CosLending.Accounting.Api](../repos/crb-coslending-accounting-api.md), [MPLConsumerLoansOperations Database](../repos/mplconsumerloansoperations-database.md), [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [CRB Identity Provider](../repos/crb-identity-provider.md)
 
 ## Features Implemented
 
@@ -92,4 +92,4 @@ The application loads large amounts of loan data into memory when processing bat
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T14:26:15.921Z*
+*Generated: 2026-04-13T06:20:47.565Z*

@@ -2,77 +2,64 @@
 
 ## 1. Overview
 
-The Account Resolution and Mapping feature provides automated mapping of GL (General Ledger) accounts for various loan actions within the COS Lending Selling Platform. It ensures that financial transactions related to loans (purchases, returns, interest accruals, fees) are correctly posted to the appropriate accounting entries by resolving the correct GL accounts based on loan attributes and business rules.
+Account Resolution and Mapping is a critical feature that enables proper financial accounting for loans in the Cross River Bank Operating System (COS) Lending Selling platform. This feature ensures that each loan has the appropriate account configurations required for all downstream financial operations, including loan purchases, funding, interest accruals, and fee collections.
 
-This feature exists to:
-- Automate the determination of correct accounting entries for loan transactions
-- Ensure consistent accounting treatment across different loan types and actions
-- Support compliance with accounting standards and regulatory requirements
-- Enable accurate financial reporting and reconciliation
+The feature resolves account mappings by integrating data from the COS Lending Accounting service and the loan operations database. This resolution process is a necessary precursor to the Loan Purchase and Funding Flow, establishing the financial account structure that subsequent transactions will leverage.
 
 ## 2. How It Works
 
 The Account Resolution and Mapping process follows these steps:
 
-1. **Trigger**: The process is triggered during loan actions (e.g., purchase flow, return, interest accrual, fee assessment)
+1. **Initial Request**: The process begins when a loan requires account mapping, typically before purchase or funding operations.
 
-2. **Data Collection**: The system gathers the required loan attributes and context information:
-   - Loan details (product type, loan status, origination channel)
-   - Action type being performed
-   - MPL (Marketplace Lender) information
-   - Current accounting configuration
+2. **Data Collection**: The system queries two primary sources:
+   - COS Lending Accounting service - provides standardized accounting information
+   - Loan operations database - contains specific loan details and configurations
 
-3. **Account Resolution**:
-   - The system queries the Accounting API with loan attributes
-   - The Accounting API returns candidate accounts based on the action type
-   - Custom mapping rules are applied to select the appropriate accounts based on:
-     - Loan attributes
-     - Action type
-     - Business rules specific to the MPL
+3. **Mapping Resolution**: Using configuration rules and the collected data, the system determines which objective accounts should be mapped to specific loan accounts.
 
-4. **Account Mapping**:
-   - The resolved accounts are mapped to the specific loan action
-   - Mappings are stored in the selling database for reference and audit purposes
+4. **Account Validation**: The system validates that all required accounts for the loan type and investor requirements are properly configured.
 
-5. **Account Application**:
-   - The mapped accounts are used in subsequent financial transactions
-   - Journal entries are created using these accounts
+5. **Database Update**: Once resolved, the account mapping data is stored in the [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md) database, primarily in the [LoanAccount](../data-model/entities.md) entities.
 
-The feature handles special cases including:
-- Custom account mappings for specific MPLs
-- Fee sweep account determination
-- Objective account mapping for specific loan products
-- Default account fallbacks when specific mappings aren't found
+6. **Notification**: The system signals completion, allowing downstream processes like loan purchasing to proceed.
+
+Custom account mapping rules can be applied for specific investors or MPLs through [CustomPurchaseAccountMapping](../data-model/entities.md) configurations.
 
 ## 3. Repos Involved
 
-- [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md): Contains the core account resolution and mapping logic, including utilities for querying the Accounting API and applying custom mapping rules
-- [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md): Consumes the account mapping functionality during loan purchase flows and other loan actions
+The Account Resolution and Mapping feature is implemented across several repositories:
+
+- [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md) - Contains the core utilities and logic for account resolution, including service calls to accounting systems and transformation logic
+  
+- [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md) - Exposes endpoints that trigger account mapping operations and provides APIs to retrieve mapping information
+
+- [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md) - Defines the data entities that store the resolved account mappings and provides persistence capabilities
 
 ## 4. Key APIs
 
-- `POST /Accounting/v1/LoanAccounting/LoanActionsAccounts`: Queries the Accounting API to retrieve appropriate GL accounts based on loan attributes and action type
-- `GET /api/loans`: Retrieves loan details needed for account resolution
-- `GET /api/loans/{id}`: Gets specific loan information for account mapping
-- `POST /api/transfers`: Creates transfers using the resolved accounts
+The primary API used for account resolution is:
+
+- `POST /Accounting/v1/LoanAccounting/LoanActionsAccounts` - Retrieves accounting information for loan actions including required account configurations
+
+Additional supporting APIs may be present in the WebApi repository, though they're not explicitly defined in the provided documentation.
 
 ## 5. Data Entities
 
-The following entities are involved in the Account Resolution and Mapping feature:
+The Account Resolution and Mapping feature involves several key entities:
 
-- [Loan](../data-model/entities.md#loan): Contains the loan attributes used for determining appropriate accounts
-- [LoanAccount](../data-model/entities.md#loanaccount): Represents the mapping between a loan and its associated GL accounts
-- [ObjectiveAccount](../data-model/entities.md#objectiveaccount): Defines specialized accounts for specific objectives or purposes
-- [FeeSweep](../data-model/entities.md#feesweep): Contains information about accounts used for fee sweeping operations
-- [CustomPurchaseAccountMapping](../data-model/entities.md#custompurchaseaccountmapping): Stores custom account mappings for specific MPLs or loan products
-- [LoanAction](../data-model/entities.md#loanaction): Represents actions performed on loans that require account resolution
-- [Account](../data-model/entities.md#account): Represents GL accounts in the system
+- [Loan](../data-model/entities.md) - The core entity that requires account mapping
+- [LoanAccount](../data-model/entities.md) - Maps a loan to specific financial accounts
+- [Account](../data-model/entities.md) - Represents financial accounts in the system
+- [ObjectiveAccount](../data-model/entities.md) - Represents the purpose or objective of specific accounts
+- [FeeSweep](../data-model/entities.md) - Configuration for fee collection related to accounts
+- [CustomPurchaseAccountMapping](../data-model/entities.md) - Defines special account mapping rules for specific purchase scenarios
 
-The Account Resolution and Mapping feature is a critical component that ensures financial transactions are properly recorded in the accounting system, maintaining the integrity of the financial data across the COS Lending Selling Platform.
+These entities collectively define how money moves within the system for each loan, establishing the financial structure that enables all downstream operations.
 
 ---
 
-> **Repos:** [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md) | [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md)
+> **Repos:** [cos-lending-selling-data-utils](../repos/cos-lending-selling-data-utils.md) | [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md) | [Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md)
 > See also: [System Overview](../architecture/system-overview.md) | [Data Flows](../architecture/data-flows.md)
 
-*Generated: 2026-04-12T14:26:15.920Z*
+*Generated: 2026-04-13T06:20:25.004Z*

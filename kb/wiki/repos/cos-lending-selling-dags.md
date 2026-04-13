@@ -6,15 +6,16 @@ This repository contains Airflow DAGs for orchestrating data processing workflow
 
 ## Communicates With
 
-[Cos.Lending.Selling.DbModel](../repos/cos-lending-selling-dbmodel.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [AWS ECS](../repos/aws-ecs.md), [AWS Athena](../repos/aws-athena.md), [AWS S3](../repos/aws-s3.md), [External loan data APIs](../repos/external-loan-data-apis.md), [SOFR data source](../repos/sofr-data-source.md), [Vampire System](../repos/vampire-system.md)
+[cos-lending-selling-ingestion](../repos/cos-lending-selling-ingestion.md), [cos-lending-selling-datatools](../repos/cos-lending-selling-datatools.md), [COS.Lending.Selling.WebApi](../repos/cos-lending-selling-webapi.md), [AWS ECS](../repos/aws-ecs.md), [AWS S3](../repos/aws-s3.md), [AWS Athena](../repos/aws-athena.md), [Vampire System](../repos/vampire-system.md)
 
 ## Features Implemented
 
-- [Interest Accrual and Pass-Through](../features/interest-accrual-and-pass-through.md)
-- [Fee Collection and Management](../features/fee-collection-and-management.md)
-- [Loan Grooming and Seasoning](../features/loan-grooming-and-seasoning.md)
-- [Servicing Data Ingestion](../features/servicing-data-ingestion.md)
-- [Reconciliation and Reporting](../features/reconciliation-and-reporting.md)
+- [Daily Interest Accrual and Collection](../features/daily-interest-accrual-and-collection.md)
+- [Fee Management and Collection](../features/fee-management-and-collection.md)
+- [Volume Fee Calculation and True-Up](../features/volume-fee-calculation-and-true-up.md)
+- [Servicing Data Ingestion and Reconciliation](../features/servicing-data-ingestion-and-reconciliation.md)
+- [Reporting and Analytics](../features/reporting-and-analytics.md)
+- [Data Warehouse and Analytics Pipeline](../features/data-warehouse-and-analytics-pipeline.md)
 
 ## Business Features
 
@@ -117,4 +118,4 @@ ECS tasks appear to use the same general role across different task types rather
 
 > See also: [System Overview](../architecture/system-overview.md) | [Service Map](../architecture/service-map.md)
 
-*Generated: 2026-04-12T14:26:15.921Z*
+*Generated: 2026-04-13T06:20:47.565Z*

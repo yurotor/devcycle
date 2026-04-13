@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, Bot, User } from "lucide-react";
+import { ToolEventsAccordion, type ToolEvent } from "@/components/tool-events-accordion";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -14,6 +15,8 @@ export interface ChatMsg {
   content: string;
   choices?: string[] | null;
   createdAt: number;
+  /** Tool events that happened before this AI message (exploration between Q&A) */
+  toolEvents?: ToolEvent[];
 }
 
 export interface ChoiceChatProps {
@@ -33,6 +36,10 @@ export interface ChoiceChatProps {
   headerText?: string;
   /** Placeholder text for the input field */
   placeholder?: string;
+  /** URL to poll for streaming status while AI is thinking (shows tool use activity) */
+  streamingStatusUrl?: string;
+  /** Custom function to check if a message indicates readiness (for history reload). Defaults to analyze-phase patterns. */
+  checkReady?: (content: string) => boolean;
 }
 
 // ─── Theme config ────────────────────────────────────────────────
@@ -60,6 +67,25 @@ const THEME = {
 
 // ─── Component ───────────────────────────────────────────────────
 
+const DEFAULT_READY_CHECK = (content: string): boolean => {
+  const lc = content.toLowerCase();
+  return (
+    content.includes("[ANALYSIS_COMPLETE]") ||
+    lc.includes("analysis is complete") ||
+    lc.includes("analysis complete") ||
+    lc.includes("enough detail to move to planning") ||
+    lc.includes("ready to move to planning") ||
+    lc.includes("ready for planning") ||
+    lc.includes("move forward to planning") ||
+    lc.includes("proceed to planning") ||
+    lc.includes("ready to proceed") ||
+    lc.includes("we have enough") ||
+    lc.includes("sufficient detail") ||
+    lc.includes("fully specified") ||
+    lc.includes("good understanding of the system")
+  );
+};
+
 export function ChoiceChat({
   theme,
   apiUrl,
@@ -69,21 +95,27 @@ export function ChoiceChat({
   hideAutoStart = false,
   headerText,
   placeholder = "Type your answer...",
+  streamingStatusUrl,
+  checkReady,
 }: ChoiceChatProps) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
+  const [streamingLabel, setStreamingLabel] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState<string>("");
   const autoStartedRef = useRef(false);
   const sendingRef = useRef(false);
   const onReadyRef = useRef(onReady);
   const postExtrasRef = useRef(postExtras);
+  const checkReadyRef = useRef(checkReady ?? DEFAULT_READY_CHECK);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   onReadyRef.current = onReady;
   postExtrasRef.current = postExtras;
+  checkReadyRef.current = checkReady ?? DEFAULT_READY_CHECK;
 
   const t = THEME[theme];
 
@@ -124,6 +156,7 @@ export function ChoiceChat({
             content: data.response,
             choices: data.choices ?? null,
             createdAt: Date.now(),
+            toolEvents: data.toolEvents ?? undefined,
           },
         ]);
       } catch {
@@ -155,26 +188,9 @@ export function ChoiceChat({
 
         // Check if already ready
         const lastAi = [...msgs].reverse().find((m) => m.role === "ai");
-        if (lastAi) {
-          const lc = lastAi.content.toLowerCase();
-          if (
-            lastAi.content.includes("[ANALYSIS_COMPLETE]") ||
-            lc.includes("analysis is complete") ||
-            lc.includes("analysis complete") ||
-            lc.includes("enough detail to move to planning") ||
-            lc.includes("ready to move to planning") ||
-            lc.includes("ready for planning") ||
-            lc.includes("move forward to planning") ||
-            lc.includes("proceed to planning") ||
-            lc.includes("ready to proceed") ||
-            lc.includes("we have enough") ||
-            lc.includes("sufficient detail") ||
-            lc.includes("fully specified") ||
-            lc.includes("good understanding of the system")
-          ) {
-            setReady(true);
-            onReadyRef.current?.();
-          }
+        if (lastAi && checkReadyRef.current(lastAi.content)) {
+          setReady(true);
+          onReadyRef.current?.();
         }
 
         if (msgs.length === 0 && autoStartMessage && !autoStartedRef.current) {
@@ -190,6 +206,32 @@ export function ChoiceChat({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
+
+  // ── Streaming status polling ───────────────────────────────
+
+  useEffect(() => {
+    if (!sending || !streamingStatusUrl) {
+      setStreamingLabel(null);
+      setStreamingText("");
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const res = await fetch(streamingStatusUrl);
+          const data = await res.json();
+          if (!cancelled) {
+            if (data.label) setStreamingLabel(data.label);
+            if (data.thinkingText) setStreamingText(data.thinkingText);
+          }
+        } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    };
+    poll();
+    return () => { cancelled = true; };
+  }, [sending, streamingStatusUrl]);
 
   // ── Choice click handler ────────────────────────────────────
 
@@ -256,38 +298,59 @@ export function ChoiceChat({
       <ScrollArea className="flex-1 min-h-0 px-4">
         <div className="py-4 space-y-4">
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : ""}`}
-            >
-              {msg.role === "ai" && (
-                <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${t.icon}`}>
-                  <Bot className="w-3.5 h-3.5" />
-                </div>
+            <div key={msg.id}>
+              {/* Collapsible tool events before AI messages */}
+              {msg.role === "ai" && msg.toolEvents && msg.toolEvents.length > 0 && (
+                <ToolEventsAccordion events={msg.toolEvents} />
               )}
               <div
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-relaxed border ${
-                  msg.role === "user" ? t.userBubble : t.aiBubble
-                } text-foreground`}
+                className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : ""}`}
               >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
-              </div>
-              {msg.role === "user" && (
-                <div className="w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 mt-0.5">
-                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                {msg.role === "ai" && (
+                  <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${t.icon}`}>
+                    <Bot className="w-3.5 h-3.5" />
+                  </div>
+                )}
+                <div
+                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm leading-relaxed border overflow-hidden ${
+                    msg.role === "user" ? t.userBubble : t.aiBubble
+                  } text-foreground`}
+                >
+                  <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.content}</div>
                 </div>
-              )}
+                {msg.role === "user" && (
+                  <div className="w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 mt-0.5">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
             </div>
           ))}
 
-          {/* Typing indicator */}
+          {/* Streaming thinking panel */}
           {sending && (
             <div className="flex gap-2.5">
-              <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${t.icon}`}>
+              <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${t.icon}`}>
                 <Bot className="w-3.5 h-3.5" />
               </div>
-              <div className="bg-secondary border border-border rounded-lg px-3 py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+              <div className="flex-1 max-w-[80%] space-y-1.5">
+                {/* Status label */}
+                <div className="bg-secondary border border-border rounded-lg px-3 py-2 flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                  {streamingLabel && (
+                    <span className="text-xs text-muted-foreground truncate">{streamingLabel}</span>
+                  )}
+                </div>
+                {/* Live thinking text */}
+                {streamingText && (
+                  <div className="bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
+                    <p className="text-xs text-muted-foreground/70 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                      {streamingText.length > 2000
+                        ? "..." + streamingText.slice(-2000)
+                        : streamingText}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

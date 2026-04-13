@@ -1,93 +1,100 @@
 {
-  "_headHash": "e2818c842a4849513a7e96e6c05da6b65ea86716",
-  "purpose": "This repository defines data contracts for a loan selling and management system in the lending domain. It contains type definitions for loan entities, purchase processes, interest calculations, and account management, serving as a shared contract library between different services.",
+  "_headHash": "2cf812419cba3f1c2ccbb2d1818be39da9b5fb04",
+  "repositoryOverview": "This repository contains a .NET contracts library for a loan selling and management system in the financial sector. Written in F#, it defines data types and models used for loan trading, interest calculations, and financial operations.",
   "businessFeatures": [
-    "Loan selling and purchasing between financial institutions",
-    "Loan account management",
-    "Batch loan processing",
-    "Purchase date management",
-    "Interest and fee calculations",
-    "Loan discrepancy detection",
-    "Loan seasoning and investor allocation"
+    "Loan purchase and sale processing",
+    "Invoice and receipt generation",
+    "Loan interest management and reversal",
+    "Loan batch processing",
+    "Loan discrepancy management",
+    "Loan type and investor management",
+    "Grooming operations for loans"
   ],
   "apis": [],
-  "dependencies": [
-    {
-      "target": "loan-origination-service",
-      "type": "shared-lib"
-    },
-    {
-      "target": "lending-service",
-      "type": "shared-lib"
-    },
-    {
-      "target": "investor-management-system",
-      "type": "shared-lib"
-    }
-  ],
   "dataEntities": [
     {
       "name": "Loan",
-      "description": "Represents a loan with its various attributes like ID, number, status, amount, interest rate, etc."
+      "description": "Core entity representing a loan with comprehensive information including borrower data, financial details, and loan status"
     },
     {
-      "name": "PurchaseAccount",
-      "description": "Represents an account that can purchase loans"
+      "name": "PagedLoanItem",
+      "description": "Summary view of a loan used for listing and pagination purposes"
     },
     {
       "name": "BatchInfo",
-      "description": "Metadata about a batch operation, including progress statistics"
+      "description": "Information about batch processing operations"
     },
     {
       "name": "Invoice",
-      "description": "Represents a loan purchase invoice with details about loans to be purchased"
+      "description": "Represents an invoice for loan purchases"
     },
     {
       "name": "Receipt",
-      "description": "Receipt of a completed purchase transaction with success/failure details"
+      "description": "Confirms completed loan purchase transactions"
     },
     {
       "name": "Discrepancy",
-      "description": "Represents differences found between loan and reference data"
+      "description": "Tracks differences between loan values and reference values"
     },
     {
-      "name": "SofrRate",
-      "description": "Secured Overnight Financing Rate used for interest calculations"
+      "name": "PurchaseAccount",
+      "description": "Account information for loan purchases"
+    }
+  ],
+  "dependencies": [],
+  "integrations": [],
+  "patterns": [
+    {
+      "name": "Batch Processing",
+      "description": "Enables bulk operations on loans through batched processing"
     },
     {
-      "name": "Investor",
-      "description": "Entity that purchases loans"
+      "name": "Domain-Driven Design",
+      "description": "Uses domain models to represent complex financial entities and operations"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "Critical",
+      "description": "Personally Identifiable Information (PII) is marked with attributes in the codebase which indicates sensitive data handling requirements"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Loan.fs",
+      "description": "Core loan entity definitions and loan-related operations"
     },
     {
-      "name": "Mpl",
-      "description": "Marketplace lender entity"
+      "path": "CRB.Cos.Lending.Selling.Contracts/InvoiceAndReceipt.fs",
+      "description": "Models for loan purchase invoicing and receipt generation"
     },
     {
-      "name": "Bank",
-      "description": "Financial institution issuing or servicing loans"
+      "path": "CRB.Cos.Lending.Selling.Contracts/BatchUpdate/PurchaseDateUpdateBatch.fs",
+      "description": "Batch update operations for loan purchase dates"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Discrepancy.fs",
+      "description": "Models for tracking and managing loan data discrepancies"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/ReverseInterest.fs",
+      "description": "Handles interest reversal operations on loans"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Account.fs",
+      "description": "Defines purchase account structures and mappings for specific loan types"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Grooming.fs",
+      "description": "Models for loan grooming operations including recovery requests and responses"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Attributes/PIIDataAttribute.fs",
+      "description": "Attribute for marking personally identifiable information in the system"
     }
   ],
   "messagingPatterns": [],
-  "integrations": [],
-  "architecturePatterns": [
-    "Contract-first design",
-    "Domain-driven design",
-    "Shared library pattern"
-  ],
-  "techStack": [
-    "F#",
-    ".NET",
-    "Azure DevOps"
-  ],
-  "findings": [],
-  "ambiguities": [
-    "The exact services or applications consuming these contracts are not specified",
-    "Relationship between issuingBankId and servicingBankId is unclear",
-    "The exact nature of the COS transfer system referenced in AddTransferRequest",
-    "How batch operations are triggered or processed",
-    "Purpose of the 'field1' through 'field21' properties on LoanInfo",
-    "Implementation details of the 'GroomingRecovery' process",
-    "Whether PII data is encrypted or specially handled beyond the attribute marking"
-  ],
-  "keyFiles": []
+  "architecturePatterns": [],
+  "techStack": [],
+  "ambiguities": []
 }

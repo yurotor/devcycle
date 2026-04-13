@@ -12,7 +12,7 @@ import {
   type Ticket,
   type WorkflowPhase,
 } from "@/lib/fake-data";
-import { AnalyzeChat } from "@/components/phases/analyze-chat";
+import { AnalysisPhase } from "@/components/phases/analyze-chat";
 import { PlanPhase } from "@/components/phases/plan-phase";
 import { DesignPhase } from "@/components/phases/design-phase";
 import { ImplementPhase } from "@/components/phases/implement-phase";
@@ -106,7 +106,7 @@ export function TicketDetail({
       {/* Phase content — overflow-hidden so inner ScrollAreas handle their own scroll */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {ticket.phase === "analyze" && (
-          <AnalyzeChat
+          <AnalysisPhase
             key={ticket.id}
             ticket={ticket}
             onComplete={() => onPhaseChange("plan")}
@@ -116,14 +116,12 @@ export function TicketDetail({
           <PlanPhase
             ticket={ticket}
             onComplete={() => onPhaseChange("design")}
-            onBack={() => onPhaseChange("analyze")}
           />
         )}
         {ticket.phase === "design" && (
           <DesignPhase
             ticket={ticket}
             onComplete={() => onPhaseChange("implement")}
-            onBack={() => onPhaseChange("plan")}
           />
         )}
         {ticket.phase === "implement" && (
