@@ -133,6 +133,44 @@ CREATE TABLE IF NOT EXISTS review_comments (
   status TEXT NOT NULL DEFAULT 'open',
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL,
+  repo_id INTEGER,
+  pipeline_type TEXT NOT NULL,
+  jenkins_host TEXT NOT NULL,
+  jenkins_job_path TEXT NOT NULL,
+  jenkins_build_number INTEGER,
+  jenkins_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  failure_analysis TEXT,
+  started_at INTEGER,
+  finished_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_stages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pipeline_run_id INTEGER NOT NULL,
+  stage_node_id TEXT,
+  stage_name TEXT NOT NULL,
+  stage_order INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  duration_ms INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS jenkins_job_mappings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL,
+  repo_name TEXT NOT NULL,
+  pipeline_type TEXT NOT NULL,
+  jenkins_host TEXT NOT NULL,
+  jenkins_job_path TEXT NOT NULL,
+  build_trigger_id TEXT,
+  created_at INTEGER NOT NULL
+);
 `;
 
 // Idempotent column additions — SQLite has no ALTER TABLE IF NOT EXISTS,
@@ -145,6 +183,8 @@ const MIGRATIONS = [
   `ALTER TABLE tasks ADD COLUMN diff TEXT`,
   `ALTER TABLE tickets ADD COLUMN plan_session_id TEXT`,
   `ALTER TABLE tasks ADD COLUMN subtitle TEXT`,
+  `ALTER TABLE pipeline_runs ADD COLUMN min_build_number INTEGER`,
+  `ALTER TABLE tasks ADD COLUMN todos TEXT`,
 ];
 
 function createDb() {

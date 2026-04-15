@@ -107,7 +107,7 @@ Write the PRD now. Be specific and reference actual repos, entities, APIs, and p
     prd = await claudeExec(userContent, {
       model: "sonnet",
       maxBudget: skip ? 0.15 : 0.50,
-      timeoutMs: skip ? 30_000 : 120_000,
+      timeoutMs: skip ? 60_000 : 300_000,
       systemPrompt,
     });
   } else {

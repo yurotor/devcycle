@@ -4,8 +4,11 @@
 import { db } from "@/lib/db";
 import { tickets, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { ensurePreprocessing } from "@/lib/preprocess";
 
 export async function GET() {
+  // Kick off background pre-processing of new tickets (no-op if already started)
+  ensurePreprocessing();
   const [ws] = await db.select().from(workspace).limit(1);
   if (!ws) {
     return Response.json({ tickets: [] });

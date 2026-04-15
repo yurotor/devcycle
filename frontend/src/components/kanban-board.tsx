@@ -8,6 +8,7 @@ import {
   type Ticket,
   type WorkflowPhase,
 } from "@/lib/fake-data";
+import { DeployBadge } from "@/components/pipeline-status";
 
 
 interface KanbanBoardProps {
@@ -119,6 +120,9 @@ export function KanbanBoard({
                           <span className="text-[11px] text-muted-foreground/70 px-1 py-0.5 rounded bg-secondary/50">
                             {TYPE_LABELS[ticket.type]}
                           </span>
+                          {ticket.phase === "implement" && (
+                            <DeployBadge ticketId={Number(ticket.id)} />
+                          )}
                           {ticket.assignee && (
                             <div className="flex items-center gap-1 ml-auto">
                               <div className="w-5 h-5 rounded-full bg-secondary border border-border flex items-center justify-center">
