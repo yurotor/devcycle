@@ -9,7 +9,8 @@
 
 import https from "node:https";
 
-const API_VERSION = "7.1";
+const API_VERSION = "7.0";
+const API_VERSION_PREVIEW = "7.0-preview";
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -66,9 +67,28 @@ export interface AdoPullRequest {
   webUrl?: string;
 }
 
+interface PolicyEvaluation {
+  status: "approved" | "rejected" | "running" | "queued" | "notApplicable" | "broken";
+  configuration: {
+    type: {
+      displayName: string;
+    };
+  };
+}
+
 export interface AdoPRComment {
   id: number;
   content: string;
+}
+
+export interface AdoBuildTimelineRecord {
+  id: string;
+  name: string;
+  type: string;
+  state: string;
+  result: string | null;
+  log?: { id: number; url: string };
+  order: number;
 }
 
 // ─── List response wrapper ────────────────────────────────────────
@@ -384,6 +404,130 @@ export class AzureDevOpsClient {
       `/pullrequests/${pullRequestId}?api-version=${API_VERSION}`;
     const { data } = await this.request<{ status: string }>(url);
     return data.status as "active" | "completed" | "abandoned";
+  }
+
+  /**
+   * Check build policy evaluations on a PR.
+   * Returns "approved" if all build policies passed, "rejected" if any failed,
+   * "running" if any are queued/running, "none" if no build policies exist.
+   */
+  async getPrBuildPolicyStatus(
+    project: string,
+    pullRequestId: number
+  ): Promise<"approved" | "rejected" | "running" | "none"> {
+    const url =
+      `${this.orgUrl}/${encodeURIComponent(project)}/_apis/policy/evaluations` +
+      `?artifactId=${encodeURIComponent(`vstfs:///CodeReview/CodeReviewId/${await this.getProjectId(project)}/${pullRequestId}`)}` +
+      `&api-version=${API_VERSION_PREVIEW}`;
+    const { data } = await this.request<{ value: PolicyEvaluation[] }>(url);
+
+    // Filter to build policies only (type.id for build validation = varies, check displayName)
+    const buildEvals = (data.value ?? []).filter(
+      (e) => e.configuration?.type?.displayName?.toLowerCase().includes("build")
+    );
+
+    if (buildEvals.length === 0) return "none";
+
+    // Filter out notApplicable evals — they don't indicate pass or fail
+    const applicableEvals = buildEvals.filter((e) => e.status !== "notApplicable");
+    if (applicableEvals.length === 0) return "none";
+
+    const hasRejected = applicableEvals.some((e) => e.status === "rejected" || e.status === "broken");
+    if (hasRejected) return "rejected";
+
+    const hasRunning = applicableEvals.some((e) => e.status === "running" || e.status === "queued");
+    if (hasRunning) return "running";
+
+    const allApproved = applicableEvals.every((e) => e.status === "approved");
+    if (allApproved) return "approved";
+
+    // Unknown status — treat as rejected so we don't get stuck pending
+    return "rejected";
+  }
+
+  /**
+   * Get the build ID from a PR's build policy evaluation.
+   * Returns the build ID if found, null otherwise.
+   */
+  async getPrBuildId(
+    project: string,
+    pullRequestId: number
+  ): Promise<number | null> {
+    const projectId = await this.getProjectId(project);
+    const artifactId = `vstfs:///CodeReview/CodeReviewId/${projectId}/${pullRequestId}`;
+    const url =
+      `${this.orgUrl}/${encodeURIComponent(project)}/_apis/policy/evaluations` +
+      `?artifactId=${encodeURIComponent(artifactId)}` +
+      `&api-version=${API_VERSION_PREVIEW}`;
+    const { data } = await this.request<{ value: PolicyEvaluation[] }>(url);
+
+    // Find build eval — prefer rejected, but fall back to any build policy with a buildId
+    const buildEvals = (data.value ?? []).filter(
+      (e) => e.configuration?.type?.displayName?.toLowerCase().includes("build")
+    );
+    const buildEval = buildEvals.find((e) => e.status === "rejected" || e.status === "broken")
+      ?? buildEvals.find((e) => e.status !== "notApplicable")
+      ?? buildEvals[0];
+
+    // The build URL is embedded in the context — extract build ID from it
+    const evalAny = buildEval as unknown as Record<string, unknown> | undefined;
+    const context = evalAny?.context as Record<string, unknown> | undefined;
+    const buildId = context?.buildId as number | undefined;
+    if (buildId) return buildId;
+
+    // Fallback: check if there's a "latestPolicyEvaluation" with buildId
+    const latest = evalAny?.latestPolicyEvaluation as Record<string, unknown> | undefined;
+    const latestContext = latest?.context as Record<string, unknown> | undefined;
+    return (latestContext?.buildId as number) ?? null;
+  }
+
+  /**
+   * Fetch the timeline for a build (contains log references per step).
+   */
+  async getBuildTimeline(
+    project: string,
+    buildId: number
+  ): Promise<{ records: AdoBuildTimelineRecord[] }> {
+    const url =
+      `${this.orgUrl}/${encodeURIComponent(project)}/_apis/build/builds/${buildId}/timeline` +
+      `?api-version=${API_VERSION}`;
+    const { data } = await this.request<{ records: AdoBuildTimelineRecord[] }>(url);
+    return data;
+  }
+
+  /**
+   * Fetch a specific log from a build.
+   */
+  async getBuildLog(
+    project: string,
+    buildId: number,
+    logId: number
+  ): Promise<string> {
+    const url =
+      `${this.orgUrl}/${encodeURIComponent(project)}/_apis/build/builds/${buildId}/logs/${logId}` +
+      `?api-version=${API_VERSION}`;
+    return withRetry(async () => {
+      const res = await httpsRequest(url, {
+        headers: {
+          Authorization: this.authHeader(),
+          Accept: "text/plain",
+        },
+      });
+      if (res.status < 200 || res.status >= 300) {
+        throw new AzureDevOpsError(res.status, `Failed to fetch build log ${logId}`);
+      }
+      return res.body;
+    }, `getBuildLog ${buildId}/${logId}`);
+  }
+
+  /** Get the project GUID (cached). */
+  private projectIdCache = new Map<string, string>();
+  private async getProjectId(project: string): Promise<string> {
+    if (this.projectIdCache.has(project)) return this.projectIdCache.get(project)!;
+    const url = `${this.orgUrl}/_apis/projects/${encodeURIComponent(project)}?api-version=${API_VERSION}`;
+    const { data } = await this.request<{ id: string }>(url);
+    this.projectIdCache.set(project, data.id);
+    return data.id;
   }
 }
 

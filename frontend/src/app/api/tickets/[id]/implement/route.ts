@@ -2,11 +2,14 @@
 // GET  /api/tickets/:id/implement — get task status or diff
 
 import { db } from "@/lib/db";
-import { tickets, tasks, repos, workspace, pats, jobs } from "@/lib/db/schema";
+import { tickets, tasks, repos, workspace, pats, jobs, pipelineRuns } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { decryptPat } from "@/lib/crypto";
 import { AzureDevOpsClient } from "@/lib/azure-devops/client";
 import { gitExec, claudeExecStreaming, withRepoLock } from "@/lib/claude-cli";
+import { execFile } from "child_process";
+import { startPullRequestMonitoring } from "@/lib/pipeline/monitor";
+
 import fs from "fs";
 import path from "path";
 
@@ -120,14 +123,15 @@ export async function POST(
   const { id } = await params;
   const ticketId = parseInt(id, 10);
   const body = await request.json();
-  const { action, taskId, force } = body as {
+  const { action, taskId, force, guidance } = body as {
     action: "start" | "manual" | "create-pr";
     taskId?: number;
     force?: boolean;
+    guidance?: string;
   };
 
   if (action === "start" && taskId) {
-    return handleStart(ticketId, taskId, force);
+    return handleStart(ticketId, taskId, force, guidance);
   }
 
   if (action === "manual" && taskId) {
@@ -147,7 +151,7 @@ export async function POST(
 
 // ─── Start implementation (background job) ────────────────────────
 
-async function handleStart(ticketId: number, taskId: number, force?: boolean) {
+async function handleStart(ticketId: number, taskId: number, force?: boolean, guidance?: string) {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
 
@@ -204,7 +208,7 @@ async function handleStart(ticketId: number, taskId: number, force?: boolean) {
   await db.update(tasks).set({ status: "in-progress", updatedAt: now }).where(eq(tasks.id, taskId));
 
   // Fire-and-forget (with crash safety net)
-  runImplementInBackground(taskId, ticketId, job.id, repo, ticket).catch(async (err) => {
+  runImplementInBackground(taskId, ticketId, job.id, repo, ticket, guidance).catch(async (err) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[implement] Background implementation crashed:", msg);
     // Safety net: reset task + job if the outer catch didn't fire
@@ -224,7 +228,8 @@ async function runImplementInBackground(
   ticketId: number,
   jobId: number,
   repo: { id: number; name: string; project: string; defaultBranch: string },
-  ticket: { id: number; jiraKey: string; title: string; description: string | null; prdPath: string | null }
+  ticket: { id: number; jiraKey: string; title: string; description: string | null; prdPath: string | null },
+  guidance?: string,
 ) {
   const repoDir = path.join(REPOS_DIR, repo.name);
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
@@ -240,7 +245,12 @@ async function runImplementInBackground(
 
   const liveDiffPath = path.join(repoDir, ".devcycle-live-diff.json");
 
+  let highWaterProgress = 0;
   const updateJob = async (updates: { status?: string; progress?: number; error?: string; meta?: string }) => {
+    if (updates.progress !== undefined) {
+      highWaterProgress = Math.max(highWaterProgress, updates.progress);
+      updates = { ...updates, progress: highWaterProgress };
+    }
     await db.update(jobs).set({
       ...updates,
       updatedAt: Date.now(),
@@ -330,44 +340,112 @@ async function runImplementInBackground(
     throttledProgressUpdate(currentProgress, range.label);
   };
 
+  const isFixMode = !!guidance?.includes("## Pipeline Fix Mode");
+
+  // Track which TODO_DONE markers we've already processed
+  const processedTodos = new Set<number>();
+  let lastTextSeen = "";
+
+  const checkTodoDone = async (text: string) => {
+    // Only scan new text since last check
+    const newPart = text.slice(lastTextSeen.length);
+    lastTextSeen = text;
+    const matches = newPart.matchAll(/\[TODO_DONE:(\d+)\]/g);
+    for (const m of matches) {
+      const idx = parseInt(m[1], 10);
+      if (processedTodos.has(idx)) continue;
+      processedTodos.add(idx);
+      // Update the todo in the DB
+      try {
+        const [fresh] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+        if (fresh?.todos) {
+          const todos: { title: string; description: string; done: boolean }[] = JSON.parse(fresh.todos);
+          if (idx >= 0 && idx < todos.length && !todos[idx].done) {
+            todos[idx].done = true;
+            await db.update(tasks).set({ todos: JSON.stringify(todos), updatedAt: Date.now() }).where(eq(tasks.id, taskId));
+            console.log(`[implement] Task ${taskId}: todo[${idx}] marked done`);
+          }
+        }
+      } catch { /* best effort */ }
+    }
+  };
+
   try {
     console.log(`[implement] Task ${taskId}: acquiring repo lock for ${repo.name}...`);
     await withRepoLock(repo.name, async () => {
       console.log(`[implement] Task ${taskId}: lock acquired. Preparing repo...`);
-      // Ensure we're on the default branch with a clean state
-      try {
+
+      if (isFixMode && task.branchName) {
+        // Fix mode: reset local branch to match remote exactly, then work from there
+        console.log(`[implement] Task ${taskId}: fix mode — syncing to remote ${task.branchName}...`);
+        // Abort any in-progress rebase/merge from a previous failed attempt
+        try { await gitExec(["rebase", "--abort"], { cwd: repoDir }); } catch { /* no rebase in progress */ }
+        try { await gitExec(["merge", "--abort"], { cwd: repoDir }); } catch { /* no merge in progress */ }
+        // Fetch the branch into a proper remote-tracking ref
+        await gitExec(["fetch", "origin", `${task.branchName}:refs/remotes/origin/${task.branchName}`], { cwd: repoDir });
+        // Detach first to avoid "already on branch" issues, then force-create from remote
         await gitExec(["checkout", defaultBranch], { cwd: repoDir });
+        try { await gitExec(["branch", "-D", task.branchName], { cwd: repoDir }); } catch { /* didn't exist locally */ }
+        await gitExec(["checkout", "-b", task.branchName, `origin/${task.branchName}`], { cwd: repoDir });
         await gitExec(["clean", "-fd"], { cwd: repoDir });
-        await gitExec(["checkout", "--", "."], { cwd: repoDir });
-      } catch {
-        // May fail if repo is in a weird state — continue anyway
+        await updateJob({ progress: 10, meta: JSON.stringify({ label: "Checking out branch..." }) });
+      } else {
+        // Fresh implementation: clean state, new branch
+        try {
+          await gitExec(["checkout", defaultBranch], { cwd: repoDir });
+          await gitExec(["clean", "-fd"], { cwd: repoDir });
+          await gitExec(["checkout", "--", "."], { cwd: repoDir });
+        } catch {
+          // May fail if repo is in a weird state — continue anyway
+        }
+
+        // Delete branch if it exists (retry scenario)
+        try {
+          await gitExec(["checkout", defaultBranch], { cwd: repoDir });
+          await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+          console.log(`[implement] Task ${taskId}: deleted existing branch ${branchName}`);
+        } catch {
+          // Branch doesn't exist — fine
+        }
+
+        // Create feature branch
+        console.log(`[implement] Task ${taskId}: creating branch ${branchName}...`);
+        await gitExec(["checkout", "-b", branchName], { cwd: repoDir });
+        await updateJob({ progress: 10, meta: JSON.stringify({ label: "Creating branch..." }) });
       }
 
-      // Delete branch if it exists (retry scenario)
-      try {
-        // Force checkout default branch first in case we're on the target branch
-        await gitExec(["checkout", defaultBranch], { cwd: repoDir });
-        await gitExec(["branch", "-D", branchName], { cwd: repoDir });
-        console.log(`[implement] Task ${taskId}: deleted existing branch ${branchName}`);
-      } catch {
-        // Branch doesn't exist — fine
-      }
+      // Build prompt — focused fix prompt in fix mode, full context otherwise
+      let prompt: string;
+      if (isFixMode && guidance) {
+        prompt = `You are fixing a CI/CD pipeline failure in this repository. The code has already been implemented and pushed — you need to make targeted fixes only.
 
-      // Create feature branch
-      console.log(`[implement] Task ${taskId}: creating branch ${branchName}...`);
-      await gitExec(["checkout", "-b", branchName], { cwd: repoDir });
-      await updateJob({ progress: 10, meta: JSON.stringify({ label: "Creating branch..." }) });
+${guidance}
 
-      // Load context for Claude
-      const prdContent = loadPRD(ticket);
-      const synthesisContext = loadSynthesisOverview();
-      const analysisContext = loadAnalysisContext({ jiraKey: ticket.jiraKey, id: ticket.id });
+## Instructions
+- Read the failing files first to understand the current code
+- Use the Edit tool to make the necessary fixes — do NOT just describe the changes
+- Make minimal, targeted fixes — only change what's needed to fix the pipeline error
+- Do NOT commit your changes — just edit the files
+- Do NOT create documentation files or summaries`;
+      } else {
+        // Load context for Claude
+        const prdContent = loadPRD(ticket);
+        const synthesisContext = loadSynthesisOverview();
+        const analysisContext = loadAnalysisContext({ jiraKey: ticket.jiraKey, id: ticket.id });
 
-      const prompt = `You are implementing a code change in this repository.
+        // Parse todos for the prompt
+        const todos: { title: string; description: string; done: boolean }[] = task.todos ? JSON.parse(task.todos) : [];
+        const todoSection = todos.length > 0
+          ? `## Todo Checklist\n\nWork through these items in order:\n${todos.map((t, i) => `${i}. ${t.title}${t.description ? ` — ${t.description}` : ""}`).join("\n")}\n\nAfter completing each todo item, output the marker \`[TODO_DONE:index]\` (e.g. \`[TODO_DONE:0]\` after finishing the first item). This updates the progress UI in real-time.`
+          : "";
+
+        prompt = `You are implementing a code change in this repository.
 
 ## Task
 **${task.title}**
 ${task.description || ""}
+
+${todoSection}
 
 ## Ticket
 **${ticket.jiraKey}: ${ticket.title}**
@@ -387,7 +465,9 @@ ${synthesisContext}
 - If the repo has tests, add or update tests for your changes
 - Do NOT commit your changes — just edit the files
 - Do NOT create documentation files, summaries, checklists, or .md files — only edit source code
-- If the analysis context mentions specific files or functions, start there`;
+- If the analysis context mentions specific files or functions, start there
+${guidance ? `\n## Additional Guidance\n${guidance}` : ""}`;
+      }
 
       // Let Claude implement the changes (streaming for real-time progress)
       await updateJob({ progress: 20, meta: JSON.stringify({ label: "Claude analyzing codebase..." }) });
@@ -403,7 +483,7 @@ ${synthesisContext}
           timeoutMs: 600_000,
           systemPrompt: "You are a senior developer implementing a specific task. Read the existing code to understand patterns and conventions before making changes. Make targeted, minimal edits. NEVER create documentation files (.md), summaries, checklists, or implementation plans — only modify source code files.",
           onToolUse,
-          onText: (text) => { claudeResponse = text; },
+          onText: (text) => { claudeResponse = text; checkTodoDone(text).catch(() => {}); },
         });
         claudeResponse = streamResult.result as string;
       } finally {
@@ -413,7 +493,92 @@ ${synthesisContext}
         await snapshotLiveDiff();
       }
 
-      await updateJob({ progress: 80, meta: JSON.stringify({ label: "Committing changes..." }) });
+      // Run unit tests and iterate until they pass (skip for e2e repos and repos without tests)
+      const isE2eRepo = /e2e|end.to.end/i.test(repo.name);
+      const hasTestProjects = !isE2eRepo && fs.readdirSync(repoDir, { recursive: true })
+        .some((f) => /Tests.*\.(csproj|fsproj)$/i.test(String(f)));
+
+      if (hasTestProjects) {
+        const MAX_TEST_FIX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_TEST_FIX_ATTEMPTS; attempt++) {
+          await updateJob({ progress: 80, meta: JSON.stringify({ label: `Running unit tests (attempt ${attempt})...` }) });
+          console.log(`[implement] Task ${taskId}: running dotnet test (attempt ${attempt})...`);
+
+          let testOutput = "";
+          let testPassed = false;
+          try {
+            testOutput = await new Promise<string>((resolve, reject) => {
+              execFile("dotnet", ["test", "--no-restore", "--verbosity", "minimal"], {
+                cwd: repoDir,
+                timeout: 300_000,
+                maxBuffer: 10 * 1024 * 1024,
+              }, (err, stdout, stderr) => {
+                if (err) reject(new Error((stdout + "\n" + stderr).trim() || err.message));
+                else resolve(stdout);
+              });
+            });
+            testPassed = true;
+          } catch (testErr) {
+            testOutput = (testErr as Error).message ?? String(testErr);
+          }
+
+          if (testPassed) {
+            console.log(`[implement] Task ${taskId}: unit tests passed on attempt ${attempt}`);
+            // Mark "Run all unit tests" todo as done
+            try {
+              const [fresh] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+              if (fresh?.todos) {
+                const todoList: { title: string; description: string; done: boolean }[] = JSON.parse(fresh.todos);
+                const testTodoIdx = todoList.findIndex((td) => /run.*unit\s*test/i.test(td.title));
+                if (testTodoIdx >= 0 && !todoList[testTodoIdx].done) {
+                  todoList[testTodoIdx].done = true;
+                  await db.update(tasks).set({ todos: JSON.stringify(todoList), updatedAt: Date.now() }).where(eq(tasks.id, taskId));
+                }
+              }
+            } catch { /* best effort */ }
+            break;
+          }
+
+          if (attempt === MAX_TEST_FIX_ATTEMPTS) {
+            console.warn(`[implement] Task ${taskId}: unit tests still failing after ${MAX_TEST_FIX_ATTEMPTS} attempts, proceeding anyway`);
+            break;
+          }
+
+          // Feed test errors back to Claude for a fix pass
+          await updateJob({ progress: 82, meta: JSON.stringify({ label: `Fixing test failures (attempt ${attempt})...` }) });
+          console.log(`[implement] Task ${taskId}: tests failed, asking Claude to fix...`);
+
+          const fixPrompt = `Unit tests failed after your changes. Fix the code so all tests pass.
+
+## Test Output (truncated)
+\`\`\`
+${testOutput.slice(-3000)}
+\`\`\`
+
+## Instructions
+- Read the failing test files and the code they test
+- Fix the source code OR the tests if your changes require test updates
+- Make minimal, targeted fixes only
+- Do NOT commit — just edit the files`;
+
+          try {
+            await claudeExecStreaming(fixPrompt, {
+              cwd: repoDir,
+              addDirs: [KB_ROOT],
+              model: "sonnet",
+              maxBudget: 1.00,
+              timeoutMs: 300_000,
+              systemPrompt: "You are fixing unit test failures. Read the test output carefully, identify what broke, and make minimal edits to fix it. Do NOT create documentation files.",
+              onToolUse,
+              onText: (text) => { claudeResponse = text; },
+            });
+          } catch (fixErr) {
+            console.warn(`[implement] Task ${taskId}: Claude fix attempt failed:`, (fixErr as Error).message?.slice(0, 200));
+          }
+        }
+      }
+
+      await updateJob({ progress: 85, meta: JSON.stringify({ label: "Committing changes..." }) });
 
       // Stage and commit changes (exclude our temp file)
       cleanupLiveDiff();
@@ -442,7 +607,61 @@ ${synthesisContext}
       const rawDiff = await gitExec(["diff", "HEAD~1", "--unified=5"], { cwd: repoDir });
       const fileDiffs = parseUnifiedDiff(rawDiff);
 
-      await updateJob({ progress: 95, meta: JSON.stringify({ label: "Capturing diff..." }) });
+      await updateJob({ progress: 90, meta: JSON.stringify({ label: "Capturing diff..." }) });
+
+      // In fix mode, push the fix so the pipeline picks up a new build
+      if (isFixMode && task.branchName) {
+        await updateJob({ progress: 95, meta: JSON.stringify({ label: "Pushing fix..." }) });
+        console.log(`[implement] Task ${taskId}: fix mode — pushing to ${task.branchName}...`);
+
+        // Set authenticated remote URL (same as handleCreatePR) so ADO recognizes
+        // the push and triggers CI policies
+        const [ws] = await db.select().from(workspace).limit(1);
+        const [pat] = ws ? await db.select().from(pats).where(
+          and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure"))
+        ) : [];
+        if (ws && pat) {
+          const orgUrl = new URL(ws.azureOrgUrl);
+          const orgPath = orgUrl.pathname.split("/").filter(Boolean)[0] || "";
+          const cloneUrl = `https://${decryptPat(pat.encryptedPat, pat.iv)}@dev.azure.com/${orgPath}/${encodeURIComponent(repo.project)}/_git/${encodeURIComponent(repo.name)}`;
+          await gitExec(["remote", "set-url", "origin", cloneUrl], { cwd: repoDir });
+        }
+
+        await gitExec(["push", "origin", task.branchName], { cwd: repoDir, timeout: 60_000 });
+        console.log(`[implement] Task ${taskId}: fix pushed successfully`);
+
+        // Reset pipeline runs: set minBuildNumber so the poller skips the old failed build
+        // and only links a newer build triggered by this push.
+        const existingRun = db.select().from(pipelineRuns)
+          .where(eq(pipelineRuns.taskId, taskId))
+          .get();
+        const skipBuild = existingRun?.jenkinsBuildNumber ?? 0;
+        const now = Date.now();
+        db.update(pipelineRuns)
+          .set({
+            status: "pending",
+            jenkinsBuildNumber: null,
+            jenkinsUrl: null,
+            failureAnalysis: null,
+            minBuildNumber: skipBuild,
+            startedAt: null,
+            finishedAt: null,
+            updatedAt: now,
+          })
+          .where(eq(pipelineRuns.taskId, taskId))
+          .run();
+        console.log(`[implement] Task ${taskId}: pipeline runs reset to pending (skip builds <= ${skipBuild})`);
+      }
+
+      // Mark all todos done — Claude is unreliable with [TODO_DONE] markers
+      try {
+        const [freshTask] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+        if (freshTask?.todos) {
+          const allTodos: { title: string; description: string; done: boolean }[] = JSON.parse(freshTask.todos);
+          const updated = allTodos.map((td) => ({ ...td, done: true }));
+          await db.update(tasks).set({ todos: JSON.stringify(updated) }).where(eq(tasks.id, taskId));
+        }
+      } catch { /* best effort */ }
 
       // Store results
       await db.update(tasks).set({
@@ -453,7 +672,7 @@ ${synthesisContext}
       }).where(eq(tasks.id, taskId));
 
       cleanupLiveDiff();
-      await updateJob({ status: "done", progress: 100, meta: JSON.stringify({ label: "Done" }) });
+      await updateJob({ status: "done", progress: 100, meta: JSON.stringify({ label: isFixMode ? "Fix pushed" : "Done" }) });
       console.log(`[implement] Task ${taskId} completed — ${fileDiffs.length} files changed`);
     });
   } catch (err) {
@@ -461,10 +680,12 @@ ${synthesisContext}
     const errorType = (err as Error & { errorType?: string })?.errorType ?? "unknown";
     console.error(`[implement] Task ${taskId} failed:`, msg);
 
-    // Clean up: return to default branch
+    // Clean up: return to default branch (don't delete branch in fix mode)
     try {
       await gitExec(["checkout", defaultBranch], { cwd: repoDir });
-      await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+      if (!isFixMode) {
+        await gitExec(["branch", "-D", branchName], { cwd: repoDir });
+      }
     } catch {
       // Best effort cleanup
     }
@@ -536,6 +757,11 @@ async function handleCreatePR(ticketId: number, taskId: number) {
       prNumber: pr.pullRequestId,
       updatedAt: Date.now(),
     }).where(eq(tasks.id, taskId));
+
+    // Start pipeline monitoring for this PR
+    if (task.repoId) {
+      startPullRequestMonitoring(taskId, task.repoId);
+    }
 
     return Response.json({
       ok: true,

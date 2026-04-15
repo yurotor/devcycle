@@ -1,7 +1,7 @@
-// GET /api/tickets/:id/tasks — return waves + tasks for a ticket
+// GET /api/tickets/:id/tasks — return tasks for a ticket (flat list, no waves)
 
 import { db } from "@/lib/db";
-import { waves, tasks } from "@/lib/db/schema";
+import { tasks, repos } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -13,15 +13,17 @@ export async function GET(
   const { id } = await params;
   const ticketId = parseInt(id, 10);
 
-  const waveRows = await db.select().from(waves).where(eq(waves.ticketId, ticketId));
   const taskRows = await db.select().from(tasks).where(eq(tasks.ticketId, ticketId));
+  const repoRows = await db.select().from(repos);
 
-  const result = waveRows
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map((w) => ({
-      ...w,
-      tasks: taskRows.filter((t) => t.waveId === w.id),
-    }));
+  const enriched = taskRows.map((t) => {
+    const repo = repoRows.find((r) => r.id === t.repoId);
+    return {
+      ...t,
+      repoName: repo?.name ?? null,
+      todos: t.todos ? JSON.parse(t.todos) : [],
+    };
+  });
 
-  return Response.json({ waves: result });
+  return Response.json({ tasks: enriched });
 }

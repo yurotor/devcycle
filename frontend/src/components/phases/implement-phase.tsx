@@ -29,6 +29,13 @@ import {
   Send,
 } from "lucide-react";
 import { type Ticket } from "@/lib/fake-data";
+import { PipelineStatus } from "@/components/pipeline-status";
+
+interface TodoItem {
+  title: string;
+  description: string;
+  done: boolean;
+}
 
 interface TaskRow {
   id: number;
@@ -39,14 +46,8 @@ interface TaskRow {
   prUrl: string | null;
   prNumber: number | null;
   implementedManually: number;
-  waveId: number;
-}
-
-interface WaveRow {
-  id: number;
-  name: string;
-  orderIndex: number;
-  tasks: TaskRow[];
+  repoName: string | null;
+  todos: TodoItem[];
 }
 
 interface FileDiff {
@@ -72,11 +73,10 @@ interface ImplementPhaseProps {
 }
 
 export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
-  const [waves, setWaves] = useState<WaveRow[]>([]);
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyTaskIds, setBusyTaskIds] = useState<Set<number>>(new Set());
   const [runningAll, setRunningAll] = useState(false);
-  const [runningWaveId, setRunningWaveId] = useState<number | null>(null);
   const [creatingPrTaskId, setCreatingPrTaskId] = useState<number | null>(null);
   const [viewingTask, setViewingTask] = useState<TaskRow | null>(null);
   const [diffs, setDiffs] = useState<FileDiff[]>([]);
@@ -102,8 +102,9 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const loadTasks = useCallback(async () => {
     const res = await fetch(`/api/tickets/${ticket.id}/tasks`);
     const data = await res.json();
-    setWaves(data.waves ?? []);
-    return data.waves as WaveRow[];
+    const taskList = data.tasks ?? [];
+    setTasks(taskList);
+    return taskList as TaskRow[];
   }, [ticket.id]);
 
   useEffect(() => {
@@ -118,8 +119,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
   const jobProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const inProgressTasks = waves
-      .flatMap((w) => w.tasks)
+    const inProgressTasks = tasks
       .filter((t) => t.status === "in-progress");
 
     if (inProgressTasks.length === 0) {
@@ -159,16 +159,15 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     return () => {
       if (jobProgressRef.current) clearInterval(jobProgressRef.current);
     };
-  }, [waves, ticket.id]);
+  }, [tasks, ticket.id]);
 
   // ── Poll until a task leaves "in-progress" ──────────────────
 
   const waitForTask = useCallback((taskId: number): Promise<void> => {
     return new Promise((resolve) => {
       const interval = setInterval(async () => {
-        const updatedWaves = await loadTasks();
-        const allTasks = updatedWaves.flatMap((w: WaveRow) => w.tasks);
-        const t = allTasks.find((t: TaskRow) => t.id === taskId);
+        const updatedTasks = await loadTasks();
+        const t = updatedTasks.find((t: TaskRow) => t.id === taskId);
         if (!t || t.status !== "in-progress") {
           clearInterval(interval);
           if (pollRef.current === interval) pollRef.current = null;
@@ -236,32 +235,15 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
 
   // ── Run helpers ──────────────────────────────────────────────
 
-  const runTasks = async (taskList: TaskRow[]) => {
-    const pending = taskList.filter(
-      (t) => t.status !== "done" && !t.implementedManually
-    );
-    await Promise.allSettled(pending.map((task) => startTask(task.id)));
-  };
-
   const runAll = async () => {
     setRunningAll(true);
-    for (const wave of waves) {
-      const pending = wave.tasks.filter(
-        (t) => t.status !== "done" && !t.implementedManually
-      );
-      if (pending.length > 0) {
-        setRunningWaveId(wave.id);
-        await Promise.allSettled(pending.map((task) => startTask(task.id)));
-        setRunningWaveId(null);
-      }
+    const pending = tasks.filter(
+      (t) => t.status !== "done" && !t.implementedManually
+    );
+    for (const task of pending) {
+      await startTask(task.id);
     }
     setRunningAll(false);
-  };
-
-  const runWave = async (wave: WaveRow) => {
-    setRunningWaveId(wave.id);
-    await runTasks(wave.tasks);
-    setRunningWaveId(null);
   };
 
   // ── Per-task PR ──────────────────────────────────────────────
@@ -491,7 +473,7 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
     );
   }
 
-  const allTasks = waves.flatMap((w) => w.tasks);
+  const allTasks = tasks;
   const doneTasks = allTasks.filter(
     (t) => t.status === "done" || t.implementedManually
   );
@@ -514,9 +496,6 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
       return <AlertTriangle className="w-3.5 h-3.5 text-amber shrink-0" />;
     return <Circle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />;
   };
-
-  const wavePendingCount = (wave: WaveRow) =>
-    wave.tasks.filter((t) => !isTaskDone(t)).length;
 
   const activeFile = diffs.find((f) => f.path === selectedFile) ?? null;
 
@@ -961,178 +940,197 @@ export function ImplementPhase({ ticket, onComplete }: ImplementPhaseProps) {
         </div>
 
         <ScrollArea className="flex-1 px-4">
-          <div className="py-4 space-y-4">
-            {waves.map((wave) => {
-              const pendingCount = wavePendingCount(wave);
-              const isRunningWave = runningWaveId === wave.id;
-              const singleWave = waves.length === 1;
-              return (
-                <div
-                  key={wave.id}
-                  className={singleWave ? "" : "border border-border rounded-lg overflow-hidden"}
-                >
-                  {!singleWave && (
-                    <div className="px-3 py-2 bg-secondary/50 border-b border-border flex items-center justify-between">
-                      <span className="text-sm font-medium">{wave.name}</span>
-                      {pendingCount > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-xs px-2 gap-1 text-emerald hover:text-emerald"
-                          onClick={() => runWave(wave)}
-                          disabled={busyTaskIds.size > 0 || runningAll || isRunningWave}
-                        >
-                          {isRunningWave ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Play className="w-3 h-3" />
-                          )}
-                          Run Wave
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  <div className="divide-y divide-border/50">
-                    {wave.tasks.map((task) => {
-                      const isDone = isTaskDone(task);
-                      const isBusy = busyTaskIds.has(task.id);
-                      return (
-                        <div
-                          key={task.id}
-                          className="px-3 py-2.5 flex items-start gap-2"
-                        >
-                          <div className="mt-0.5">{statusIcon(task)}</div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : ""}`}
+          <div className="py-4">
+            <div className="divide-y divide-border/50">
+              {tasks.map((task) => {
+                const isDone = isTaskDone(task);
+                const isBusy = busyTaskIds.has(task.id);
+                return (
+                  <div
+                    key={task.id}
+                    className="px-3 py-2.5 flex items-start gap-2"
+                  >
+                    <div className="mt-0.5">{statusIcon(task)}</div>
+                    <div className="flex-1 min-w-0">
+                      {/* 1. Task name — full row, wraps */}
+                      <p
+                        className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : ""}`}
+                      >
+                        {task.title}
+                      </p>
+                      {/* 2. Repo name + action buttons */}
+                      <div className="flex items-center gap-2 mt-1">
+                        {task.repoName && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-sky/15 text-sky border-sky/20 shrink-0">
+                            {task.repoName}
+                          </span>
+                        )}
+                        {(isDone || task.status === "in-progress") && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-5 text-[10px] px-1.5 gap-1 ${task.status === "in-progress" ? "text-emerald" : ""}`}
+                              onClick={() => viewChanges(task)}
                             >
-                              {task.title}
-                            </p>
-                            {/* Per-task progress bar + label for in-progress tasks */}
-                            {task.status === "in-progress" && jobProgress[task.id] && (
-                              <div className="mt-1.5 space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-1 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full bg-cyan rounded-full transition-all duration-500"
-                                      style={{ width: `${jobProgress[task.id].progress}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                                    {jobProgress[task.id].progress}%
+                              <Eye className="w-3 h-3" />
+                              View
+                            </Button>
+                            {isDone && !task.prUrl && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 text-[10px] px-1.5 gap-1 text-sky"
+                                onClick={() => createTaskPr(task)}
+                                disabled={creatingPrTaskId === task.id}
+                              >
+                                {creatingPrTaskId === task.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <GitPullRequest className="w-3 h-3" />
+                                )}
+                                Create PR
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {/* 3. Todo checklist — done items get strikethrough + green check, active item highlighted */}
+                      {task.todos && task.todos.length > 0 && (() => {
+                        const allDoneOverride = isDone; // task done → all todos done
+                        const firstUndone = task.status === "in-progress" ? task.todos.findIndex((t) => !t.done) : -1;
+                        return (
+                          <div className="mt-1 space-y-0">
+                            {task.todos.map((todo, idx) => {
+                              const todoDone = allDoneOverride || todo.done;
+                              const isActive = idx === firstUndone;
+                              return (
+                                <div key={idx} className="flex items-center gap-1.5">
+                                  {todoDone ? (
+                                    <CheckCircle2 className="w-3 h-3 text-emerald shrink-0" />
+                                  ) : isActive ? (
+                                    <div className="w-3 h-3 shrink-0 rounded-full border border-amber flex items-center justify-center">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-amber" />
+                                    </div>
+                                  ) : (
+                                    <Circle className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                                  )}
+                                  <span className={`text-xs ${
+                                    todoDone ? "text-muted-foreground line-through"
+                                    : isActive ? "text-foreground font-medium"
+                                    : "text-foreground/80"
+                                  }`}>
+                                    {todo.title}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {jobProgress[task.id].label}
-                                </p>
-                              </div>
-                            )}
-                            {/* Error message for failed tasks */}
-                            {task.status === "pending" && jobProgress[task.id]?.status === "failed" && jobProgress[task.id]?.error && (
-                              <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber">
-                                <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                                <span>{jobProgress[task.id].error}</span>
-                              </div>
-                            )}
-                            {task.branchName && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <GitBranch className="w-3 h-3 text-muted-foreground" />
-                                <code className="text-[11px] text-muted-foreground font-mono">
-                                  {task.branchName}
-                                </code>
-                              </div>
-                            )}
-                            {task.prUrl && (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <GitPullRequest className="w-3 h-3 text-sky" />
-                                <a
-                                  href={task.prUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[11px] text-sky hover:underline font-mono"
-                                >
-                                  PR #{task.prNumber}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            {(isDone || task.status === "in-progress") && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className={`h-6 text-xs px-2 gap-1 ${task.status === "in-progress" ? "text-emerald" : ""}`}
-                                  onClick={() => viewChanges(task)}
-                                >
-                                  <Eye className="w-3 h-3" />
-                                  View
-                                </Button>
-                                {isDone && !task.prUrl && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-xs px-2 gap-1 text-sky"
-                                    onClick={() => createTaskPr(task)}
-                                    disabled={creatingPrTaskId === task.id}
-                                  >
-                                    {creatingPrTaskId === task.id ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <GitPullRequest className="w-3 h-3" />
-                                    )}
-                                    Create PR
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                            {!isDone && task.status !== "in-progress" && !isBusy && (() => {
-                              const hasFailed = jobProgress[task.id]?.status === "failed";
-                              const isNoChanges = hasFailed && jobProgress[task.id]?.errorType === "no_changes";
-                              return (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-xs px-2 gap-1"
-                                    onClick={() => startTask(task.id)}
-                                  >
-                                    <Play className="w-3 h-3" />
-                                    {hasFailed ? "Retry" : "Run"}
-                                  </Button>
-                                  {isNoChanges && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 text-xs px-2 gap-1 text-emerald"
-                                      onClick={() => markManual(task.id)}
-                                    >
-                                      <CheckCircle2 className="w-3 h-3" />
-                                      Mark Done
-                                    </Button>
-                                  )}
-                                  {!isNoChanges && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 text-xs px-2 gap-1"
-                                      onClick={() => markManual(task.id)}
-                                    >
-                                      <Hand className="w-3 h-3" />
-                                      Manual
-                                    </Button>
-                                  )}
-                                </>
                               );
-                            })()}
+                            })}
                           </div>
+                        );
+                      })()}
+                      {/* Per-task progress bar + label for in-progress tasks */}
+                      {task.status === "in-progress" && jobProgress[task.id] && (
+                        <div className="mt-1.5 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1 rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full bg-cyan rounded-full transition-all duration-500"
+                                style={{ width: `${jobProgress[task.id].progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                              {jobProgress[task.id].progress}%
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {jobProgress[task.id].label}
+                          </p>
                         </div>
-                      );
-                    })}
+                      )}
+                      {/* Error message for failed tasks */}
+                      {task.status === "pending" && jobProgress[task.id]?.status === "failed" && jobProgress[task.id]?.error && (
+                        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber">
+                          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span>{jobProgress[task.id].error}</span>
+                        </div>
+                      )}
+                      {/* 4. Branch name */}
+                      {task.branchName && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <GitBranch className="w-3 h-3 text-muted-foreground" />
+                          <code className="text-[11px] text-muted-foreground font-mono">
+                            {task.branchName}
+                          </code>
+                        </div>
+                      )}
+                      {/* 5. PR link */}
+                      {task.prUrl && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <GitPullRequest className="w-3 h-3 text-sky" />
+                          <a
+                            href={task.prUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-sky hover:underline font-mono"
+                          >
+                            PR #{task.prNumber}
+                          </a>
+                        </div>
+                      )}
+                      {/* 6. CI/CD statuses */}
+                      {task.prNumber && (
+                        <PipelineStatus
+                          ticketId={Number(ticket.id)}
+                          taskId={task.id}
+                          prNumber={task.prNumber}
+                        />
+                      )}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {!isDone && task.status !== "in-progress" && !isBusy && (() => {
+                        const hasFailed = jobProgress[task.id]?.status === "failed";
+                        const isNoChanges = hasFailed && jobProgress[task.id]?.errorType === "no_changes";
+                        return (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs px-2 gap-1"
+                              onClick={() => startTask(task.id)}
+                            >
+                              <Play className="w-3 h-3" />
+                              {hasFailed ? "Retry" : "Run"}
+                            </Button>
+                            {isNoChanges && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs px-2 gap-1 text-emerald"
+                                onClick={() => markManual(task.id)}
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                Mark Done
+                              </Button>
+                            )}
+                            {!isNoChanges && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs px-2 gap-1"
+                                onClick={() => markManual(task.id)}
+                              >
+                                <Hand className="w-3 h-3" />
+                                Manual
+                              </Button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </ScrollArea>
 

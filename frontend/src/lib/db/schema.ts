@@ -59,28 +59,17 @@ export const tickets = sqliteTable("tickets", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-// ─── Waves ────────────────────────────────────────────────────────
-
-export const waves = sqliteTable("waves", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  ticketId: integer("ticket_id").notNull(),
-  name: text("name").notNull(),
-  orderIndex: integer("order_index").notNull(),
-  createdAt: integer("created_at").notNull(),
-});
-
 // ─── Tasks ────────────────────────────────────────────────────────
 
 export const tasks = sqliteTable("tasks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   ticketId: integer("ticket_id").notNull(),
-  waveId: integer("wave_id"),
   repoId: integer("repo_id"),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
   description: text("description"),
+  todos: text("todos"), // JSON: [{ title, description, done }]
   status: text("status").notNull().default("pending"), // 'pending' | 'in-progress' | 'done'
-  dependsOn: text("depends_on"), // JSON: number[]
   branchName: text("branch_name"),
   prUrl: text("pr_url"),
   prNumber: integer("pr_number"),
@@ -142,6 +131,51 @@ export const reviewComments = sqliteTable("review_comments", {
   priority: text("priority").notNull(), // 'critical' | 'suggestion' | 'nit'
   author: text("author").notNull(), // 'ai' | 'user'
   status: text("status").notNull().default("open"), // 'open' | 'done' | 'deleted'
+  createdAt: integer("created_at").notNull(),
+});
+
+// ─── Pipeline Runs ───────────────────────────────────────────────
+
+export const pipelineRuns = sqliteTable("pipeline_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: integer("task_id").notNull(),
+  repoId: integer("repo_id"),
+  pipelineType: text("pipeline_type").notNull(), // 'pullRequest' | 'autoDeploy'
+  jenkinsHost: text("jenkins_host").notNull(),
+  jenkinsJobPath: text("jenkins_job_path").notNull(),
+  jenkinsBuildNumber: integer("jenkins_build_number"),
+  jenkinsUrl: text("jenkins_url"), // direct link to build
+  minBuildNumber: integer("min_build_number"), // skip builds <= this (set after fix-and-repush)
+  status: text("status").notNull().default("pending"), // 'pending' | 'running' | 'success' | 'failure' | 'aborted'
+  failureAnalysis: text("failure_analysis"), // JSON: { summary, issueType, suggestedFix }
+  startedAt: integer("started_at"),
+  finishedAt: integer("finished_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Pipeline Stages ─────────────────────────────────────────────
+
+export const pipelineStages = sqliteTable("pipeline_stages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pipelineRunId: integer("pipeline_run_id").notNull(),
+  stageNodeId: text("stage_node_id"), // Jenkins wfapi node ID
+  stageName: text("stage_name").notNull(),
+  stageOrder: integer("stage_order").notNull(),
+  status: text("status").notNull().default("pending"), // 'pending' | 'running' | 'success' | 'failure' | 'paused'
+  durationMs: integer("duration_ms"),
+});
+
+// ─── Jenkins Job Mappings ────────────────────────────────────────
+
+export const jenkinsJobMappings = sqliteTable("jenkins_job_mappings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  repoId: integer("repo_id").notNull(),
+  repoName: text("repo_name").notNull(),
+  pipelineType: text("pipeline_type").notNull(), // 'pullRequest' | 'autoDeploy'
+  jenkinsHost: text("jenkins_host").notNull(),
+  jenkinsJobPath: text("jenkins_job_path").notNull(), // e.g. job/cos-lending-selling/job/COS.Lending.Selling__COS.Lending.Selling.WebApi__pullRequest
+  buildTriggerId: text("build_trigger_id"), // ADO pipeline trigger ID
   createdAt: integer("created_at").notNull(),
 });
 
