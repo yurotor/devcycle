@@ -1,0 +1,70 @@
+{
+  "_headHash": "9ade4bb77721cac64850699339caaecd44a43a1f",
+  "purpose": "A .NET testing utility library providing tools for unit and integration testing in COS services",
+  "businessFeatures": [
+    "Behavior-Driven Development (BDD) testing framework",
+    "Mocking of repositories and database access",
+    "Validation utilities for test assertions",
+    "NHibernate mapping validation"
+  ],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [
+    {
+      "name": "Generic repositories",
+      "description": "Support for mocking IRepository<T> and ICachingRepository<T> interfaces from Afterman.nRepo"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Bdd/BddTest.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Bdd/ContextContainer.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Mocks/MockDataBase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Mocks/MockReadOnlyRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Mappings/NHibernateMapTest.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Mappings/InMemoryDatabase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/IgnoreUntilAttribute.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Bdd/ResultValidator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/RepositoryHelper.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Testing/Extensions/MockExtensions.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": [
+    "The exact nature of the 'COS services' that this library is designed to support is unclear",
+    "The 'Crb.Cos' namespace suggests this is part of a larger ecosystem but the relationships aren't defined",
+    "The DomainTranslators implementation references types like 'Account', 'Partner', but these domain models are not provided"
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "_headHash": "ee480ef9c448015908f3bc88a51b1a84238aa995",
+  "purpose": "",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [
+    {
+      "name": "Database tables for banking operations (referenced but not fully defined)",
+      "description": ""
+    },
+    {
+      "name": "DynamoDB tables for application data",
+      "description": ""
+    },
+    {
+      "name": "Kafka topics for event streaming",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "Active Directory domain integration for Windows servers",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "Octopus Deploy for deployment automation",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "New Relic for monitoring and observability",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "README.md - Overview and setup instructions for the infrastructure codebase",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/vpc/main.tf - Core VPC network infrastructure definition",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/cos-ec2/main.tf - EC2 instance definitions for application servers",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/cos-ecs/main.tf - ECS cluster configuration for containerized services",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/rds/main.tf - RDS database instance configuration",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/cos-ecs/cards.tf - ECS service definition for the cards service",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/cos-ecs/corebanking.tf - ECS service definition for core banking",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/cos-ecs/payments.tf - ECS service definition for payment processing",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/lambda/functions/cosRotateMSSQLPassword/main.py - Lambda function for SQL Server password rotation",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/lambda/functions/cosEcsAlerting/main.py - Lambda function for ECS task alerting",
+      "purpose": ""
+    },
+    {
+      "path": "src/terraform/modules/iam/main.tf - IAM roles and permissions",
+      "purpose": ""
+    },
+    {
+      "path": "scripts/create-dbs.sql - SQL script for database creation",
+      "purpose": ""
+    },
+    {
+      "path": "docs/cos-production-network-diagram.pdf - Network architecture documentation",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

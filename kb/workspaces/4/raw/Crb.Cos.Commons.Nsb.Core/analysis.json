@@ -1,0 +1,176 @@
+{
+  "_headHash": "b0209b3783d65b2e2b1c047333625132544c4fb5",
+  "purpose": "This repository provides a reusable NServiceBus integration library for .NET applications within the Crb.Cos ecosystem. It offers configuration, extensions, utilities and standardized patterns for implementing NServiceBus messaging.",
+  "businessFeatures": [
+    "Distributed messaging through NServiceBus",
+    "Message tracing and correlation",
+    "Integration with New Relic for monitoring",
+    "Support for interoperability with MassTransit",
+    "Health checks for NServiceBus endpoints",
+    "Standardized logging with Serilog",
+    "Event unsubscription mechanism",
+    "Environment variable configuration for app settings and connection strings"
+  ],
+  "apis": [
+    {
+      "method": "GET",
+      "endpoint": "BusExtensions.CrbDefaultConfiguration - Configures standard NServiceBus endpoint",
+      "purpose": "BusExtensions.CrbDefaultConfiguration - Configures standard NServiceBus endpoint"
+    },
+    {
+      "method": "GET",
+      "endpoint": "CrbHostBuilder.CreateHostBuilder - Creates a standard host for NServiceBus endpoints",
+      "purpose": "CrbHostBuilder.CreateHostBuilder - Creates a standard host for NServiceBus endpoints"
+    },
+    {
+      "method": "GET",
+      "endpoint": "MessageExtensions - Extensions for sending/publishing messages with headers",
+      "purpose": "MessageExtensions - Extensions for sending/publishing messages with headers"
+    },
+    {
+      "method": "GET",
+      "endpoint": "HealthCheckBuilderExtensions - Registers NServiceBus health checks",
+      "purpose": "HealthCheckBuilderExtensions - Registers NServiceBus health checks"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "NServiceBus for message handling",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac for dependency injection",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Serilog for structured logging",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NewRelic for monitoring",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.Hosting for host integration",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.DependencyInjection for DI",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Configuration for configuration management",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Text.Json for JSON handling",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Message Headers (UserId, RequestId, TraceId, etc.)",
+      "description": ""
+    },
+    {
+      "name": "NServiceBus Endpoint Configuration",
+      "description": ""
+    },
+    {
+      "name": "LoggingConfig",
+      "description": ""
+    },
+    {
+      "name": "Environment Variables",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "RabbitMQ (transport)",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "New Relic (monitoring/tracing)",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "MassTransit (interoperability)",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "OpenTelemetry (trace format compatibility)",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "The library uses a custom trace ID format compatible with OpenTelemetry but implemented manually rather than using the OpenTelemetry SDK",
+      "description": "The library uses a custom trace ID format compatible with OpenTelemetry but implemented manually rather than using the OpenTelemetry SDK"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "The repository contains configuration for interfacing with both MassTransit and NServiceBus messaging systems, suggesting a migration or interoperability scenario",
+      "description": "The repository contains configuration for interfacing with both MassTransit and NServiceBus messaging systems, suggesting a migration or interoperability scenario"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "Uses GuidComb for message IDs (presumably for chronological ordering while maintaining uniqueness)",
+      "description": "Uses GuidComb for message IDs (presumably for chronological ordering while maintaining uniqueness)"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/BusExtensions.cs - Core extensions for configuring NServiceBus endpoints",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/WellKnownHeadersMutator.cs - Manages propagation of trace IDs and other headers across messages",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/Features/NewRelicFeature.cs - Integrates NServiceBus metrics with New Relic monitoring",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/Interoperability/MassTransitMessageIngestBehavior.cs - Enables processing MassTransit messages in NServiceBus",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/Healthchecks/NServiceBusHealthCheck.cs - Provides health check for RabbitMQ connection",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Host/CrbHostBuilder.cs - Entry point for creating standardized NServiceBus host",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Host/HostingExtensions.cs - Extensions for configuring the host builder",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/Logging/LoggingConfig.cs - Configures Serilog logging for NServiceBus",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Core/Features/TraceIdPropagationFeature.cs - Manages distributed tracing across service boundaries",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb.Host/Configuration/ConfigurationManagerLoader.cs - Loads configuration from environment variables",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

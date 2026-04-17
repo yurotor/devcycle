@@ -1,0 +1,111 @@
+{
+  "_headHash": "69c37c06bc01ac8a45c0aa5c598048b8061e521e",
+  "purpose": "Shared utility library providing common functionality for .NET applications in the Crb.Cos ecosystem",
+  "businessFeatures": [
+    "Banking utilities (date formatting, check digit validation, routing number validation)",
+    "Caching abstractions and implementations",
+    "Configuration management",
+    "Database connection management (SQL Server and PostgreSQL)",
+    "Date handling with timezone support",
+    "Holiday calculations",
+    "File system operations",
+    "String and object extensions",
+    "Secret management (AWS Secrets Manager integration)",
+    "IoC container support (Autofac)",
+    "Object mapping utilities",
+    "GUID generation"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "AutoMapper",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    },
+    {
+      "target": "LazyCache",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.Caching.Memory",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Newtonsoft.Json",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Npgsql",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Data.SqlClient",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "title": "",
+      "description": "Hard-coded bank holidays in BankingDates.cs only go up to 2023, which may cause issues in future years"
+    },
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "title": "",
+      "description": "CosDateTime class assumes Eastern Standard Time zone which may not be appropriate for all deployments"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons/Banking/BankingDates.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Banking/LuhnCheckDigit.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Banking/RoutingNumberUtil.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Caching/ICosAppCache.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Caching/CosInMemoryAppCache.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Data/SqlConnectionHelper.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Data/PostgresqlConnectionHelper.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Dates/CosDateTime.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Secrets/AwsSecretsProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons/Extensions/StringExtensions.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

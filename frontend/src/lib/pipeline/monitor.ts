@@ -296,7 +296,7 @@ async function getAdoClient(): Promise<AzureDevOpsClient | null> {
   const pat = db
     .select()
     .from(pats)
-    .where(and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure")))
+    .where(eq(pats.service, "azure"))
     .get();
   if (!pat) return null;
 

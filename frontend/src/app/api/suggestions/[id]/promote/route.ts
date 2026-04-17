@@ -1,13 +1,14 @@
 // POST /api/suggestions/:id/promote — create a Jira ticket from a suggestion
 
 import { db } from "@/lib/db";
-import { scanSuggestions, workspace, pats, repos, tickets } from "@/lib/db/schema";
+import { scanSuggestions, pats, repos, tickets } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptPat } from "@/lib/crypto";
 import { JiraClient } from "@/lib/jira/client";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -27,7 +28,7 @@ export async function POST(
   }
 
   // Load workspace + Jira credentials
-  const [ws] = await db.select().from(workspace).limit(1);
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws?.jiraUrl || !ws.jiraProjectKey) {
     return Response.json({ error: "Jira not connected" }, { status: 400 });
   }

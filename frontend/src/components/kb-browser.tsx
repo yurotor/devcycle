@@ -21,6 +21,7 @@ export interface KBFile {
 
 interface KBBrowserProps {
   onFileClick: (path: string) => void;
+  wsId?: number | null;
 }
 
 function FileNode({
@@ -98,14 +99,14 @@ function FileNode({
   );
 }
 
-export function KBBrowser({ onFileClick }: KBBrowserProps) {
+export function KBBrowser({ onFileClick, wsId }: KBBrowserProps) {
   const [tree, setTree] = useState<KBFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
   const fetchTree = () => {
     setLoading(true);
-    fetch("/api/kb/tree")
+    fetch(`/api/kb/tree${wsId ? `?wsId=${wsId}` : ""}`)
       .then((res) => res.json())
       .then((data) => setTree(data as KBFile[]))
       .catch(() => setTree([]))
@@ -115,7 +116,7 @@ export function KBBrowser({ onFileClick }: KBBrowserProps) {
   const triggerRescan = async () => {
     setScanning(true);
     try {
-      await fetch("/api/scan/start", { method: "POST" });
+      await fetch(`/api/scan/start${wsId ? `?wsId=${wsId}` : ""}`, { method: "POST" });
     } catch {
       // ignore
     } finally {
@@ -125,7 +126,7 @@ export function KBBrowser({ onFileClick }: KBBrowserProps) {
 
   useEffect(() => {
     fetchTree();
-  }, []);
+  }, [wsId]);
 
   return (
     <ScrollArea className="h-full">

@@ -1,0 +1,92 @@
+{
+  "_headHash": "f32ceb792c89c8557ce412a8386c239f0fdfe3cc",
+  "purpose": "This repository provides custom Docker base images for .NET Core applications with Alpine Linux, focusing on optimizing containers for production use with added features like New Relic monitoring.",
+  "businessFeatures": [
+    "Base container images for .NET applications",
+    "New Relic integration for application monitoring",
+    "Support for ICU libraries for proper globalization in .NET",
+    "Optimized container layering for .NET applications"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Microsoft .NET runtime",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft ASP.NET Core runtime",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Alpine Linux",
+      "type": "shared-lib"
+    },
+    {
+      "target": "ICU libraries",
+      "type": "shared-lib"
+    },
+    {
+      "target": "New Relic",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "New Relic",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "Azure Pipelines",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "Repository lacks documentation about New Relic configuration parameters that would be needed when using these images"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "Dockerfile.deps",
+      "purpose": ""
+    },
+    {
+      "path": "Dockerfile.runtime",
+      "purpose": ""
+    },
+    {
+      "path": "Dockerfile.aspnet",
+      "purpose": ""
+    },
+    {
+      "path": "Dockerfile.endpoint",
+      "purpose": ""
+    },
+    {
+      "path": "azure-pipelines.yml",
+      "purpose": ""
+    },
+    {
+      "path": "azure-pipelines-newrelic-update.yml",
+      "purpose": ""
+    },
+    {
+      "path": "Test/Program.cs",
+      "purpose": ""
+    },
+    {
+      "path": "lifecycle-policy.json",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

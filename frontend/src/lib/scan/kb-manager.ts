@@ -13,11 +13,9 @@
 import fs from "fs";
 import path from "path";
 import { complete, isAIAvailable } from "@/lib/anthropic";
+import { getKbRoot } from "@/lib/kb-path";
+import { normalizeAnalysis } from "@/lib/scan/engine";
 import type { DeepRepoAnalysis, SystemSynthesis, ClusterAnalysis, BusinessFlowAnalysis } from "@/lib/scan/engine";
-
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const RAW_DIR = path.join(KB_ROOT, "raw");
-const WIKI_DIR = path.join(KB_ROOT, "wiki");
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -32,17 +30,21 @@ type WikiManifest = Record<string, string>;
 
 // ─── Public API ───────────────────────────────────────────────────
 
-export async function compileKnowledgeBase(): Promise<{ repos: number; wikiFiles: number; schemaFiles: number }> {
+export async function compileKnowledgeBase(kbRoot?: string): Promise<{ repos: number; wikiFiles: number; schemaFiles: number }> {
+  const KB_ROOT = kbRoot ?? getKbRoot(1);
+  const RAW_DIR = path.join(KB_ROOT, "raw");
+  const WIKI_DIR = path.join(KB_ROOT, "wiki");
+
   // Clean and recreate wiki dir
   fs.rmSync(WIKI_DIR, { recursive: true, force: true });
   fs.mkdirSync(WIKI_DIR, { recursive: true });
 
   // Load inputs
-  const synthesis = loadSynthesis();
-  const repoAnalyses = loadRepoAnalyses();
+  const synthesis = loadSynthesis(RAW_DIR);
+  const repoAnalyses = loadRepoAnalyses(RAW_DIR);
   const repoNames = Array.from(repoAnalyses.keys());
-  const clusterAnalyses = loadClusterAnalyses();
-  const flowAnalyses = loadFlowAnalyses();
+  const clusterAnalyses = loadClusterAnalyses(RAW_DIR);
+  const flowAnalyses = loadFlowAnalyses(RAW_DIR);
 
   // Build all pages
   const pages: WikiPage[] = [];
@@ -90,38 +92,40 @@ export async function compileKnowledgeBase(): Promise<{ repos: number; wikiFiles
   );
 
   // Write INDEX.md
-  writeIndex(pages);
+  writeIndex(pages, WIKI_DIR);
 
   // Write root CLAUDE.md
-  writeClaudeMd(synthesis, repoNames, pages);
+  writeClaudeMd(synthesis, repoNames, pages, KB_ROOT);
 
   return { repos: repoNames.length, wikiFiles: pages.length, schemaFiles: 0 };
 }
 
 // ─── Load inputs ─────────────────────────────────────────────────
 
-function loadSynthesis(): SystemSynthesis | null {
-  const synthPath = path.join(RAW_DIR, "system-synthesis.json");
+function loadSynthesis(rawDir: string): SystemSynthesis | null {
+  const synthPath = path.join(rawDir, "system-synthesis.json");
   if (!fs.existsSync(synthPath)) return null;
   return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
 }
 
-function loadRepoAnalyses(): Map<string, DeepRepoAnalysis> {
+function loadRepoAnalyses(rawDir: string): Map<string, DeepRepoAnalysis> {
   const map = new Map<string, DeepRepoAnalysis>();
-  if (!fs.existsSync(RAW_DIR)) return map;
+  if (!fs.existsSync(rawDir)) return map;
 
-  for (const entry of fs.readdirSync(RAW_DIR, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(rawDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const analysisPath = path.join(RAW_DIR, entry.name, "analysis.json");
+    const analysisPath = path.join(rawDir, entry.name, "analysis.json");
     if (fs.existsSync(analysisPath)) {
-      map.set(entry.name, JSON.parse(fs.readFileSync(analysisPath, "utf8")) as DeepRepoAnalysis);
+      const raw = JSON.parse(fs.readFileSync(analysisPath, "utf8"));
+      const { _headHash, ...rest } = raw;
+      map.set(entry.name, normalizeAnalysis(rest));
     }
   }
   return map;
 }
 
-function loadClusterAnalyses(): ClusterAnalysis[] {
-  const dir = path.join(RAW_DIR, "clusters");
+function loadClusterAnalyses(rawDir: string): ClusterAnalysis[] {
+  const dir = path.join(rawDir, "clusters");
   if (!fs.existsSync(dir)) return [];
   const results: ClusterAnalysis[] = [];
   for (const file of fs.readdirSync(dir)) {
@@ -133,8 +137,8 @@ function loadClusterAnalyses(): ClusterAnalysis[] {
   return results;
 }
 
-function loadFlowAnalyses(): BusinessFlowAnalysis[] {
-  const dir = path.join(RAW_DIR, "flows");
+function loadFlowAnalyses(rawDir: string): BusinessFlowAnalysis[] {
+  const dir = path.join(rawDir, "flows");
   if (!fs.existsSync(dir)) return [];
   const results: BusinessFlowAnalysis[] = [];
   for (const file of fs.readdirSync(dir)) {
@@ -694,7 +698,7 @@ function generateRepoPages(
 
 // ─── Index & CLAUDE.md ───────────────────────────────────────────
 
-function writeIndex(pages: WikiPage[]): void {
+function writeIndex(pages: WikiPage[], WIKI_DIR: string): void {
   const bySection: Record<string, WikiPage[]> = {};
   for (const page of pages) {
     const section = page.path.split("/")[0];
@@ -736,7 +740,8 @@ function writeIndex(pages: WikiPage[]): void {
 function writeClaudeMd(
   synthesis: SystemSynthesis | null,
   repoNames: string[],
-  pages: WikiPage[]
+  pages: WikiPage[],
+  KB_ROOT: string,
 ): void {
   const lines = [
     "# DevCycle Knowledge Base",

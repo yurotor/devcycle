@@ -1,0 +1,93 @@
+{
+  "_headHash": "93def0deff70566173e63bd291f179beb9bd2e5b",
+  "purpose": "This is a utility library for populating database tables with data from JSON files, supporting both Microsoft SQL Server and PostgreSQL databases.",
+  "businessFeatures": [
+    "JSON-to-database row insertion with automatic parameter handling",
+    "Support for clearing records from tables based on JSON data",
+    "Type conversion handling for various database types",
+    "Specialized handling for PostgreSQL-specific types (arrays, enums)"
+  ],
+  "apis": [
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Inserts data from JSON into database tables"
+    },
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Deletes all data from tables specified in the JSON"
+    },
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Deletes specific records from tables matching the JSON data"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "Microsoft.Data.SqlClient",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Npgsql",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Text.Json",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "No specific data entities - this is a generic tool that works with any table schema",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "Microsoft SQL Server",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "PostgreSQL",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "info",
+      "category": "architecture",
+      "title": "",
+      "description": "The PostgreSQL implementation includes special handling for PostgreSQL-specific types (enums, arrays) that are not present in the SQL Server implementation"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Data.JsonPopulator/Populator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Data.JsonPopulator.MsSql/MsSqlPopulator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Data.JsonPopulator.Postgres/PostgresPopulator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "tests/Crb.Cos.Commons.Data.JsonPopulator.MsSql.Tests/MsSqlPopulatorTests.cs",
+      "purpose": ""
+    },
+    {
+      "path": "tests/DbJsonPopulate.Postgres.Tests/PostgresPopulatorTests.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

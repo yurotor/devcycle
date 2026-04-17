@@ -15,8 +15,8 @@ import path from "path";
 
 export const dynamic = "force-dynamic";
 
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const REPOS_DIR = path.join(KB_ROOT, "repos");
+import { getKbRoot, getKbBase } from "@/lib/kb-path";
+const REPOS_DIR = path.join(getKbBase(), "repos");
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -158,6 +158,8 @@ async function handleStart(ticketId: number, taskId: number, force?: boolean, gu
   const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
   if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
 
+  const kbRoot = getKbRoot(ticket.workspaceId);
+
   // Need a repo to implement against
   if (!task.repoId) {
     return Response.json({ error: "Task has no repo assigned. Edit the task to assign a repository." }, { status: 400 });
@@ -228,9 +230,10 @@ async function runImplementInBackground(
   ticketId: number,
   jobId: number,
   repo: { id: number; name: string; project: string; defaultBranch: string },
-  ticket: { id: number; jiraKey: string; title: string; description: string | null; prdPath: string | null },
+  ticket: { id: number; workspaceId: number; jiraKey: string; title: string; description: string | null; prdPath: string | null },
   guidance?: string,
 ) {
+  const kbRoot = getKbRoot(ticket.workspaceId);
   const repoDir = path.join(REPOS_DIR, repo.name);
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) return;
@@ -429,9 +432,9 @@ ${guidance}
 - Do NOT create documentation files or summaries`;
       } else {
         // Load context for Claude
-        const prdContent = loadPRD(ticket);
-        const synthesisContext = loadSynthesisOverview();
-        const analysisContext = loadAnalysisContext({ jiraKey: ticket.jiraKey, id: ticket.id });
+        const prdContent = loadPRD(ticket, kbRoot);
+        const synthesisContext = loadSynthesisOverview(kbRoot);
+        const analysisContext = loadAnalysisContext({ jiraKey: ticket.jiraKey, id: ticket.id }, kbRoot);
 
         // Parse todos for the prompt
         const todos: { title: string; description: string; done: boolean }[] = task.todos ? JSON.parse(task.todos) : [];
@@ -477,7 +480,7 @@ ${guidance ? `\n## Additional Guidance\n${guidance}` : ""}`;
       try {
         const streamResult = await claudeExecStreaming(prompt, {
           cwd: repoDir,
-          addDirs: [KB_ROOT],
+          addDirs: [kbRoot],
           model: "sonnet",
           maxBudget: 2.00,
           timeoutMs: 600_000,
@@ -564,7 +567,7 @@ ${testOutput.slice(-3000)}
           try {
             await claudeExecStreaming(fixPrompt, {
               cwd: repoDir,
-              addDirs: [KB_ROOT],
+              addDirs: [kbRoot],
               model: "sonnet",
               maxBudget: 1.00,
               timeoutMs: 300_000,
@@ -618,7 +621,7 @@ ${testOutput.slice(-3000)}
         // the push and triggers CI policies
         const [ws] = await db.select().from(workspace).limit(1);
         const [pat] = ws ? await db.select().from(pats).where(
-          and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure"))
+          eq(pats.service, "azure")
         ) : [];
         if (ws && pat) {
           const orgUrl = new URL(ws.azureOrgUrl);
@@ -714,7 +717,7 @@ async function handleCreatePR(ticketId: number, taskId: number) {
   if (!ws) return Response.json({ error: "Workspace not configured" }, { status: 404 });
 
   const [pat] = await db.select().from(pats).where(
-    and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure"))
+    eq(pats.service, "azure")
   );
   if (!pat) return Response.json({ error: "No Azure PAT configured" }, { status: 400 });
 
@@ -776,9 +779,9 @@ async function handleCreatePR(ticketId: number, taskId: number) {
 
 // ─── Load PRD content ─────────────────────────────────────────────
 
-function loadPRD(ticket: { prdPath: string | null }): string {
+function loadPRD(ticket: { prdPath: string | null }, kbRoot: string): string {
   if (!ticket.prdPath) return "(No PRD available)";
-  const fullPath = path.join(KB_ROOT, ticket.prdPath);
+  const fullPath = path.join(kbRoot, ticket.prdPath);
   if (!fs.existsSync(fullPath)) return "(PRD file not found)";
   try {
     return fs.readFileSync(fullPath, "utf8");
@@ -789,12 +792,12 @@ function loadPRD(ticket: { prdPath: string | null }): string {
 
 // ─── Load analysis context (transcript + wiki) ──────────────────
 
-function loadAnalysisContext(ticket: { jiraKey: string; id: number }): string {
+function loadAnalysisContext(ticket: { jiraKey: string; id: number }, kbRoot: string): string {
   const sections: string[] = [];
 
   // Try wiki analysis (concise summary of the interview)
   const slug = ticket.jiraKey.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const wikiPath = path.join(KB_ROOT, "wiki", "tickets", slug, "analysis.md");
+  const wikiPath = path.join(kbRoot, "wiki", "tickets", slug, "analysis.md");
   if (fs.existsSync(wikiPath)) {
     try {
       const content = fs.readFileSync(wikiPath, "utf8");
@@ -803,7 +806,7 @@ function loadAnalysisContext(ticket: { jiraKey: string; id: number }): string {
   }
 
   // Try raw transcript (full interview Q&A)
-  const rawPath = path.join(KB_ROOT, "raw", "transcripts", slug, "analyze.md");
+  const rawPath = path.join(kbRoot, "raw", "transcripts", slug, "analyze.md");
   if (fs.existsSync(rawPath)) {
     try {
       const content = fs.readFileSync(rawPath, "utf8");
@@ -815,7 +818,7 @@ function loadAnalysisContext(ticket: { jiraKey: string; id: number }): string {
 
   // Try ticket-specific wiki (by numeric ID too)
   if (ticket.id) {
-    const numericWikiDir = path.join(KB_ROOT, "wiki", "tickets", String(ticket.id));
+    const numericWikiDir = path.join(kbRoot, "wiki", "tickets", String(ticket.id));
     if (fs.existsSync(numericWikiDir)) {
       for (const file of fs.readdirSync(numericWikiDir)) {
         if (file === "prd.md") continue; // PRD is already included separately
@@ -833,8 +836,8 @@ function loadAnalysisContext(ticket: { jiraKey: string; id: number }): string {
 
 // ─── Load system synthesis overview ───────────────────────────────
 
-function loadSynthesisOverview(): string {
-  const synthPath = path.join(KB_ROOT, "raw", "system-synthesis.json");
+function loadSynthesisOverview(kbRoot: string): string {
+  const synthPath = path.join(kbRoot, "raw", "system-synthesis.json");
   if (!fs.existsSync(synthPath)) return "";
   try {
     const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));

@@ -1,0 +1,95 @@
+{
+  "_headHash": "b68225f965e983606da0b697791c06012922e586",
+  "purpose": "Common contracts and data models shared across COS services",
+  "businessFeatures": [
+    "Data validation framework with ValidatableModel base class",
+    "Exception handling with specialized COS exception types",
+    "Common filtering and pagination for APIs",
+    "Custom serialization converters for dates and monetary amounts",
+    "Route registration for endpoints",
+    "Validation attributes for business rules"
+  ],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [
+    {
+      "name": "FilterInfo",
+      "description": ""
+    },
+    {
+      "name": "ValidationIssue",
+      "description": ""
+    },
+    {
+      "name": "TenantIdentifierInfo",
+      "description": ""
+    },
+    {
+      "name": "CosErrorResponse",
+      "description": ""
+    },
+    {
+      "name": "CosErrorDetail",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "info",
+      "category": "architecture",
+      "title": "",
+      "description": "The library is designed to provide consistent validation, error handling, and API response patterns across COS services"
+    },
+    {
+      "severity": "info",
+      "category": "architecture",
+      "title": "",
+      "description": "Financial-specific validation rules suggest this is used in financial services applications"
+    },
+    {
+      "severity": "info",
+      "category": "architecture",
+      "title": "",
+      "description": "The code suggests multi-tenancy support through TenantIdentifierInfo"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Validation/ValidatableModel.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Exceptions/CosErrorResponse.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Exceptions/CosErrorExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Filter/FilterInfo.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Serialization/AmountConverter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Serialization/DateOnlyConverter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/Validation/AllowedCharacterExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Contracts/RouteRegistry.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

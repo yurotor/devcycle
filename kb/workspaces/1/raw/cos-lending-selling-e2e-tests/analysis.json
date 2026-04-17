@@ -1,0 +1,124 @@
+{
+  "_headHash": "73f009ab64306735a6aa8763213190ef588cc566",
+  "repositoryDescription": "This repository contains end-to-end tests for Cross River Bank's lending/selling platform. It simulates the entire selling environment to validate loan management, interest calculations, purchasing workflows, and financial transfers.",
+  "keyFeatures": [
+    "Loan lifecycle testing from ingestion through purchase",
+    "Interest calculation and volume fee validation",
+    "Loan status transitions and validation",
+    "Purchase batch processing tests",
+    "Financial transaction verification",
+    "Grooming process testing (changing loan types, investors)",
+    "Fee collection and fee sweep tests",
+    "Servicing data ingestion verification",
+    "True-up process testing"
+  ],
+  "apis": {
+    "web-api": "The main Selling web API service that exposes endpoints for loan management, purchases, and administrative operations",
+    "cos-simulator": "Mock Capital Operating System (COS) simulator for handling payments and financial transfers",
+    "hooks-service": "RabbitMQ-based event hooks service for system notifications like batch completion and status changes"
+  },
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Represents a loan with attributes like loan_id, mpl_id, issuing_bank_id, loan_type, status, amount, interest_rate"
+    },
+    {
+      "name": "Contract",
+      "description": "Defines terms between MPL and bank including fee structure, accrual method, and interest calculation"
+    },
+    {
+      "name": "Batch",
+      "description": "Groups loans being purchased together with status tracking"
+    },
+    {
+      "name": "Transfer",
+      "description": "Financial transaction between accounts with types for interest, principal, volume fees, etc."
+    },
+    {
+      "name": "LoanAccount",
+      "description": "Represents accounting accounts associated with loans (interest, principal, fees, etc.)"
+    }
+  ],
+  "integrations": {
+    "mssql": "Source database simulating Arix DB and ArixContractsDB with loan data",
+    "postgres": "Warehouse database for the selling platform",
+    "rabbitmq": "Message broker for event notifications",
+    "aws-services": {
+      "sqs": "For asynchronous payment notifications",
+      "s3": "For servicing data ingestion via CSV files"
+    }
+  },
+  "architecturePatterns": [
+    "Docker containerized microservices architecture",
+    "Event-driven architecture using RabbitMQ for hooks/notifications",
+    "Simulated time travel for testing temporal workflows",
+    "Mock services to simulate external dependencies",
+    "Modular test components with assertions organized by business domain"
+  ],
+  "businessDomain": "Loan selling and purchasing platform for financial institutions. The system handles the lifecycle of loans from origination through purchase, including interest calculations, fee management, and transaction processing.",
+  "keyFiles": [
+    {
+      "filePath": "docker-compose.yml",
+      "description": "Defines the complete testing environment with all required services including databases, web API, and simulators"
+    },
+    {
+      "filePath": "modules/cos/src/main.py",
+      "description": "Simulates the COS (Capital Operating System) with account management and payment processing endpoints"
+    },
+    {
+      "filePath": "modules/e2e/src/runner.py",
+      "description": "Main orchestrator that executes the test scenarios by coordinating all test components"
+    },
+    {
+      "filePath": "modules/e2e/src/db.py",
+      "description": "Database utilities for loan data manipulation, queries, and validation"
+    },
+    {
+      "filePath": "modules/e2e/src/interest.py",
+      "description": "Interest calculation engine implementing various algorithms (Standard, SOFR, Combined)"
+    },
+    {
+      "filePath": "modules/e2e/src/contract.py",
+      "description": "Contract model defining terms between MPL and bank that govern interest and fees"
+    },
+    {
+      "filePath": "modules/e2e/src/airflow.py",
+      "description": "Simulates Airflow DAG execution for loan ingestion, curation, and interest accrual"
+    },
+    {
+      "filePath": "modules/e2e/src/assertions/loan_assertions.py",
+      "description": "Validation utilities for loan statuses, purchase dates, and loan transitions"
+    },
+    {
+      "filePath": "modules/e2e/src/assertions/interest_assertions.py",
+      "description": "Verifies interest calculations and transfer completeness"
+    },
+    {
+      "filePath": "modules/e2e/src/assertions/batch_assertions.py",
+      "description": "Verifies batch processing completeness and correctness"
+    },
+    {
+      "filePath": "modules/e2e/src/hooks.py",
+      "description": "Listens to RabbitMQ event notifications for system events and provides verification utilities"
+    }
+  ],
+  "findings": [
+    {
+      "title": "Complex interest calculation logic",
+      "description": "The system supports multiple interest calculation methods (Standard, SOFR-based, Combined) with configurable day counting conventions (360/365/366) that affect financial outcomes"
+    },
+    {
+      "title": "Servicing data ingestion from S3",
+      "description": "Tests verify proper ingestion of servicing data from S3 CSV files, including loan balance adjustments and file processing workflows"
+    },
+    {
+      "title": "Loan purchase correctness validation",
+      "description": "Tests verify that loan purchases create correct financial transfers between accounts including principal, interest, and volume fees"
+    }
+  ],
+  "businessFeatures": [],
+  "dependencies": [],
+  "messagingPatterns": [],
+  "techStack": [],
+  "ambiguities": []
+}

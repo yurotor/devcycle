@@ -5,7 +5,7 @@
 
 import { db } from "../db";
 import { pipelineRuns, pipelineStages, tasks, repos, workspace, pats } from "../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createJenkinsClientForHost } from "../jenkins/client";
 import { AzureDevOpsClient } from "../azure-devops/client";
 import { decryptPat } from "../crypto";
@@ -277,7 +277,7 @@ async function analyzeAdoFailure(
   // Get ADO client
   const ws = db.select().from(workspace).limit(1).get();
   if (!ws) return { summary: "ADO CI failed. No workspace configured.", issueType: "unknown", suggestedFix: null };
-  const pat = db.select().from(pats).where(and(eq(pats.workspaceId, ws.id), eq(pats.service, "azure"))).get();
+  const pat = db.select().from(pats).where(eq(pats.service, "azure")).get();
   if (!pat) return { summary: "ADO CI failed. No Azure PAT configured.", issueType: "unknown", suggestedFix: null };
 
   let decrypted: string;

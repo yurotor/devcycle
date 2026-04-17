@@ -1,0 +1,165 @@
+{
+  "_headHash": "d3df3c6ad00149165dd9bd119346f4eaa32034f8",
+  "repoAnalysis": {
+    "purpose": "COS.Lending.Selling.UI is a React-based frontend application for managing loan selling operations at Cross River Bank. It provides interfaces for viewing, managing, and processing loans for sale, including loan details, filtering, and loan history functionality.",
+    "businessFeatures": [
+      "Loan management and tracking with comprehensive loan details view",
+      "Loan selling and purchase workflows",
+      "Loan history tracking and querying through an AI-powered chat interface",
+      "Pending loan approvals management",
+      "Long-term held for sale (LTHFS) loan management",
+      "Loan filtering, sorting, and searching capabilities",
+      "Loan removal workflow",
+      "User role-based permissions system"
+    ],
+    "apiIntegrations": [
+      {
+        "name": "Selling API",
+        "purpose": "Main backend API for loan selling operations",
+        "endpoint": "CONFIG.apiUrl (environment specific)"
+      },
+      {
+        "name": "AI API",
+        "purpose": "AI-powered loan history and information retrieval",
+        "endpoint": "CONFIG.aiApiUrl (environment specific)"
+      },
+      {
+        "name": "Identity Provider",
+        "purpose": "Authentication and authorization",
+        "endpoint": "CONFIG.authority (environment specific)"
+      }
+    ],
+    "dataEntities": [
+      {
+        "name": "Loan",
+        "fields": [
+          "id",
+          "loanNumber",
+          "borrowerName",
+          "propertyAddress",
+          "saleStatus",
+          "loanAmount",
+          "createdDate",
+          "purchaseDate",
+          "mpl"
+        ]
+      },
+      {
+        "name": "LoanDetails",
+        "fields": [
+          "Extended loan information including dates, statuses, and financial details"
+        ]
+      },
+      {
+        "name": "PendingApproval",
+        "fields": [
+          "approvalId",
+          "loanId",
+          "changes",
+          "requestedBy",
+          "requestedDate"
+        ]
+      },
+      {
+        "name": "LTHFS (Long-term Held For Sale)",
+        "fields": [
+          "Loan data for long-term held for sale items"
+        ]
+      },
+      {
+        "name": "ChatSession",
+        "fields": [
+          "session_id",
+          "loan_id",
+          "is_new",
+          "messages"
+        ]
+      }
+    ],
+    "architecture": {
+      "frontend": "React with TypeScript",
+      "stateManagement": "Zustand for state management",
+      "styling": "Styled Components",
+      "components": "Uses crb-ui component library",
+      "routing": "React Router for navigation",
+      "testing": "Cypress for E2E testing"
+    },
+    "roles": [
+      "Agent roles (secCosLendingSellingAgent*)",
+      "Manager roles (secCosLendingSellingCRBManager*)",
+      "IT Admin roles (secCosLendingSellingITAdmin*)",
+      "Read-only roles (secCosLendingSellingReadonly*)",
+      "External MPL roles (ExtOrgCosLendingSellingMplAgent*, ExtOrgCosLendingSellingMplReadonly*)",
+      "External Investor roles (ExtOrgCosLendingSellingInvestorAgent*, ExtOrgCosLendingSellingInvestorReadonly*)",
+      "External Issuing Bank roles (ExtOrgCosLendingSellingIssuingBankAgent*, ExtOrgCosLendingSellingIssuingBankReadonly*)"
+    ],
+    "environments": [
+      "Local - localhost:5000",
+      "Development - lendingappdev.crbcloud.com",
+      "QA - lendingappqa.crbcloud.com",
+      "Staging/Sandbox - lendingappsandbox.crbcos.com",
+      "Production - lendingapp.crbcos.com"
+    ]
+  },
+  "keyFiles": [
+    {
+      "path": "src/app.tsx",
+      "description": "Main application entry point that sets up routing and global UI structure"
+    },
+    {
+      "path": "src/components/loans/loan-history.tsx",
+      "description": "AI-powered chat interface for querying loan history with SQL execution capabilities"
+    },
+    {
+      "path": "src/components/loans/loans-info-drawer.tsx",
+      "description": "Component that displays detailed loan information in a side drawer"
+    },
+    {
+      "path": "src/components/loans/main/table.tsx",
+      "description": "Main loans table component that handles displaying and interacting with loan data"
+    },
+    {
+      "path": "public/assets/app-settings-dev.js",
+      "description": "Environment-specific configuration for development environment including API endpoints and role definitions"
+    },
+    {
+      "path": "src/constants/apis.ts",
+      "description": "API endpoints definitions for backend communication"
+    },
+    {
+      "path": "src/constants/allowed-roles.ts",
+      "description": "Role-based permission configurations for feature access"
+    },
+    {
+      "path": "src/types/loan.ts",
+      "description": "Type definitions for loan-related data structures"
+    },
+    {
+      "path": "cypress/support/utils.ts",
+      "description": "Utilities for Cypress testing including authentication and table verification"
+    }
+  ],
+  "findings": [
+    {
+      "category": "Integration",
+      "description": "The application uses CRB's internal authentication system with different roles for internal and external users, integrated through the Identity Provider at idptest.crbcos.com (non-prod) and idp.crbcos.com (prod)"
+    },
+    {
+      "category": "Data Access",
+      "description": "Loan history component utilizes a streaming API that executes SQL queries against the database and returns results to the UI"
+    },
+    {
+      "category": "User Experience",
+      "description": "Application includes different views for internal CRB users versus external partners (MPL, Investors, and Issuing Banks) with role-based access controls"
+    }
+  ],
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "ambiguities": []
+}

@@ -3,10 +3,10 @@
 
 import fs from "fs";
 import path from "path";
+import { getKbRoot } from "@/lib/kb-path";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export const dynamic = "force-dynamic";
-
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -16,9 +16,16 @@ export async function GET(request: Request) {
     return Response.json({ error: "Missing ?path= parameter" }, { status: 400 });
   }
 
+  const ws = await getWorkspace(getWsIdFromRequest(request));
+  if (!ws) {
+    return Response.json({ error: "Workspace not configured" }, { status: 404 });
+  }
+
+  const kbRoot = getKbRoot(ws.id);
+
   // Prevent path traversal
-  const resolved = path.resolve(KB_ROOT, filePath);
-  if (!resolved.startsWith(KB_ROOT)) {
+  const resolved = path.resolve(kbRoot, filePath);
+  if (!resolved.startsWith(kbRoot)) {
     return Response.json({ error: "Invalid path" }, { status: 400 });
   }
 

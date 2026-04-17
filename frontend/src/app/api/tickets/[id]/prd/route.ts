@@ -5,8 +5,7 @@ import path from "path";
 import { db } from "@/lib/db";
 import { tickets } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
+import { getKbRoot } from "@/lib/kb-path";
 
 export async function GET(
   _request: Request,
@@ -22,7 +21,7 @@ export async function GET(
     return Response.json({ prd: null });
   }
 
-  const fullPath = path.join(KB_ROOT, ticket.prdPath);
+  const fullPath = path.join(getKbRoot(ticket.workspaceId), ticket.prdPath);
   if (!fs.existsSync(fullPath)) {
     return Response.json({ prd: null });
   }

@@ -9,9 +9,9 @@ import { eq, and } from "drizzle-orm";
 import { claudeExec, isClaudeCliAvailable } from "@/lib/claude-cli";
 import { complete } from "@/lib/anthropic";
 
-export const dynamic = "force-dynamic";
+import { getKbRoot } from "@/lib/kb-path";
 
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
+export const dynamic = "force-dynamic";
 
 
 const PRD_TEMPLATE = `## Problem Statement
@@ -66,6 +66,8 @@ export async function POST(
   const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
   if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
 
+  const kbRoot = getKbRoot(ticket.workspaceId);
+
   // Load analyze transcript
   const messages = await db
     .select()
@@ -77,7 +79,7 @@ export async function POST(
     .join("\n\n");
 
   // Load KB context
-  const kbContext = loadKBContext();
+  const kbContext = loadKBContext(kbRoot);
 
   const systemPrompt = skip
     ? `You are generating a quick PRD from limited information. Make reasonable assumptions for any gaps. Be concise but cover all sections. Speed over perfection.`
@@ -123,12 +125,12 @@ Write the PRD now. Be specific and reference actual repos, entities, APIs, and p
 
   // Save PRD to KB filesystem
   const slug = ticket.jiraKey.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const prdDir = path.join(KB_ROOT, "wiki", "tickets", slug);
+  const prdDir = path.join(kbRoot, "wiki", "tickets", slug);
   fs.mkdirSync(prdDir, { recursive: true });
   fs.writeFileSync(path.join(prdDir, "prd.md"), prd, "utf8");
 
   // Persist analyze transcript to KB
-  persistAnalyzeToKB(ticketId, ticket.jiraKey, ticket.title, messages).catch((err) =>
+  persistAnalyzeToKB(ticketId, ticket.jiraKey, ticket.title, messages, kbRoot).catch((err) =>
     console.error("[analysis/complete] Failed to persist transcript:", err)
   );
 
@@ -148,9 +150,9 @@ Write the PRD now. Be specific and reference actual repos, entities, APIs, and p
 
 // ─── KB context for PRD generation ────────────────────────────────
 
-function loadKBContext(): string {
+function loadKBContext(kbRoot: string): string {
   const sections: string[] = [];
-  const synthPath = path.join(KB_ROOT, "raw", "system-synthesis.json");
+  const synthPath = path.join(kbRoot, "raw", "system-synthesis.json");
   if (fs.existsSync(synthPath)) {
     try {
       const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));
@@ -174,7 +176,7 @@ function loadKBContext(): string {
   }
 
   // Load per-repo summaries
-  const rawDir = path.join(KB_ROOT, "raw");
+  const rawDir = path.join(kbRoot, "raw");
   if (fs.existsSync(rawDir)) {
     const repoSummaries: string[] = [];
     for (const entry of fs.readdirSync(rawDir, { withFileTypes: true })) {
@@ -205,14 +207,15 @@ async function persistAnalyzeToKB(
   ticketId: number,
   jiraKey: string,
   title: string,
-  messages: { role: string; content: string }[]
+  messages: { role: string; content: string }[],
+  kbRoot: string,
 ): Promise<void> {
   if (messages.length === 0) return;
 
   const slug = jiraKey.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
   // Raw transcript
-  const rawDir = path.join(KB_ROOT, "raw", "transcripts", slug);
+  const rawDir = path.join(kbRoot, "raw", "transcripts", slug);
   fs.mkdirSync(rawDir, { recursive: true });
 
   const rawLines = messages.map((m) => {
@@ -233,7 +236,7 @@ async function persistAnalyzeToKB(
   fs.writeFileSync(path.join(rawDir, "analyze.md"), rawContent, "utf8");
 
   // Wiki summary
-  const wikiDir = path.join(KB_ROOT, "wiki", "tickets", slug);
+  const wikiDir = path.join(kbRoot, "wiki", "tickets", slug);
   fs.mkdirSync(wikiDir, { recursive: true });
 
   const aiMessages = messages.filter((m) => m.role === "ai");

@@ -95,10 +95,11 @@ export interface BusinessFlowAnalysis {
   ambiguities: string[];
 }
 
+import { getKbRoot, getKbBase } from "@/lib/kb-path";
+
 // ─── Constants ────────────────────────────────────────────────────
 
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const REPOS_DIR = path.join(KB_ROOT, "repos");
+const REPOS_DIR = path.join(getKbBase(), "repos");
 
 const PRIORITY_FILENAMES = [
   "README.md", "readme.md", "README",
@@ -136,11 +137,14 @@ export class ScanEngine {
   /** Fractional progress per repo: 0.25 = cloned, 0.5 = tree scanned, 1.0 = analyzed */
   private repoProgress: Map<string, number> = new Map();
   private repoAnalyses: Map<string, DeepRepoAnalysis> = new Map();
+  private kbRoot: string;
 
   constructor(
     private workspaceId: number,
     private emit: (event: ScanEvent | DoneEvent) => void,
-  ) {}
+  ) {
+    this.kbRoot = getKbRoot(workspaceId);
+  }
 
   /** Returns completion percentage (0-85 during analysis, 85-95 during synthesis, 95-100 during compilation). */
   getProgress(): number {
@@ -171,7 +175,7 @@ export class ScanEngine {
     const [ws] = await db.select().from(workspace).where(eq(workspace.id, this.workspaceId));
     if (!ws) throw new Error("Workspace not configured");
 
-    const [pat] = await db.select().from(pats).where(eq(pats.workspaceId, ws.id)).limit(1);
+    const [pat] = await db.select().from(pats).where(eq(pats.service, "azure")).limit(1);
     if (!pat) throw new Error("Azure DevOps PAT not found");
 
     const plainPat = decryptPat(pat.encryptedPat, pat.iv);
@@ -182,8 +186,8 @@ export class ScanEngine {
 
     await db.delete(scanSuggestions).where(eq(scanSuggestions.workspaceId, this.workspaceId));
 
-    fs.mkdirSync(KB_ROOT, { recursive: true });
-    fs.mkdirSync(path.join(KB_ROOT, "raw"), { recursive: true });
+    fs.mkdirSync(this.kbRoot, { recursive: true });
+    fs.mkdirSync(path.join(this.kbRoot, "raw"), { recursive: true });
     fs.mkdirSync(REPOS_DIR, { recursive: true });
 
     // ── Phase 1: Deep per-repo analysis ──────────────────────────
@@ -244,7 +248,7 @@ export class ScanEngine {
     // ── Phase 3: Compile topic-organized wiki ────────────────────
     this.emit({ repo: "system", message: "Phase 3: Compiling knowledge base...", type: "phase" });
 
-    const kb = await compileKnowledgeBase();
+    const kb = await compileKnowledgeBase(this.kbRoot);
     this.emit({
       repo: "system",
       message: `KB compiled: ${kb.wikiFiles} wiki pages, ${kb.schemaFiles} schema files.`,
@@ -290,7 +294,7 @@ export class ScanEngine {
 
       // ── Check cache: reuse previous analysis if HEAD hasn't changed ──
       const headHash = await getRepoHeadHash(repoDir);
-      const kbDir = path.join(KB_ROOT, "raw", repoName);
+      const kbDir = path.join(this.kbRoot, "raw", repoName);
       const cached = headHash ? loadCachedAnalysis(kbDir, headHash) : null;
 
       let analysis: DeepRepoAnalysis;
@@ -355,25 +359,38 @@ export class ScanEngine {
   private async synthesizeSystem(): Promise<SystemSynthesis | null> {
     if (this.repoAnalyses.size === 0) return null;
 
-    // Skip synthesis if cached result is newer than all repo analyses
-    const rawDir = path.join(KB_ROOT, "raw");
+    // Skip synthesis if cached result covers the same repos and is newer than all analyses
+    const rawDir = path.join(this.kbRoot, "raw");
     const synthPath = path.join(rawDir, "system-synthesis.json");
     if (fs.existsSync(synthPath)) {
-      const synthMtime = fs.statSync(synthPath).mtimeMs;
-      const analysisPaths = Array.from(this.repoAnalyses.keys()).map(
-        (name) => path.join(rawDir, name, "analysis.json")
-      );
-      const allOlder = analysisPaths.every((p) => {
-        try { return fs.statSync(p).mtimeMs <= synthMtime; } catch { return true; }
-      });
-      if (allOlder) {
-        console.log("[synthesis] Cached synthesis is up to date — skipping.");
-        this.emit({ repo: "system", message: "Synthesis unchanged — using cached result.", type: "info" });
-        return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
+      try {
+        const cached = JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
+        const cachedRepos = new Set((cached.serviceMap ?? []).map((s) => s.repo));
+        const currentRepos = new Set(this.repoAnalyses.keys());
+        const reposMatch = currentRepos.size === cachedRepos.size && [...currentRepos].every((r) => cachedRepos.has(r));
+
+        if (reposMatch) {
+          const synthMtime = fs.statSync(synthPath).mtimeMs;
+          const analysisPaths = Array.from(this.repoAnalyses.keys()).map(
+            (name) => path.join(rawDir, name, "analysis.json")
+          );
+          const allOlder = analysisPaths.every((p) => {
+            try { return fs.statSync(p).mtimeMs <= synthMtime; } catch { return true; }
+          });
+          if (allOlder) {
+            console.log("[synthesis] Cached synthesis is up to date — skipping.");
+            this.emit({ repo: "system", message: "Synthesis unchanged — using cached result.", type: "info" });
+            return cached;
+          }
+        } else {
+          console.log("[synthesis] Cached synthesis covers different repos — regenerating.");
+        }
+      } catch {
+        // Corrupted cache — regenerate
       }
     }
 
-    return runSynthesis(this.repoAnalyses);
+    return runSynthesis(this.repoAnalyses, undefined, this.kbRoot);
   }
 
   // ── Save findings ─────────────────────────────────────────────
@@ -579,13 +596,104 @@ async function deepAnalyzeRepo(
       );
 
       const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
-      return JSON.parse(cleaned) as DeepRepoAnalysis;
+      return normalizeAnalysis(JSON.parse(cleaned));
     } catch (err) {
       console.error(`[scan] API analysis failed for ${repoName}, falling back to stub:`, err);
     }
   }
 
   return deepAnalyzeStub(repoName, fileTree);
+}
+
+/** Coerce freeform LLM JSON into the expected DeepRepoAnalysis shape.
+ *  Handles renamed keys (repositoryPurpose→purpose) and flat strings
+ *  where objects were expected (e.g. apis as string[] instead of {endpoint,method,purpose}[]). */
+export function normalizeAnalysis(raw: Record<string, unknown>): DeepRepoAnalysis {
+  const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : (x as Record<string, unknown>)?.name ? str((x as Record<string, unknown>).name) : str(x))) : [];
+
+  const purpose = str(raw.purpose ?? raw.repositoryPurpose ?? "");
+  const businessFeatures = strArr(raw.businessFeatures ?? raw.keyFeatures ?? []);
+
+  const apis = Array.isArray(raw.apis)
+    ? raw.apis.map((a: unknown) => {
+        if (typeof a === "string") {
+          const m = a.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S+)\s*[-—]?\s*(.*)/i);
+          return m ? { method: m[1], endpoint: m[2], purpose: m[3] || a } : { method: "GET", endpoint: a, purpose: a };
+        }
+        const obj = a as Record<string, unknown>;
+        return { method: str(obj.method ?? "GET"), endpoint: str(obj.endpoint ?? obj.path ?? ""), purpose: str(obj.purpose ?? obj.description ?? "") };
+      })
+    : [];
+
+  const dependencies = Array.isArray(raw.dependencies)
+    ? raw.dependencies.map((d: unknown) => {
+        if (typeof d === "string") return { target: d, type: "shared-lib" as const };
+        const obj = d as Record<string, unknown>;
+        return { target: str(obj.target ?? obj.name ?? ""), type: str(obj.type ?? "shared-lib") as "http" | "messaging" | "shared-lib" | "database" };
+      })
+    : [];
+
+  const dataEntities = Array.isArray(raw.dataEntities)
+    ? raw.dataEntities.map((e: unknown) => {
+        if (typeof e === "string") {
+          const m = e.match(/^(\S+)\s*[-—]\s*(.*)/);
+          return m ? { name: m[1], description: m[2] } : { name: e, description: "" };
+        }
+        const obj = e as Record<string, unknown>;
+        return { name: str(obj.name ?? obj.entity ?? ""), description: str(obj.description ?? "") };
+      })
+    : [];
+
+  const messagingPatterns = Array.isArray(raw.messagingPatterns)
+    ? raw.messagingPatterns.map((m: unknown) => {
+        if (typeof m === "string") return { type: "event", name: m, description: m };
+        const obj = m as Record<string, unknown>;
+        return { type: str(obj.type ?? "event"), name: str(obj.name ?? ""), description: str(obj.description ?? "") };
+      })
+    : [];
+
+  const integrations = Array.isArray(raw.integrations)
+    ? raw.integrations.map((i: unknown) => {
+        if (typeof i === "string") return { system: i, direction: "bidirectional" as const, protocol: "unknown" };
+        const obj = i as Record<string, unknown>;
+        return {
+          system: str(obj.system ?? obj.name ?? ""),
+          direction: str(obj.direction ?? "bidirectional") as "upstream" | "downstream" | "bidirectional",
+          protocol: str(obj.protocol ?? "unknown"),
+        };
+      })
+    : [];
+
+  const architecturePatterns = strArr(raw.architecturePatterns ?? []);
+  const techStack = strArr(raw.techStack ?? []);
+
+  const findings = Array.isArray(raw.findings)
+    ? raw.findings.map((f: unknown) => {
+        if (typeof f === "string") return { severity: "high" as const, category: "architecture" as const, title: f, description: f };
+        const obj = f as Record<string, unknown>;
+        return {
+          severity: str(obj.severity ?? "high") as "critical" | "high",
+          category: str(obj.category ?? "architecture") as "security" | "architecture" | "optimization" | "bug",
+          title: str(obj.title ?? ""),
+          description: str(obj.description ?? ""),
+          files: Array.isArray(obj.files) ? obj.files.map(str) : undefined,
+        };
+      })
+    : [];
+
+  const keyFiles = Array.isArray(raw.keyFiles)
+    ? raw.keyFiles.map((k: unknown) => {
+        if (typeof k === "string") return { path: k, purpose: "" };
+        const obj = k as Record<string, unknown>;
+        return { path: str(obj.path ?? ""), purpose: str(obj.purpose ?? "") };
+      })
+    : undefined;
+
+  const ambiguities = Array.isArray(raw.ambiguities) ? raw.ambiguities.map(str) : undefined;
+
+  return { purpose, businessFeatures, apis, dependencies, dataEntities, messagingPatterns, integrations, architecturePatterns, techStack, findings, keyFiles, ambiguities };
 }
 
 function deepAnalyzeStub(repoName: string, fileTree: string[]): DeepRepoAnalysis {
@@ -639,16 +747,21 @@ const SYNTHESIS_SCHEMA = {
 export async function runSynthesis(
   repoAnalyses: Map<string, DeepRepoAnalysis>,
   interviewTranscript?: string,
+  kbRoot?: string,
 ): Promise<SystemSynthesis | null> {
   if (repoAnalyses.size === 0) return null;
 
-  const rawDir = path.join(KB_ROOT, "raw");
+  const rawDir = path.join(kbRoot ?? getKbRoot(1), "raw");
 
   const interviewSection = interviewTranscript
     ? `\n\nAdditional context from user interview (takes precedence over inferences from code):\n${interviewTranscript}`
     : "";
 
-  const synthesisPrompt = `Read all the analysis.json files in the subdirectories of the raw/ folder. Each subdirectory is a repository analysis. Cross-reference all repositories to produce a system-level synthesis.
+  const repoNames = Array.from(repoAnalyses.keys());
+  const synthesisPrompt = `Read the analysis.json files for EXACTLY these ${repoNames.length} repositories in ${rawDir}:
+${repoNames.map((n) => `- ${rawDir}/${n}/analysis.json`).join("\n")}
+
+Do NOT read any other directories or files. Cross-reference ONLY these repositories to produce a system-level synthesis.
 
 Identify:
 - System overview: what the system does, its business purpose, how repos work together
@@ -675,8 +788,8 @@ Do NOT flag: auth/authz, security, tech stack, CI/CD, compliance, team structure
         jsonSchema: SYNTHESIS_SCHEMA,
         addDirs: [rawDir],
         model: "sonnet",
-        maxBudget: 1.00,
-        systemPrompt: "You are a senior enterprise architect producing a system-level synthesis. Read the analysis.json files using the Read tool to understand each repository before synthesizing.",
+        maxBudget: 2.00,
+        systemPrompt: "You are a senior enterprise architect producing a system-level synthesis. Read the analysis.json files using the Read tool to understand each repository before synthesizing. IMPORTANT: You MUST populate ALL required arrays — especially dataFlows, architecturePatterns, and integrations. Do NOT return empty arrays for these fields.",
         timeoutMs: 600_000, // 10 min for full synthesis
       });
 
@@ -715,8 +828,8 @@ Do NOT flag: auth/authz, security, tech stack, CI/CD, compliance, team structure
           },
         ],
         {
-          system: "You are a senior enterprise architect. Return valid JSON only — no markdown fences. Be concise.",
-          maxTokens: 4096,
+          system: "You are a senior enterprise architect. Return valid JSON only — no markdown fences. Be concise but MUST populate ALL arrays — especially dataFlows, architecturePatterns, and integrations.",
+          maxTokens: 8192,
         }
       );
       const synthesis = JSON.parse(cleanJson(raw)) as SystemSynthesis;
@@ -756,9 +869,9 @@ Do NOT flag: auth/authz, security, tech stack, CI/CD, compliance, team structure
 
 // ─── Load repo analyses from disk (for re-synthesis after interview) ──
 
-export function loadRepoAnalyses(): Map<string, DeepRepoAnalysis> {
+export function loadRepoAnalyses(kbRoot?: string): Map<string, DeepRepoAnalysis> {
   const analyses = new Map<string, DeepRepoAnalysis>();
-  const rawDir = path.join(KB_ROOT, "raw");
+  const rawDir = path.join(kbRoot ?? getKbRoot(1), "raw");
   if (!fs.existsSync(rawDir)) return analyses;
 
   for (const entry of fs.readdirSync(rawDir, { withFileTypes: true })) {
@@ -794,9 +907,9 @@ function loadCachedAnalysis(kbDir: string, headHash: string): DeepRepoAnalysis |
     if (raw._headHash !== headHash) return null;
     // Reject stubs — they need re-analysis with Claude
     if (typeof raw.purpose === "string" && raw.purpose.includes("(Stub —")) return null;
-    // Strip the cache key before returning
+    // Strip the cache key and normalize shape (cached data may have wrong property names)
     const { _headHash, ...analysis } = raw;
-    return analysis as DeepRepoAnalysis;
+    return normalizeAnalysis(analysis);
   } catch {
     return null;
   }

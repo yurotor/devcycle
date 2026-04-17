@@ -1,0 +1,42 @@
+{
+  "_headHash": "5dba8feeeaa7f7d5d814949133de0893b6fec429",
+  "purpose": "",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "terraform/modules/cos-ecs/main.tf",
+      "purpose": ""
+    },
+    {
+      "path": "terraform/modules/cos-ecs/variables.tf",
+      "purpose": ""
+    },
+    {
+      "path": "terraform/listening/main.tf",
+      "purpose": ""
+    },
+    {
+      "path": "terraform/non-listening/main.tf",
+      "purpose": ""
+    },
+    {
+      "path": "terraform/dynamic-nested/main.tf",
+      "purpose": ""
+    },
+    {
+      "path": "azure-pipelines.yml",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": [
+    "[object Object]"
+  ]
+}

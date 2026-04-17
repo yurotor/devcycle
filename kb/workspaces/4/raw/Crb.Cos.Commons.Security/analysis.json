@@ -1,0 +1,130 @@
+{
+  "_headHash": "b802c9bc26cfbc40d820d26a7e76a1a24ed51c2c",
+  "purpose": "Crb.Cos.Commons.Security is a shared security library that provides common security utilities, helpers, and models for COS (Credit One Bank's Customer Onboarding System) services.",
+  "businessFeatures": [
+    "User authentication and authorization",
+    "Role-based permission management",
+    "Multi-tenant security with partner-based access control",
+    "Domain-specific permission configuration",
+    "Security context management"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Crb.Cos.Commons.Caching",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Secrets",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Data",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Ioc",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Dapper",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Serilog",
+      "type": "shared-lib"
+    },
+    {
+      "target": "FluentNHibernate",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "SecurityUser",
+      "description": ""
+    },
+    {
+      "name": "UserDbModel",
+      "description": ""
+    },
+    {
+      "name": "RoleConfig",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "SQL Security Database",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "NHibernate",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [
+    "Repository Pattern",
+    "Service Pattern",
+    "Dependency Injection",
+    "Provider Pattern",
+    "Multi-tenancy"
+  ],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "Security library depends on ConfigurationManager.AppSettings for configuration which may cause issues in modern .NET environments that use IConfiguration"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "The library appears to rely on a SQL stored procedure 'GetUserPermissions' but the actual SQL implementation is not included in the repository"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Security/Model/SecurityUser.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Services/SecurityRoleService.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Framework/DomainSecurity.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Repositories/SecurityUserRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Extensions/RepositorySecurityExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Services/DomainPermissionService.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/QueryFilters/PartnersFilterDefinition.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Security/Model/IAmATenantResource.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

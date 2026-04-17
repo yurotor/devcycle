@@ -1,0 +1,83 @@
+{
+  "_headHash": "a4e48bae2db4666b758d16528671dccac1a76783",
+  "purpose": "",
+  "businessFeatures": [
+    "Authentication and authorization with permission-based security",
+    "Request/response middleware pipeline components",
+    "Idempotency support for HTTP operations",
+    "Health check implementations",
+    "OpenAPI/Swagger configuration and documentation enhancements",
+    "Error handling and standardized error responses",
+    "Distributed tracing and correlation ID support",
+    "Common model binding and validation patterns"
+  ],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [
+    {
+      "name": "IdempotentKey",
+      "description": ""
+    },
+    {
+      "name": "IdempotentContent",
+      "description": ""
+    },
+    {
+      "name": "ApiLogEntry",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": ""
+    },
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "title": "",
+      "description": ""
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Extensions/CosWebAppBuilderExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Extensions/CosWebAppExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Attributes/RequirePermissionsAttribute.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Framework/IdempotentRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Attributes/IdempotencyKeyAttribute.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Authorization/RequirePermissionsHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api.Core/Controllers/PingController.cs",
+      "purpose": ""
+    },
+    {
+      "path": "examples/Examples.Defaults/Program.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

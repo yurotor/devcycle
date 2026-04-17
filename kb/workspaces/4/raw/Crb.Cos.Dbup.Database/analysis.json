@@ -1,0 +1,102 @@
+{
+  "_headHash": "162cd0a7a88ade533fa5e80c00a33a6f27d58f63",
+  "purpose": "This repository provides a database migration tool built on DbUp for managing SQL scripts execution in both PostgreSQL and SQL Server databases. It supports running one-time and every-time scripts in a structured and organized way.",
+  "businessFeatures": [
+    "Database Migration Execution",
+    "Script Type Management",
+    "Dry Run Capability",
+    "Multi-database Support"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "DbUp",
+      "type": "shared-lib"
+    },
+    {
+      "target": "FluentCommandLineParser",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.Hosting",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.Options",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Serilog",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "dbupscripts",
+      "description": "Journal table that tracks executed scripts to avoid re-running one-time scripts"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "DbUp",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "PostgreSQL",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "SQL Server",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "Low",
+      "category": "architecture",
+      "title": "PostgreSQL Default Schema",
+      "description": "The code defaults to using the 'public' schema for PostgreSQL databases, which might need to be adjusted for environments with custom schemas."
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.DbUp.Database/Program.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database.Core/RunAllWorker.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database.Core/Upgrader.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database.Core/DbOptions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database.Core/EngineProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database/EveryTimeFileScriptProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database/FileScriptProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.DbUp.Database.Core/HostingExtensions.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

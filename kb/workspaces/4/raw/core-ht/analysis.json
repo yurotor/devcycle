@@ -1,0 +1,18 @@
+{
+  "_headHash": "f7eec9d6e075d0777065fa81f8b42deb8df44755",
+  "purpose": "Repository \"core-ht\" contains 314 files. (Stub — re-scan with Claude API to get deep analysis.)",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [
+    ".NET/C#",
+    "Docker"
+  ],
+  "findings": [],
+  "ambiguities": [],
+  "keyFiles": []
+}

@@ -1,0 +1,138 @@
+{
+  "_headHash": "e2818c842a4849513a7e96e6c05da6b65ea86716",
+  "repoName": "Cos.Lending.Selling.Contracts",
+  "repoType": "Contract/Data Model Library",
+  "repoDescription": "A .NET Standard library written in F# that defines the data contracts for a loan selling and management system. This library provides standardized data models used for communication between services in a microservice architecture.",
+  "purpose": "To provide a shared contract library containing data models, DTOs, and request/response objects for loan selling operations between various microservices in a lending system.",
+  "keyFiles": [
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Loan.fs",
+      "description": "Defines core loan data models including status types, purchase operations, and loan information structures"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/InvoiceAndReceipt.fs",
+      "description": "Contains models for invoices and receipts related to loan purchases, including fees and transaction data"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Batch.fs",
+      "description": "Defines batch processing models for handling operations across multiple loans"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/BatchUpdate/PurchaseDateUpdateBatch.fs",
+      "description": "Models for batch updates to loan purchase dates"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Discrepancy.fs",
+      "description": "Models for handling discrepancies between loan data across systems"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Grooming.fs",
+      "description": "Contains models for loan grooming processes including reverse interest and principal transfers"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/ReverseInterest.fs",
+      "description": "Defines request model for reversing interest on loans"
+    },
+    {
+      "path": "CRB.Cos.Lending.Selling.Contracts/Attributes/PIIDataAttribute.fs",
+      "description": "Defines an attribute for marking properties containing personally identifiable information"
+    }
+  ],
+  "businessFeatures": [
+    "Loan purchase management",
+    "Loan type classification (HFS, LTHFS, RET)",
+    "Invoice and receipt generation for loan purchases",
+    "Batch processing of loan operations",
+    "Interest and principal transfer operations",
+    "Loan seasoning management",
+    "Data discrepancy identification and resolution",
+    "Interest suspension handling",
+    "Purchase date updates and management",
+    "SOFR (Secured Overnight Financing Rate) rate tracking"
+  ],
+  "dataEntities": [
+    {
+      "name": "Loan",
+      "description": "Core loan entity with status tracking, origination details, investor information, and purchase data"
+    },
+    {
+      "name": "LoanInfo",
+      "description": "Comprehensive loan data including borrower details, loan terms, payment schedules, and financial metrics"
+    },
+    {
+      "name": "Invoice",
+      "description": "Represents a purchase invoice for loans with detailed fee information"
+    },
+    {
+      "name": "Receipt",
+      "description": "Documents successful and failed loan purchases from a batch operation"
+    },
+    {
+      "name": "BatchInfo",
+      "description": "Tracks batch operation progress with success/failure statistics"
+    },
+    {
+      "name": "PurchaseAccount",
+      "description": "Account details used for loan purchases"
+    },
+    {
+      "name": "Discrepancy",
+      "description": "Tracks differences between loan data in different systems"
+    },
+    {
+      "name": "SofrRate",
+      "description": "SOFR rate value for a specific date"
+    }
+  ],
+  "messagingPatterns": [
+    {
+      "name": "Request/Response",
+      "description": "Standardized request and response objects for operations like loan purchases, updates, and transfers"
+    },
+    {
+      "name": "Batch Operations",
+      "description": "Models supporting bulk operations on multiple loans with results tracking"
+    }
+  ],
+  "integrations": [
+    {
+      "name": "COS Transfer System",
+      "description": "Integration with a COS (Core Operating System) transfer system for handling financial transfers using cosTransferId"
+    }
+  ],
+  "securityConcerns": [
+    {
+      "name": "PII Data Handling",
+      "description": "Uses PIIDataAttribute to mark personally identifiable information fields like SSN, address, phone, email in loan data"
+    }
+  ],
+  "architecturePatterns": [
+    {
+      "name": "Data Transfer Objects (DTOs)",
+      "description": "Provides standardized objects for data exchange between services"
+    },
+    {
+      "name": "Contract-First Design",
+      "description": "Establishes a shared understanding of data structures across system components"
+    },
+    {
+      "name": "Immutable Data Models",
+      "description": "F# records and classes with read-only properties promote immutability"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": ".NET Standard 2.1",
+      "description": "Target framework for cross-platform compatibility"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "Critical",
+      "description": "LoanInfo class contains significant PII data (SSN, address, contact information) that requires proper handling"
+    }
+  ],
+  "apis": [],
+  "techStack": [],
+  "ambiguities": []
+}

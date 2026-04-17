@@ -3,12 +3,12 @@
 import fs from "fs";
 import path from "path";
 import { db } from "@/lib/db";
-import { workspace, jobs } from "@/lib/db/schema";
+import { jobs } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { getKbRoot } from "@/lib/kb-path";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export const dynamic = "force-dynamic";
-
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
 
 export interface ScanStatus {
   jobId: number | null;
@@ -24,8 +24,8 @@ export interface ScanStatus {
   interviewDone: boolean;
 }
 
-export async function GET() {
-  const [ws] = await db.select().from(workspace).limit(1);
+export async function GET(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws) {
     return Response.json({
       jobId: null,
@@ -69,8 +69,9 @@ export async function GET() {
     // ignore
   }
 
-  const synthesisReady = fs.existsSync(path.join(KB_ROOT, "raw", "system-synthesis.json"));
-  const interviewDone = fs.existsSync(path.join(KB_ROOT, "raw", "interview-notes.json"));
+  const kbRoot = getKbRoot(ws.id);
+  const synthesisReady = fs.existsSync(path.join(kbRoot, "raw", "system-synthesis.json"));
+  const interviewDone = fs.existsSync(path.join(kbRoot, "raw", "interview-notes.json"));
 
   return Response.json({
     jobId: job.id,

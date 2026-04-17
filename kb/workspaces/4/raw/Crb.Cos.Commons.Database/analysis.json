@@ -1,0 +1,112 @@
+{
+  "_headHash": "4d1797ee9f5d239876d8ddbfce24c61db9070756",
+  "purpose": "A database access library that provides NHibernate-based ORM functionality with repository patterns for COS services",
+  "businessFeatures": [
+    "Fluent configuration for NHibernate connections",
+    "Repository pattern implementation with CRUD operations",
+    "Support for AWS IAM authentication with Postgres",
+    "Caching repository implementation",
+    "Multi-database support with aliasing",
+    "Connection string refreshing/credential rotation support",
+    "Database platform abstractions (primarily PostgreSQL)",
+    "Custom exception handling for database operations"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "NHibernate",
+      "type": "shared-lib"
+    },
+    {
+      "target": "FluentNHibernate",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWS SDK",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Payment",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "AWS RDS",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "PostgreSQL",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [
+    "Repository Pattern",
+    "Data Access Object (DAO) Pattern",
+    "Fluent API Configuration",
+    "Dependency Injection support"
+  ],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "The library uses a wrapper around NHibernate to provide a simpler, more consistent API for database access"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "Supports AWS IAM token-based authentication for PostgreSQL, allowing for secure access without storing credentials"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Database/Repository/IRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Repository/RepositoryBase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Configuration/Configure.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Configuration/NHibernateConfiguration.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/DbPlatforms/PostgresPlatform.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Providers/AwsIamConnectionProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Repository/CachingRepositoryBase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Database/Session/SessionFactoryBuilder.cs",
+      "purpose": ""
+    },
+    {
+      "path": "examples/Examples.Domain/Framework/nRepo.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

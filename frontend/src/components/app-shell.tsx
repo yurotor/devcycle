@@ -25,6 +25,8 @@ import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { TicketDetail } from "@/components/ticket-detail";
 import { MarkdownViewer } from "@/components/markdown-viewer";
 import { ScanPill } from "@/components/scan-pill";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { SetupFlow } from "@/components/setup-flow";
 import { type Ticket } from "@/lib/fake-data";
 
 type SidebarTab = "kb" | "suggestions";
@@ -42,32 +44,59 @@ export function AppShell() {
   const [syncing, setSyncing] = useState(false);
   const [findingsCount, setFindingsCount] = useState(0);
   const [boardFilter, setBoardFilter] = useState("");
+  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Array<{ id: number; name: string; jiraProjectKey: string | null }>>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("devcycle:activeWorkspaceId");
+      return stored ? parseInt(stored, 10) : null;
+    }
+    return null;
+  });
 
   // ── Bootstrap: load workspace + tickets + suggestions count ──
 
   useEffect(() => {
     async function bootstrap() {
       try {
-        const [wsRes, ticketsRes, suggestionsRes] = await Promise.all([
-          fetch("/api/workspace"),
-          fetch("/api/tickets"),
-          fetch("/api/suggestions"),
+        // First: resolve workspace list + active ID
+        let wsRes = await fetch(activeWorkspaceId ? `/api/workspace?id=${activeWorkspaceId}` : "/api/workspace");
+        // Stale localStorage ID → fall back to default
+        if (!wsRes.ok && activeWorkspaceId) {
+          wsRes = await fetch("/api/workspace");
+        }
+        let wsId: number | null = activeWorkspaceId;
+        let connectedJiraUrl: string | null = null;
+
+        if (wsRes.ok) {
+          const ws = await wsRes.json();
+          connectedJiraUrl = ws.jiraUrl ?? null;
+          setJiraUrl(connectedJiraUrl);
+          if (ws.workspaces) {
+            setWorkspaces(ws.workspaces);
+          }
+          // Always sync wsId from response
+          if (ws.id) {
+            wsId = ws.id;
+            setActiveWorkspaceId(wsId);
+            localStorage.setItem("devcycle:activeWorkspaceId", String(wsId));
+          }
+        }
+
+        // Then: fetch tickets + suggestions scoped to workspace
+        const q = wsId ? `?wsId=${wsId}` : "";
+        const [ticketsRes, suggestionsRes] = await Promise.all([
+          fetch(`/api/tickets${q}`),
+          fetch(`/api/suggestions${q}`),
         ]);
         if (suggestionsRes.ok) {
           const data = await suggestionsRes.json();
           setFindingsCount((data.suggestions ?? []).length);
         }
-        let connectedJiraUrl: string | null = null;
-        if (wsRes.ok) {
-          const ws = await wsRes.json();
-          connectedJiraUrl = ws.jiraUrl ?? null;
-          setJiraUrl(connectedJiraUrl);
-        }
         if (ticketsRes.ok) {
           const data = await ticketsRes.json();
           const loaded: Ticket[] = data.tickets ?? [];
           setTickets(loaded);
-          // Auto-sync if Jira is connected but tickets are empty (e.g. first boot after connect)
           if (connectedJiraUrl && loaded.length === 0) {
             syncTickets();
           }
@@ -83,9 +112,10 @@ export function AppShell() {
 
   const syncTickets = async () => {
     setSyncing(true);
+    const q = activeWorkspaceId ? `?wsId=${activeWorkspaceId}` : "";
     try {
-      await fetch("/api/jira/sync", { method: "POST" });
-      const res = await fetch("/api/tickets");
+      await fetch(`/api/jira/sync${q}`, { method: "POST" });
+      const res = await fetch(`/api/tickets${q}`);
       if (res.ok) {
         const data = await res.json();
         setTickets(data.tickets ?? []);
@@ -120,6 +150,64 @@ export function AppShell() {
     }).catch(console.error);
   };
 
+  const switchWorkspace = async (id: number) => {
+    setActiveWorkspaceId(id);
+    localStorage.setItem("devcycle:activeWorkspaceId", String(id));
+    setLoading(true);
+    setTicketPanel(null);
+    try {
+      const [wsRes, ticketsRes, suggestionsRes] = await Promise.all([
+        fetch(`/api/workspace?id=${id}`),
+        fetch(`/api/tickets?wsId=${id}`),
+        fetch(`/api/suggestions?wsId=${id}`),
+      ]);
+      if (wsRes.ok) {
+        const ws = await wsRes.json();
+        setJiraUrl(ws.jiraUrl ?? null);
+      }
+      if (ticketsRes.ok) {
+        const data = await ticketsRes.json();
+        setTickets(data.tickets ?? []);
+      }
+      if (suggestionsRes.ok) {
+        const data = await suggestionsRes.json();
+        setFindingsCount((data.suggestions ?? []).length);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewWorkspaceComplete = async () => {
+    setShowNewWorkspace(false);
+    // Reload workspaces + switch to the newest one
+    const wsRes = await fetch("/api/workspace");
+    if (wsRes.ok) {
+      const ws = await wsRes.json();
+      setWorkspaces(ws.workspaces ?? []);
+      // Switch to the newest workspace (highest ID)
+      const newest = (ws.workspaces as Array<{ id: number }>)?.sort((a: { id: number }, b: { id: number }) => b.id - a.id)[0];
+      if (newest) {
+        switchWorkspace(newest.id);
+      }
+    }
+  };
+
+  const deleteWorkspace = async (id: number) => {
+    try {
+      const res = await fetch(`/api/workspace/${id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      const remaining = workspaces.filter((w) => w.id !== id);
+      setWorkspaces(remaining);
+      // If we deleted the active workspace, switch to first remaining
+      if (activeWorkspaceId === id && remaining.length > 0) {
+        switchWorkspace(remaining[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to delete workspace", err);
+    }
+  };
+
   const sidebarItems = [
     { id: "kb" as const, icon: FolderTree, label: "KB" },
     {
@@ -141,9 +229,21 @@ export function AppShell() {
 
       {/* Icon rail */}
       <div className="w-12 border-r border-border bg-sidebar flex flex-col items-center py-3 gap-1 shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center mb-3">
+        <div className="w-8 h-8 rounded-lg bg-cyan/10 border border-cyan/20 flex items-center justify-center mb-1">
           <Zap className="w-4 h-4 text-cyan" />
         </div>
+
+        {workspaces.length > 0 && (
+          <div className="mb-2">
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              activeId={activeWorkspaceId}
+              onSwitch={switchWorkspace}
+              onNew={() => setShowNewWorkspace(true)}
+              onDelete={deleteWorkspace}
+            />
+          </div>
+        )}
 
         <button
           onClick={() => { setMainView("board"); setTicketPanel(null); setSidebarTab(null); }}
@@ -209,9 +309,9 @@ export function AppShell() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              {sidebarTab === "kb" && <KBBrowser onFileClick={handleFileClick} />}
+              {sidebarTab === "kb" && <KBBrowser onFileClick={handleFileClick} wsId={activeWorkspaceId} />}
               {sidebarTab === "suggestions" && (
-                <SuggestionsPanel />
+                <SuggestionsPanel wsId={activeWorkspaceId} />
               )}
             </div>
           </motion.div>
@@ -258,7 +358,7 @@ export function AppShell() {
                 </code>
               )}
               <div className="ml-auto flex items-center gap-3">
-                <ScanPill />
+                <ScanPill wsId={activeWorkspaceId} />
                 {jiraUrl && mainView === "board" && (
                   <button
                     onClick={syncTickets}
@@ -287,7 +387,7 @@ export function AppShell() {
                   className="h-full"
                 >
                   {noJira ? (
-                    <NoJiraState onConnected={(t) => { setTickets(t); setJiraUrl("connected"); }} />
+                    <NoJiraState wsId={activeWorkspaceId} onConnected={(t) => { setTickets(t); setJiraUrl("connected"); }} />
                   ) : (
                     <KanbanBoard
                       tickets={tickets}
@@ -308,7 +408,7 @@ export function AppShell() {
                   className="h-full"
                 >
                   <div className="h-full overflow-auto">
-                    <MarkdownViewer path={filePath} onNavigate={handleFileClick} />
+                    <MarkdownViewer path={filePath} onNavigate={handleFileClick} wsId={activeWorkspaceId} />
                   </div>
                 </motion.div>
               )}
@@ -339,11 +439,32 @@ export function AppShell() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* New workspace overlay */}
+      <AnimatePresence>
+        {showNewWorkspace && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-50 bg-background"
+          >
+            <button
+              onClick={() => setShowNewWorkspace(false)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <SetupFlow mode="add" onComplete={handleNewWorkspaceComplete} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function NoJiraState({ onConnected }: { onConnected: (tickets: Ticket[]) => void }) {
+function NoJiraState({ wsId, onConnected }: { wsId: number | null; onConnected: (tickets: Ticket[]) => void }) {
   const [jiraUrl, setJiraUrl] = useState(process.env.NEXT_PUBLIC_DEBUG_JIRA_URL ?? "");
   const [projectKey, setProjectKey] = useState(
     process.env.NEXT_PUBLIC_DEBUG_JIRA_URL
@@ -370,7 +491,7 @@ function NoJiraState({ onConnected }: { onConnected: (tickets: Ticket[]) => void
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/jira/connect", {
+      const res = await fetch(`/api/jira/connect${wsId ? `?wsId=${wsId}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jiraUrl, projectKey, email, token }),
@@ -380,7 +501,7 @@ function NoJiraState({ onConnected }: { onConnected: (tickets: Ticket[]) => void
         throw new Error(data.detail ? `${data.error} — ${data.detail}` : data.error ?? "Failed");
       }
       // Reload tickets
-      const ticketsRes = await fetch("/api/tickets");
+      const ticketsRes = await fetch(`/api/tickets${wsId ? `?wsId=${wsId}` : ""}`);
       const ticketsData = await ticketsRes.json();
       onConnected(ticketsData.tickets ?? []);
     } catch (err) {

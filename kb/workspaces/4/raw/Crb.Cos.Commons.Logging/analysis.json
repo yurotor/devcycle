@@ -1,0 +1,57 @@
+{
+  "_headHash": "57110064550394737e611416fefcb307365e3d5d",
+  "purpose": "A .NET logging library distributed as a NuGet package that provides common logging functionality for CRB (Credit Bureau) Cost Optimization System applications",
+  "businessFeatures": [
+    "Standardized logging configuration with Serilog",
+    "Log level management through configuration",
+    "Log enrichment with endpoint name, machine name, thread ID, and unique log IDs",
+    "JSON-formatted console logging",
+    "Log filtering based on source and log levels",
+    "Optional file-based logging with size limits and rolling intervals",
+    "Configuration loading from environment variables"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Serilog for structured logging",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Guids (referenced for GuidComb.Generate())",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Configuration for configuration management",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Logging/Logging/LoggingConfig.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Logging/Logging/LogIdEnricher.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Logging/Logging/LoggingFilter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Logging/Configuration/ConfigurationManagerLoader.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Version.props",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

@@ -2,11 +2,15 @@
 
 import { db } from "@/lib/db";
 import { scanSuggestions, repos } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
+  if (!ws) return Response.json({ suggestions: [] });
+
   const rows = await db
     .select({
       id: scanSuggestions.id,
@@ -20,7 +24,7 @@ export async function GET() {
       repoId: scanSuggestions.repoId,
     })
     .from(scanSuggestions)
-    .where(eq(scanSuggestions.dismissed, 0));
+    .where(and(eq(scanSuggestions.dismissed, 0), eq(scanSuggestions.workspaceId, ws.id)));
 
   // Join repo names
   const repoRows = await db.select({ id: repos.id, name: repos.name }).from(repos);

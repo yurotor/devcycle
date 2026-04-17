@@ -1,0 +1,128 @@
+{
+  "_headHash": "ca5912c93f32ebc9e04bd2128744522615ffbb78",
+  "purpose": "A specialized .NET tool for exporting data from Cross River Bank's (CRB) databases to Parquet files for data integration",
+  "businessFeatures": [
+    "Incremental Data Export",
+    "Full Table Export",
+    "Data Reconciliation",
+    "Event Notification"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "AWSSDK.DynamoDBv2",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWSSDK.S3",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWSSDK.SecretsManager",
+      "type": "shared-lib"
+    },
+    {
+      "target": "AWSSDK.SQS",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Data.SqlClient",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Npgsql",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Polly",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Parquet",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.IO.Abstractions",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.DependencyInjection",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.Extensions.Options",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "Checkpoint",
+      "description": ""
+    },
+    {
+      "name": "CosDatabaseTableSyncProgress",
+      "description": ""
+    },
+    {
+      "name": "ColumnDataType",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [
+    "Command pattern for executing different operations (Export, Reconcile)",
+    "Strategy pattern for database reading (multiple query strategies)",
+    "Factory pattern for database connections and operations",
+    "Dependency injection for component wiring",
+    "Repository pattern for persistence operations",
+    "Resilience patterns using Polly for retry policies"
+  ],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "Crb.Cos.Database.Export/Program.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/ExportOperation.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/ReconcileOperation.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/Exporters/ParquetExporterBase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/Exporters/ParquetS3Exporter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/Reader/DatabaseReaderBase.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/IServiceCollectionExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/Options/ExportOptions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Crb.Cos.Database.Export/Progress/DynamoDbProgessStore.cs",
+      "purpose": ""
+    },
+    {
+      "path": "dags/data_export_dynamic_dags.py",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": [
+    "The specific Cross River Bank systems/databases that are being exported are not explicitly named in the code"
+  ]
+}

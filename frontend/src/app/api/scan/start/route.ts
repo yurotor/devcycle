@@ -2,14 +2,15 @@
 // Creates a job row and starts the scan in the background.
 
 import { db } from "@/lib/db";
-import { workspace, jobs } from "@/lib/db/schema";
+import { jobs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ScanEngine, type ScanEvent, type DoneEvent } from "@/lib/scan/engine";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
-  const [ws] = await db.select().from(workspace).limit(1);
+export async function POST(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws) {
     return Response.json({ error: "Workspace not configured" }, { status: 404 });
   }

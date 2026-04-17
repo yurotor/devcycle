@@ -1,0 +1,27 @@
+{
+  "_headHash": "fd6549f49d6f37dae79d4c0a23723ec33b4f67d5",
+  "purpose": "This appears to be an empty repository with just a template README.md file. No actual code, configuration, or substantive content is present.",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "Repository 'core-payments' contains only a template README.md with no actual code or configuration files"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "README.md",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

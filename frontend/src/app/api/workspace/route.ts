@@ -4,25 +4,61 @@ import { encryptPat } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
 
 // ─── GET /api/workspace ───────────────────────────────────────────
-// Returns the current workspace config or 404 if not set up yet.
+// Returns all workspaces with their repos, or 404 if none configured.
+// If ?id=N is provided, returns just that workspace.
 
-export async function GET() {
-  const [ws] = await db.select().from(workspace).limit(1);
-  if (!ws) {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const idParam = searchParams.get("id");
+
+  const allWorkspaces = await db.select().from(workspace);
+
+  if (idParam) {
+    const wsId = parseInt(idParam, 10);
+    const ws = allWorkspaces.find((w) => w.id === wsId);
+    if (!ws) return Response.json({ error: "Workspace not found" }, { status: 404 });
+
+    const wsRepos = await db.select().from(repos).where(eq(repos.workspaceId, ws.id));
+    return Response.json({
+      ...formatWorkspace(ws, wsRepos),
+      workspaces: allWorkspaces.map((w) => ({
+        id: w.id,
+        name: w.name,
+        jiraProjectKey: w.jiraProjectKey ?? null,
+      })),
+    });
+  }
+
+  if (allWorkspaces.length === 0) {
     return Response.json({ error: "No workspace configured" }, { status: 404 });
   }
 
-  const selectedRepos = await db
-    .select()
-    .from(repos)
-    .where(eq(repos.workspaceId, ws.id));
+  // Return first workspace in the legacy shape for backward compat,
+  // plus a `workspaces` array for the switcher.
+  const firstWs = allWorkspaces[0];
+  const firstRepos = await db.select().from(repos).where(eq(repos.workspaceId, firstWs.id));
 
   return Response.json({
+    ...formatWorkspace(firstWs, firstRepos),
+    workspaces: allWorkspaces.map((ws) => ({
+      id: ws.id,
+      name: ws.name,
+      jiraProjectKey: ws.jiraProjectKey ?? null,
+    })),
+  });
+}
+
+function formatWorkspace(
+  ws: typeof workspace.$inferSelect,
+  wsRepos: (typeof repos.$inferSelect)[],
+) {
+  return {
     id: ws.id,
     name: ws.name,
     azureOrgUrl: ws.azureOrgUrl,
     jiraUrl: ws.jiraUrl ?? null,
-    repos: selectedRepos.map((r) => ({
+    jiraProjectKey: ws.jiraProjectKey ?? null,
+    repos: wsRepos.map((r) => ({
       id: r.id,
       adoId: r.adoId,
       name: r.name,
@@ -30,29 +66,25 @@ export async function GET() {
       defaultBranch: r.branchOverride ?? r.defaultBranch,
       selected: r.selected === 1,
     })),
-  });
+  };
 }
 
 // ─── POST /api/workspace ──────────────────────────────────────────
-// Creates the workspace on first setup. Idempotent: wipes and recreates if called again.
+// Creates a new workspace.
+// If PATs don't exist yet (first-time setup), also stores encrypted PAT.
 //
 // Body: {
-//   name: string          — workspace / team name
-//   azureOrgUrl: string   — https://dev.azure.com/your-org
-//   pat: string           — Azure DevOps PAT (stored encrypted)
-//   repos: Array<{        — selected repos (may be fake in slice 1)
-//     adoId?: string
-//     name: string
-//     project: string
-//     defaultBranch: string
-//   }>
+//   name: string
+//   azureOrgUrl: string
+//   pat?: string           — only needed on first-time setup
+//   repos: Array<{ adoId?, name, project, defaultBranch }>
 // }
 
 export async function POST(request: Request) {
   const body = await request.json() as {
     name: string;
-    azureOrgUrl: string;
-    pat: string;
+    azureOrgUrl?: string;
+    pat?: string;
     repos: Array<{
       adoId?: string;
       name: string;
@@ -61,21 +93,33 @@ export async function POST(request: Request) {
     }>;
   };
 
-  const { name, azureOrgUrl, pat, repos: selectedRepos } = body;
+  const { name, pat, repos: selectedRepos } = body;
+  let { azureOrgUrl } = body;
 
-  if (!name?.trim() || !azureOrgUrl?.trim() || !pat?.trim()) {
+  if (!name?.trim()) {
+    return Response.json({ error: "name is required" }, { status: 400 });
+  }
+
+  // If azureOrgUrl not provided, inherit from existing workspace
+  if (!azureOrgUrl?.trim()) {
+    const [existing] = await db.select({ azureOrgUrl: workspace.azureOrgUrl }).from(workspace).limit(1);
+    if (existing) {
+      azureOrgUrl = existing.azureOrgUrl;
+    } else {
+      return Response.json({ error: "azureOrgUrl is required for first workspace" }, { status: 400 });
+    }
+  }
+
+  // Check if PATs exist — first-time setup requires a PAT
+  const existingPats = await db.select().from(pats).limit(1);
+  if (existingPats.length === 0 && !pat?.trim()) {
     return Response.json(
-      { error: "name, azureOrgUrl, and pat are required" },
+      { error: "pat is required for first-time setup" },
       { status: 400 }
     );
   }
 
   const now = Date.now();
-
-  // Wipe existing data (single-workspace prototype)
-  await db.delete(repos);
-  await db.delete(pats);
-  await db.delete(workspace);
 
   // Create workspace
   const [ws] = await db
@@ -83,15 +127,18 @@ export async function POST(request: Request) {
     .values({ name: name.trim(), azureOrgUrl: azureOrgUrl.trim(), createdAt: now })
     .returning();
 
-  // Store encrypted PAT
-  const { encryptedPat, iv } = encryptPat(pat);
-  await db.insert(pats).values({
-    workspaceId: ws.id,
-    service: "azure",
-    encryptedPat,
-    iv,
-    createdAt: now,
-  });
+  // Store encrypted PAT only if provided (first-time setup)
+  if (pat?.trim()) {
+    // Replace existing Azure PAT
+    await db.delete(pats).where(eq(pats.service, "azure"));
+    const { encryptedPat, iv } = encryptPat(pat.trim());
+    await db.insert(pats).values({
+      service: "azure",
+      encryptedPat,
+      iv,
+      createdAt: now,
+    });
+  }
 
   // Store selected repos
   if (selectedRepos?.length) {

@@ -1,0 +1,142 @@
+{
+  "_headHash": "c81dca27932caf24756b0ad975c03a3c650731ed",
+  "purpose": "This is a .NET library providing common messaging functionality built on MassTransit to standardize messaging patterns across applications in the CRB ecosystem.",
+  "businessFeatures": [
+    "Message routing with standardized endpoint discovery via IRouteRegistry",
+    "Well-known headers propagation and management (UserId, RequestId, TraceId, etc.)",
+    "NServiceBus interoperability for cross-system messaging",
+    "Message scheduling (one-time and recurring) using Hangfire",
+    "NewRelic observability integration for message monitoring"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "MassTransit - Primary messaging framework",
+      "type": "shared-lib"
+    },
+    {
+      "target": "RabbitMQ - Underlying message transport",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Hangfire - Message scheduling with PostgreSQL storage",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NewRelic - Observability and metrics",
+      "type": "shared-lib"
+    },
+    {
+      "target": "System.Text.Json - Message serialization",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons - Core common utilities",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Providers - Well-known header providers",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Guids - GuidComb generation",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Contracts - Contracts and exceptions",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "WellKnownHeaders",
+      "description": "Standard headers passed between services (UserId, RequestId, IdempotencyKey, TraceId, etc.)"
+    },
+    {
+      "name": "BackendEndpointOptions",
+      "description": "Configuration for endpoint behavior including retries, concurrency, scheduling"
+    },
+    {
+      "name": "SchedulingOptions",
+      "description": "Configuration for Hangfire-based message scheduling"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "RabbitMQ",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "NServiceBus",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "NewRelic",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "Hangfire/PostgreSQL",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "The repository provides multiple integration points with NServiceBus but makes the assumption that any service using this library understands both MassTransit and NServiceBus paradigms"
+    },
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "title": "",
+      "description": "AssemblyScanner.GetAssemblies() loads all DLLs in the bin directory which may cause performance issues at startup in larger applications"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Registration/MassTransitRegistrationExtensions.Api.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Registration/MassTransitRegistrationExtensions.Endpoint.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Configuration/BackendEndpointOptions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Interoperability/NServiceBusHeaderAdapter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Interoperability/NServiceBusInteropFilter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Endpoint/WellKnownHeadersOutgoingFilter.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Scheduling/ScheduleByRouteExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Registration/MassTransitRegistrationExtensions.Routing.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Messaging/Observability/NewRelicMassTransitObserver.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

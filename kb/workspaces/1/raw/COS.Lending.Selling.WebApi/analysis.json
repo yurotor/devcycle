@@ -1,0 +1,120 @@
+{
+  "_headHash": "bf5f1a2c9b7854326396218750a411a75841436b",
+  "repositoryAnalysis": {
+    "purpose": "COS.Lending.Selling.WebApi is a .NET microservice that manages loan purchases and transfers for a lending platform. The system enables marketplace lenders (MPLs) to purchase loans, collect various fees, handle interest accruals, and process loan-related financial transactions.",
+    "businessFeatures": [
+      "Loan purchase and acquisition",
+      "Interest accrual (daily, retroactive, and correction)",
+      "Fee collection (volume fees, DMV fees, Florida stamp tax, loan payoff shortfall, merchant fees)",
+      "Monthly minimum fee calculations and true-up fees",
+      "Loan status management (grooming, ready for purchase)",
+      "Report generation for loans",
+      "Batch processing for loan purchases",
+      "Auto purchase functionality for loans",
+      "Transfer status monitoring and reconciliation",
+      "Overdue loan summary reporting"
+    ],
+    "apis": [
+      "Internal outbox processor endpoints for handling asynchronous tasks",
+      "Integration with transfer systems to facilitate money movements",
+      "Webhook endpoints for sending notifications"
+    ],
+    "dataEntities": [
+      "Loan - Core entity representing a loan with its details",
+      "LoanAction - Actions performed on a loan like daily interest accrual",
+      "Transfer - Financial transfers between accounts",
+      "LoanAccount - Accounts associated with a loan",
+      "Contract - Agreement terms between parties",
+      "PendingApproval - Loans awaiting approval",
+      "GroomingProcess - Process for preparing a loan for purchase",
+      "InterestHistory - Record of interest accruals",
+      "VolumeFeeMonthlyMinimum - Minimum fee structure for loan volumes",
+      "TrueUpVolumeFee - Adjustments to volume fees",
+      "Batch - Group of loans for processing"
+    ],
+    "dependencies": [
+      "NServiceBus for messaging",
+      "EntityFrameworkCore for database access",
+      "AWS SQS for queuing",
+      "PostgreSQL for database storage",
+      "Quartz for job scheduling",
+      "Docker for containerization"
+    ],
+    "integrations": [
+      "Cross River Bank's Core Banking System (COS)",
+      "Hooks/Notification service for webhooks",
+      "Storage service for reports",
+      "Transfer system for financial transactions"
+    ],
+    "architecturePatterns": [
+      "Outbox pattern for reliable message processing",
+      "Repository pattern for data access",
+      "Background services for continuous processing",
+      "Scheduled jobs for periodic tasks",
+      "Microservice architecture with isolated domains",
+      "Message-driven architecture for asynchronous processing"
+    ],
+    "findings": [
+      {
+        "severity": "high",
+        "description": "The system relies heavily on the outbox pattern for ensuring consistency between database transactions and messaging, suggesting high reliability requirements for financial transactions"
+      },
+      {
+        "severity": "high",
+        "description": "Multiple processors handle different types of outbox messages, indicating complex business workflows that require eventual consistency"
+      }
+    ]
+  },
+  "keyFiles": [
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Handlers/DailyInterestOutboxHandler.cs",
+      "description": "Handles processing of daily interest accrual transfers for loans, including normal, retroactive, and correction interest transfers"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Processors/BatchInitOutboxProcessor.cs",
+      "description": "Processes batch initialization for loan purchases, starting the loan purchase process for a batch of loans"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Processors/FeeCollectionOutboxProcessor.cs",
+      "description": "Handles the collection of various fees like DMV fees, Florida stamp tax, loan payoff shortfalls, and merchant fees"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Processors/VolumeFeeOutboxProcessor.cs",
+      "description": "Processes volume fees for loans, creating transfers between appropriate accounts based on fee calculation method"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Processors/TrueUpVolumeFeeOutboxProcessor.cs",
+      "description": "Handles true-up volume fees, creating transfers and webhooks for fee adjustments"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Services/MessageDispatcherService.cs",
+      "description": "Background service that dispatches messages from SQS to appropriate handlers with transaction management"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Services/TransferStatusSyncService.cs",
+      "description": "Synchronizes transfer statuses with the core banking system, ensuring consistency between systems"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Services/AutoPurchaseService.cs",
+      "description": "Background service that automatically purchases loans that meet criteria"
+    },
+    {
+      "path": "CRB.COS.Lending.Selling.OutboxProcessors/Services/BatchCompletionService.cs",
+      "description": "Background service that completes open batches of loans after processing"
+    },
+    {
+      "path": "README.md",
+      "description": "Overview of the project, including setup instructions, technology stack, and troubleshooting information"
+    }
+  ],
+  "findings": [],
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "ambiguities": []
+}

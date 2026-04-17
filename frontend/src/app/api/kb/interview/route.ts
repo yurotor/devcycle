@@ -2,37 +2,37 @@
 // GET  /api/kb/interview — load interview history
 
 import { db } from "@/lib/db";
-import { interviewNotes, chatMessages, workspace } from "@/lib/db/schema";
+import { interviewNotes, chatMessages } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 import { complete, isAIAvailable } from "@/lib/anthropic";
 import { compileKnowledgeBase } from "@/lib/scan/kb-manager";
 import { runSynthesis, loadRepoAnalyses } from "@/lib/scan/engine";
 import type { SystemSynthesis } from "@/lib/scan/engine";
+import { getKbRoot } from "@/lib/kb-path";
 import fs from "fs";
 import path from "path";
 
 export const dynamic = "force-dynamic";
 
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const RAW_DIR = path.join(KB_ROOT, "raw");
-
-// We use ticketId=0, phase="interview" to store interview messages in chat_messages table
-const INTERVIEW_TICKET_ID = 0;
+// We use ticketId=-wsId, phase="interview" to store interview messages per workspace
 const INTERVIEW_PHASE = "interview";
+function interviewTicketId(wsId: number) { return -wsId; }
 
-export async function GET() {
-  // Load interview messages from chat_messages
+export async function GET(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
+  if (!ws) return Response.json({ messages: [] });
+
   const messages = await db
     .select()
     .from(chatMessages)
     .where(
       and(
-        eq(chatMessages.ticketId, INTERVIEW_TICKET_ID),
+        eq(chatMessages.ticketId, interviewTicketId(ws.id)),
         eq(chatMessages.phase, INTERVIEW_PHASE)
       )
     );
 
-  // Parse choices from JSON strings
   const parsed = messages.map((m) => ({
     ...m,
     choices: m.choices ? JSON.parse(m.choices) : null,
@@ -45,14 +45,14 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { message } = body as { message: string };
 
-  const [ws] = await db.select().from(workspace).limit(1);
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws) return Response.json({ error: "Workspace not configured" }, { status: 404 });
 
   const now = Date.now();
 
   // Save user message
   await db.insert(chatMessages).values({
-    ticketId: INTERVIEW_TICKET_ID,
+    ticketId: interviewTicketId(ws.id),
     phase: INTERVIEW_PHASE,
     role: "user",
     content: message,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     .from(chatMessages)
     .where(
       and(
-        eq(chatMessages.ticketId, INTERVIEW_TICKET_ID),
+        eq(chatMessages.ticketId, interviewTicketId(ws.id)),
         eq(chatMessages.phase, INTERVIEW_PHASE)
       )
     );
@@ -76,16 +76,19 @@ export async function POST(request: Request) {
     content: m.content,
   }));
 
+  const kbRoot = getKbRoot(ws.id);
+  const rawDir = path.join(kbRoot, "raw");
+
   // Load synthesis to get ambiguities — fall back to per-repo ambiguities if no synthesis
-  const synthesis = loadSynthesis();
+  const synthesis = loadSynthesis(rawDir);
   let ambiguities = synthesis?.ambiguities ?? [];
   if (ambiguities.length === 0) {
-    const repoAnalyses = loadRepoAnalyses();
+    const repoAnalyses = loadRepoAnalyses(kbRoot);
     ambiguities = Array.from(repoAnalyses.entries()).flatMap(
       ([name, a]) => (a.ambiguities ?? []).map((amb) => `[${name}] ${amb}`)
     );
   }
-  const systemContext = buildSystemContext(synthesis);
+  const systemContext = buildSystemContext(synthesis, kbRoot);
 
   console.log(`[interview] ${ambiguities.length} ambiguities:`, ambiguities);
   console.log(`[interview] system context length: ${systemContext.length} chars`);
@@ -150,7 +153,7 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
 
   // Save AI response
   await db.insert(chatMessages).values({
-    ticketId: INTERVIEW_TICKET_ID,
+    ticketId: interviewTicketId(ws.id),
     phase: INTERVIEW_PHASE,
     role: "ai",
     content: cleanText,
@@ -171,9 +174,9 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
       createdAt: Date.now(),
     });
 
-    fs.mkdirSync(RAW_DIR, { recursive: true });
+    fs.mkdirSync(rawDir, { recursive: true });
     fs.writeFileSync(
-      path.join(RAW_DIR, "interview-notes.json"),
+      path.join(rawDir, "interview-notes.json"),
       JSON.stringify({ transcript, messages: fullHistory }, null, 2),
       "utf8"
     );
@@ -181,16 +184,16 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
     // Re-run synthesis and recompile KB in the background (don't block the response)
     (async () => {
       try {
-        const repoAnalyses = loadRepoAnalyses();
+        const repoAnalyses = loadRepoAnalyses(kbRoot);
         if (repoAnalyses.size > 0) {
-          await runSynthesis(repoAnalyses, transcript);
+          await runSynthesis(repoAnalyses, transcript, kbRoot);
         }
       } catch (err) {
         console.error("[interview] Re-synthesis failed:", err);
       }
 
       try {
-        await compileKnowledgeBase();
+        await compileKnowledgeBase(kbRoot);
       } catch (err) {
         console.error("[interview] KB recompilation failed:", err);
       }
@@ -200,10 +203,34 @@ IMPORTANT: Every non-final message MUST end with a {"choices": [...]} JSON block
   return Response.json({ response: cleanText, choices, ready: done, done });
 }
 
+// ─── DELETE /api/kb/interview — reset interview state ─────────
+
+export async function DELETE(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
+  if (!ws) return Response.json({ error: "Workspace not configured" }, { status: 404 });
+
+  const kbRoot = getKbRoot(ws.id);
+  const notesPath = path.join(kbRoot, "raw", "interview-notes.json");
+
+  // Remove file on disk
+  if (fs.existsSync(notesPath)) fs.unlinkSync(notesPath);
+
+  // Remove DB records
+  await db.delete(interviewNotes).where(eq(interviewNotes.workspaceId, ws.id));
+  await db.delete(chatMessages).where(
+    and(
+      eq(chatMessages.ticketId, interviewTicketId(ws.id)),
+      eq(chatMessages.phase, INTERVIEW_PHASE),
+    )
+  );
+
+  return Response.json({ ok: true });
+}
+
 // ─── Load synthesis from disk ──────────────────────────────────
 
-function loadSynthesis(): SystemSynthesis | null {
-  const synthPath = path.join(RAW_DIR, "system-synthesis.json");
+function loadSynthesis(rawDir: string): SystemSynthesis | null {
+  const synthPath = path.join(rawDir, "system-synthesis.json");
   if (!fs.existsSync(synthPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(synthPath, "utf8")) as SystemSynthesis;
@@ -214,7 +241,7 @@ function loadSynthesis(): SystemSynthesis | null {
 
 // ─── Build system context string for the prompt ────────────────
 
-function buildSystemContext(synthesis: SystemSynthesis | null): string {
+function buildSystemContext(synthesis: SystemSynthesis | null, kbRoot?: string): string {
   const sections: string[] = [];
 
   if (synthesis) {
@@ -250,7 +277,7 @@ function buildSystemContext(synthesis: SystemSynthesis | null): string {
 
   // Fallback: if no synthesis, load per-repo analyses directly
   if (sections.length === 0) {
-    const repoAnalyses = loadRepoAnalyses();
+    const repoAnalyses = loadRepoAnalyses(kbRoot);
     if (repoAnalyses.size > 0) {
       const repoSections = Array.from(repoAnalyses.entries()).map(([name, a]) => {
         const parts = [`### ${name}`];

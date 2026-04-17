@@ -10,6 +10,7 @@ import { workspace, pats, tickets } from "@/lib/db/schema";
 import { encryptPat } from "@/lib/crypto";
 import { JiraClient, JiraError } from "@/lib/jira/client";
 import { and, eq } from "drizzle-orm";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export async function POST(request: Request) {
   const body = await request.json() as {
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to connect to Jira", detail: message }, { status: 502 });
   }
 
-  const [ws] = await db.select().from(workspace).limit(1);
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws) {
     return Response.json({ error: "Workspace not configured" }, { status: 404 });
   }
@@ -96,13 +97,10 @@ export async function POST(request: Request) {
     .where(eq(workspace.id, ws.id));
 
   // Replace only the Jira PAT (leave Azure PAT untouched)
-  await db.delete(pats).where(
-    and(eq(pats.workspaceId, ws.id), eq(pats.service, "jira"))
-  );
+  await db.delete(pats).where(eq(pats.service, "jira"));
 
   const { encryptedPat, iv } = encryptPat(token.trim());
   await db.insert(pats).values({
-    workspaceId: ws.id,
     service: "jira",
     username: email?.trim() || null,
     encryptedPat,

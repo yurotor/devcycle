@@ -1,0 +1,84 @@
+{
+  "_headHash": "4f66e49ed73722742a6759e4229eaef214ed78e2",
+  "purpose": "",
+  "businessFeatures": [
+    "Request/response handler pattern implementation",
+    "Async request/response handler pattern implementation",
+    "Security service for user authentication and authorization",
+    "Dependency injection module for Autofac"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Security",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Ioc",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "SecurityUser",
+      "description": "Represents an authenticated user with properties like IsAdmin, CanAccessAllPartners, Id, Status, and UserType"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [
+    "Handler Pattern",
+    "Dependency Injection",
+    "Facade Pattern"
+  ],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "SecurityService contains a temporary Auth0 integration with a TODO comment indicating plans to remove Auth0 support in the future"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "SecurityConfiguration.SecurityEnabled allows bypassing security entirely, creating a system user with admin privileges when disabled"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Services/IRequestHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Services/IRequestHandlerAsync.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Services/HanderFacade.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Services/SecurityService.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Services/ISecurityService.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Services/IocModule.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Version.props",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

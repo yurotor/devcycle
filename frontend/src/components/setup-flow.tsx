@@ -19,9 +19,11 @@ import {
 
 interface SetupFlowProps {
   onComplete: () => void;
+  /** "fresh" = first-time setup (full wizard). "add" = new workspace (skip PAT steps). */
+  mode?: "fresh" | "add";
 }
 
-type Step = "welcome" | "azure-pat" | "select-repos" | "jira";
+type Step = "welcome" | "azure-pat" | "workspace-name" | "select-repos" | "jira";
 
 interface AdoRepo {
   adoId: string;
@@ -30,15 +32,20 @@ interface AdoRepo {
   defaultBranch: string;
 }
 
-export function SetupFlow({ onComplete }: SetupFlowProps) {
-  const [step, setStep] = useState<Step>("welcome");
+export function SetupFlow({ onComplete, mode = "fresh" }: SetupFlowProps) {
+  const isAdd = mode === "add";
+  const [step, setStep] = useState<Step>(isAdd ? "workspace-name" : "welcome");
   const [orgUrl, setOrgUrl] = useState(process.env.NEXT_PUBLIC_DEBUG_ADO_URL ?? "");
   const [pat, setPat] = useState(process.env.NEXT_PUBLIC_DEBUG_ADO_PAT ?? "");
   const [isValidating, setIsValidating] = useState(false);
   const [availableRepos, setAvailableRepos] = useState<AdoRepo[]>([]);
   const [selectedRepoIds, setSelectedRepoIds] = useState<Set<string>>(new Set());
   const [repoSearch, setRepoSearch] = useState("");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [createdWsId, setCreatedWsId] = useState<number | null>(null);
 
   // Jira step state
   const [jiraUrl, setJiraUrl] = useState(process.env.NEXT_PUBLIC_DEBUG_JIRA_URL ?? "");
@@ -66,6 +73,25 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
       else next.add(adoId);
       return next;
     });
+  };
+
+  // ── Workspace name step → load repos with stored creds ──────
+
+  const handleWorkspaceNameNext = async () => {
+    setError(null);
+    setLoadingRepos(true);
+    try {
+      const res = await fetch("/api/azure/repos");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to list repos");
+      setAvailableRepos(data.repos);
+      setSelectedRepoIds(new Set());
+      setStep("select-repos");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load repos");
+    } finally {
+      setLoadingRepos(false);
+    }
   };
 
   // ── Step 1: validate PAT + list repos ──────────────────────
@@ -119,22 +145,27 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
     setError(null);
     const selected = availableRepos.filter((r) => selectedRepoIds.has(r.adoId));
     try {
+      const payload: Record<string, unknown> = {
+        name: isAdd ? workspaceName : orgName,
+        azureOrgUrl: orgUrl,
+        repos: selected,
+      };
+      // Only send PAT on first-time setup
+      if (!isAdd) payload.pat = pat;
+
       const res = await fetch("/api/workspace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: orgName,
-          azureOrgUrl: orgUrl,
-          pat,
-          repos: selected,
-        }),
+        body: JSON.stringify(payload),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error ?? "Failed to save workspace");
       }
+      const newWsId = data.id;
+      if (newWsId) setCreatedWsId(newWsId);
       // Fire-and-forget: start scan in background
-      fetch("/api/scan/start", { method: "POST" }).catch(console.error);
+      fetch(`/api/scan/start${newWsId ? `?wsId=${newWsId}` : ""}`, { method: "POST" }).catch(console.error);
       setStep("jira");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -159,7 +190,7 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
     setError(null);
     setIsConnectingJira(true);
     try {
-      const res = await fetch("/api/jira/connect", {
+      const res = await fetch(`/api/jira/connect${createdWsId ? `?wsId=${createdWsId}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jiraUrl, projectKey: jiraProjectKey, email: jiraEmail, token: jiraToken }),
@@ -339,6 +370,66 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
             </motion.div>
           )}
 
+          {/* ── Workspace Name (add mode) ─────────────────── */}
+          {step === "workspace-name" && (
+            <motion.div
+              key="workspace-name"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold tracking-tight">New Workspace</h2>
+                <p className="text-muted-foreground text-sm">
+                  Give your workspace a name, then pick which repos to include.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Workspace name
+                  </label>
+                  <Input
+                    placeholder="e.g. Lending, Platform, Mobile"
+                    className="h-11 bg-secondary border-border/50 text-sm"
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && workspaceName.trim() && handleWorkspaceNameNext()}
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-rose/10 border border-rose/20">
+                    <AlertCircle className="w-4 h-4 text-rose shrink-0" />
+                    <span className="text-xs text-rose/90">{error}</span>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                className="w-full h-11 bg-cyan text-background font-medium hover:bg-cyan/90 transition-all"
+                onClick={handleWorkspaceNameNext}
+                disabled={!workspaceName.trim() || loadingRepos}
+              >
+                {loadingRepos ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading repos...
+                  </>
+                ) : (
+                  <>
+                    Select Repos
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
+
           {/* ── Select repos ────────────────────────────────── */}
           {step === "select-repos" && (
             <motion.div
@@ -350,23 +441,48 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
               className="space-y-6"
             >
               <div className="space-y-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-emerald animate-pulse" />
-                  <span className="text-xs text-emerald font-medium">
-                    Connected to {orgName}
-                  </span>
-                </div>
+                {!isAdd && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-emerald animate-pulse" />
+                    <span className="text-xs text-emerald font-medium">
+                      Connected to {orgName}
+                    </span>
+                  </div>
+                )}
+                {isAdd && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Workspace: {workspaceName}
+                    </span>
+                  </div>
+                )}
                 <h2 className="text-2xl font-bold tracking-tight">Select repositories</h2>
                 <p className="text-muted-foreground text-sm">
-                  Choose which repos to scan. The AI will analyze the codebase
-                  and build your knowledge base.
+                  Choose which repos to include in this workspace.
                 </p>
               </div>
+
+              {(() => {
+                const projects = [...new Set(availableRepos.map((r) => r.project))].sort();
+                if (projects.length <= 1) return null;
+                return (
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="w-full h-9 px-3 text-xs bg-secondary border border-border/50 rounded-md outline-none focus:border-cyan/40 focus:ring-1 focus:ring-cyan/20 text-foreground"
+                  >
+                    <option value="">All projects</option>
+                    {projects.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                );
+              })()}
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Filter by repo or project name..."
+                  placeholder="Filter repos..."
                   className="h-9 pl-9 bg-secondary border-border/50 text-xs"
                   value={repoSearch}
                   onChange={(e) => setRepoSearch(e.target.value)}
@@ -376,18 +492,44 @@ export function SetupFlow({ onComplete }: SetupFlowProps) {
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {(() => {
                   const q = repoSearch.trim().toLowerCase();
-                  const filtered = q
-                    ? availableRepos.filter(
-                        (r) =>
-                          r.name.toLowerCase().includes(q) ||
-                          r.project.toLowerCase().includes(q)
-                      )
+                  let filtered = selectedProject
+                    ? availableRepos.filter((r) => r.project === selectedProject)
                     : availableRepos;
+                  if (q) {
+                    filtered = filtered.filter((r) => r.name.toLowerCase().includes(q));
+                  }
+                  const allFilteredSelected = filtered.length > 0 && filtered.every((r) => selectedRepoIds.has(r.adoId));
+                  const toggleAll = () => {
+                    setSelectedRepoIds((prev) => {
+                      const next = new Set(prev);
+                      if (allFilteredSelected) {
+                        filtered.forEach((r) => next.delete(r.adoId));
+                      } else {
+                        filtered.forEach((r) => next.add(r.adoId));
+                      }
+                      return next;
+                    });
+                  };
                   return (
                     <>
-                      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider px-1 mb-2">
-                        {q ? `${filtered.length} of ${availableRepos.length}` : availableRepos.length} repositories
-                        {selectedRepoIds.size > 0 && ` · ${selectedRepoIds.size} selected`}
+                      <div className="flex items-center justify-between px-1 mb-2">
+                        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                          {filtered.length !== availableRepos.length ? `${filtered.length} of ${availableRepos.length}` : availableRepos.length} repositories
+                          {selectedRepoIds.size > 0 && ` · ${selectedRepoIds.size} selected`}
+                        </span>
+                        {filtered.length > 0 && (
+                          <button
+                            onClick={toggleAll}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                              allFilteredSelected ? "bg-cyan border-cyan" : "border-muted-foreground/30"
+                            }`}>
+                              {allFilteredSelected && <Check className="w-2.5 h-2.5 text-background" />}
+                            </div>
+                            {allFilteredSelected ? "Unselect all" : "Select all"}
+                          </button>
+                        )}
                       </div>
                       {filtered.map((repo, i) => (
                   <motion.button

@@ -1,0 +1,112 @@
+{
+  "_headHash": "fa24c628a6134127de5b67508b081934e105ac89",
+  "purpose": "Crb.Cos.Commons.Domain is a .NET Core library providing shared domain concerns and custom data types for NHibernate ORM integration across multiple database platforms (SQL Server and PostgreSQL).",
+  "businessFeatures": [
+    "Enum to database lookup management for persisting enum values with descriptions",
+    "Custom data types for NHibernate ORM mappings",
+    "JSON serialization/deserialization for database columns",
+    "Partitioned entity base class for database partitioning",
+    "PostgreSQL specific data type mappings (arrays, JSONB)"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "NHibernate",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Newtonsoft.Json",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Dapper",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Npgsql",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Data",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Extensions",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Reflection",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Secrets",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Dates",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Guids",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "INFO",
+      "category": "architecture",
+      "title": "",
+      "description": "EnumLookupService catches and suppresses all exceptions, potentially hiding critical errors and making debugging difficult"
+    },
+    {
+      "severity": "INFO",
+      "category": "architecture",
+      "title": "",
+      "description": "PostgreSQL and SQL Server specific implementations are mixed in the same library, suggesting a cross-database design pattern"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Domain/EnumLookup/EnumLookupService.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/PartitionedEntity.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/CustomDataTypes/CosDateTimeVersion.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/CustomDataTypes/JsonData.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/CustomDataTypes/JsonDataNVarchar.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/CustomDataTypes/Postgres/ArrayPostgres.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/CustomDataTypes/Postgres/JsonbDataPostgres.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Domain/EnumLookup/EnumLookupModule.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

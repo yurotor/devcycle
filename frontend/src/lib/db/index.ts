@@ -1,11 +1,12 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import fs from "fs";
 import path from "path";
 import * as schema from "./schema";
 
 const DB_PATH = path.join(process.cwd(), "devcycle.db");
 
-const DDL = `
+export const DDL = `
 CREATE TABLE IF NOT EXISTS workspace (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -15,7 +16,6 @@ CREATE TABLE IF NOT EXISTS workspace (
 
 CREATE TABLE IF NOT EXISTS pats (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  workspace_id INTEGER NOT NULL,
   service TEXT NOT NULL,
   encrypted_pat TEXT NOT NULL,
   iv TEXT NOT NULL,
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS jenkins_job_mappings (
 
 // Idempotent column additions — SQLite has no ALTER TABLE IF NOT EXISTS,
 // so we ignore "duplicate column" errors from each statement.
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `ALTER TABLE workspace ADD COLUMN jira_url TEXT`,
   `ALTER TABLE workspace ADD COLUMN jira_done_statuses TEXT`,
   `ALTER TABLE workspace ADD COLUMN jira_project_key TEXT`,
@@ -186,6 +186,58 @@ const MIGRATIONS = [
   `ALTER TABLE pipeline_runs ADD COLUMN min_build_number INTEGER`,
   `ALTER TABLE tasks ADD COLUMN todos TEXT`,
 ];
+
+/** Migrate pats table: drop workspace_id column (SQLite requires table recreation). */
+export function migratePatsDropWorkspaceId(sqlite: InstanceType<typeof Database>) {
+  // Check if workspace_id column still exists
+  const cols = sqlite.pragma("table_info(pats)") as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "workspace_id")) return;
+
+  sqlite.exec(`
+    CREATE TABLE pats_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      service TEXT NOT NULL,
+      username TEXT,
+      encrypted_pat TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO pats_new (id, service, username, encrypted_pat, iv, created_at)
+      SELECT id, service, username, encrypted_pat, iv, created_at FROM pats;
+    DROP TABLE pats;
+    ALTER TABLE pats_new RENAME TO pats;
+  `);
+}
+
+/** Rename the first workspace to "Selling" and move KB files to kb/workspaces/{id}/. */
+export function migrateToWorkspaces(sqlite: InstanceType<typeof Database>, kbRoot?: string) {
+  const KB_ROOT = kbRoot ?? path.join(process.cwd(), "..", "kb");
+  const WORKSPACES_DIR = path.join(KB_ROOT, "workspaces");
+
+  // Already migrated?
+  if (fs.existsSync(WORKSPACES_DIR)) return;
+
+  // Rename first workspace to "Selling"
+  const ws = sqlite.prepare("SELECT id FROM workspace LIMIT 1").get() as { id: number } | undefined;
+  if (ws) {
+    sqlite.prepare("UPDATE workspace SET name = ? WHERE id = ?").run("Selling", ws.id);
+
+    // Move KB files: kb/{wiki,raw} → kb/workspaces/{id}/{wiki,raw}
+    const wsDir = path.join(WORKSPACES_DIR, String(ws.id));
+    fs.mkdirSync(wsDir, { recursive: true });
+
+    for (const sub of ["wiki", "raw"]) {
+      const src = path.join(KB_ROOT, sub);
+      const dest = path.join(wsDir, sub);
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        fs.renameSync(src, dest);
+      }
+    }
+  } else {
+    // No workspace yet — just create the directory so migration doesn't re-run
+    fs.mkdirSync(WORKSPACES_DIR, { recursive: true });
+  }
+}
 
 function createDb() {
   const sqlite = new Database(DB_PATH);
@@ -199,6 +251,8 @@ function createDb() {
       // Column already exists — safe to ignore
     }
   }
+  migratePatsDropWorkspaceId(sqlite);
+  migrateToWorkspaces(sqlite);
   return drizzle(sqlite, { schema });
 }
 

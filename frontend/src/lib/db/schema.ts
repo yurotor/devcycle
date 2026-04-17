@@ -16,7 +16,6 @@ export const workspace = sqliteTable("workspace", {
 
 export const pats = sqliteTable("pats", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  workspaceId: integer("workspace_id").notNull(),
   service: text("service").notNull(), // 'azure' | 'jira'
   username: text("username"), // email for Jira Cloud auth
   encryptedPat: text("encrypted_pat").notNull(), // hex: ciphertext:authTag
@@ -57,6 +56,16 @@ export const tickets = sqliteTable("tickets", {
   planSessionId: text("plan_session_id"), // Claude CLI session ID for plan phase chat
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Waves ───────────────────────────────────────────────────────
+
+export const waves = sqliteTable("waves", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ticketId: integer("ticket_id").notNull(),
+  name: text("name").notNull(),
+  orderIndex: integer("order_index").notNull(),
+  createdAt: integer("created_at").notNull(),
 });
 
 // ─── Tasks ────────────────────────────────────────────────────────

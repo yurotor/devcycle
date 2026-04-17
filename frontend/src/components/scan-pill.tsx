@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,7 +26,7 @@ type PillState = "hidden" | "scanning" | "interview" | "failed" | "done";
 
 // ─── Component ───────────────────────────────────────────────────
 
-export function ScanPill() {
+export function ScanPill({ wsId }: { wsId?: number | null }) {
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [pillState, setPillState] = useState<PillState>("hidden");
   const [expanded, setExpanded] = useState(false);
@@ -39,6 +40,16 @@ export function ScanPill() {
   // Timer for auto-hide after done
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset state when workspace changes
+  useEffect(() => {
+    setStatus(null);
+    setPillState("hidden");
+    setExpanded(false);
+    setInterviewDone(false);
+    autoOpenedRef.current = null;
+    sawActiveRef.current = false;
+  }, [wsId]);
+
   // ── Poll scan status ─────────────────────────────────────────
 
   useEffect(() => {
@@ -46,7 +57,7 @@ export function ScanPill() {
 
     const poll = async () => {
       try {
-        const res = await fetch("/api/scan/status");
+        const res = await fetch(`/api/scan/status${wsId ? `?wsId=${wsId}` : ""}`);
         if (!res.ok) return;
         const data = (await res.json()) as ScanStatus;
         setStatus(data);
@@ -60,7 +71,7 @@ export function ScanPill() {
     poll();
     timer = setInterval(poll, 2000);
     return () => clearInterval(timer);
-  }, []);
+  }, [wsId]);
 
   const scheduleHide = () => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -130,7 +141,7 @@ export function ScanPill() {
     autoOpenedRef.current = null;
     setExpanded(false);
     try {
-      await fetch("/api/scan/start", { method: "POST" });
+      await fetch(`/api/scan/start${wsId ? `?wsId=${wsId}` : ""}`, { method: "POST" });
     } catch { /* ignore */ }
   };
 
@@ -139,6 +150,16 @@ export function ScanPill() {
     setInterviewDone(true);
     setShowInterviewModal(false);
     setPillState("done");
+  };
+
+  const handleReinterview = async () => {
+    try {
+      await fetch(`/api/kb/interview${wsId ? `?wsId=${wsId}` : ""}`, { method: "DELETE" });
+    } catch { /* ignore */ }
+    setInterviewDone(false);
+    autoOpenedRef.current = null;
+    setShowInterviewModal(true);
+    setPillState("interview");
   };
 
   const handlePillClick = () => {
@@ -151,7 +172,9 @@ export function ScanPill() {
 
   // ── Render ────────────────────────────────────────────────────
 
-  if (pillState === "hidden") {
+  const canReinterview = interviewDone && status?.status !== "running";
+
+  if (pillState === "hidden" && !canReinterview) {
     return null;
   }
 
@@ -192,66 +215,69 @@ export function ScanPill() {
 
   return (
     <>
-      {/* ── Interview Modal (centered overlay) ─────────────────── */}
-      <AnimatePresence>
-        {showInterviewModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center"
-          >
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-              onClick={() => setShowInterviewModal(false)}
-            />
-
-            {/* Modal */}
+      {/* ── Interview Modal (portaled to body to escape sticky stacking context) */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {showInterviewModal && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 16 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-[90vw] h-[85vh] max-w-6xl bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden z-10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center"
             >
-              {/* Modal header */}
-              <div className="px-5 py-4 border-b border-border flex items-center gap-3 shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-violet/10 border border-violet/20 flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-violet" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold">System Interview</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Answer questions to enrich the knowledge base with context code can't reveal.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowInterviewModal(false)}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                onClick={() => setShowInterviewModal(false)}
+              />
 
-              {/* Chat body */}
-              <div className="flex-1 overflow-hidden">
-                <ChoiceChat
-                  theme="violet"
-                  apiUrl="/api/kb/interview"
-                  autoStartMessage="Let's start the interview. I'm ready to answer questions about our system."
-                  hideAutoStart
-                  onReady={handleInterviewDone}
-                  placeholder="Answer the question or provide more context..."
-                />
-              </div>
+              {/* Modal */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-[90vw] h-[85vh] max-w-6xl bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden z-10"
+              >
+                {/* Modal header */}
+                <div className="px-5 py-4 border-b border-border flex items-center gap-3 shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-violet/10 border border-violet/20 flex items-center justify-center">
+                    <MessageSquare className="w-4 h-4 text-violet" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold">System Interview</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Answer questions to enrich the knowledge base with context code can't reveal.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowInterviewModal(false)}
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Chat body */}
+                <div className="flex-1 overflow-hidden">
+                  <ChoiceChat
+                    theme="violet"
+                    apiUrl={`/api/kb/interview${wsId ? `?wsId=${wsId}` : ""}`}
+                    autoStartMessage="Let's start the interview. I'm ready to answer questions about our system."
+                    hideAutoStart
+                    onReady={handleInterviewDone}
+                    placeholder="Answer the question or provide more context..."
+                  />
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ── Pill + small expanded view ─────────────────────────── */}
-      <div className="relative flex flex-col items-end gap-2">
+      <div className="relative flex items-center gap-2">
         {/* Small expanded detail view (scan log / failure only) */}
         <AnimatePresence>
           {expanded && pillState !== "interview" && (
@@ -328,23 +354,37 @@ export function ScanPill() {
           )}
         </AnimatePresence>
 
+        {/* Re-interview button */}
+        {canReinterview && (
+          <button
+            onClick={handleReinterview}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-violet/30 text-xs font-medium text-violet hover:bg-violet/10 transition-colors"
+            title="Re-run knowledge base interview"
+          >
+            <MessageSquare className="w-3 h-3" />
+            <span>Re-interview</span>
+          </button>
+        )}
+
         {/* Pill button */}
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          whileHover={{ scale: 1.02 }}
-          onClick={handlePillClick}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium transition-colors ${pillColor}`}
-        >
-          {pillIcon}
-          <span className="text-background">{pillLabel}</span>
-          {pillState !== "interview" && (
-            <ChevronUp
-              className={`w-3 h-3 text-background/70 transition-transform ${expanded ? "rotate-180" : ""}`}
-            />
-          )}
-        </motion.button>
+        {pillState !== "hidden" && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            whileHover={{ scale: 1.02 }}
+            onClick={handlePillClick}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium transition-colors ${pillColor}`}
+          >
+            {pillIcon}
+            <span className="text-background">{pillLabel}</span>
+            {pillState !== "interview" && (
+              <ChevronUp
+                className={`w-3 h-3 text-background/70 transition-transform ${expanded ? "rotate-180" : ""}`}
+              />
+            )}
+          </motion.button>
+        )}
       </div>
     </>
   );

@@ -1,0 +1,17 @@
+{
+  "_headHash": "e2c8f0af1da09257709786067bf5133b5a0b696b",
+  "purpose": "Repository \"core-explorer\" contains 939 files. (Stub — re-scan with Claude API to get deep analysis.)",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [
+    "Node.js"
+  ],
+  "findings": [],
+  "ambiguities": [],
+  "keyFiles": []
+}

@@ -1,0 +1,18 @@
+{
+  "_headHash": "c8b812785b717ffb94327561bd17275660426491",
+  "purpose": "Repository \"cos-explorer-2\" contains 7976 files. (Stub — re-scan with Claude API to get deep analysis.)",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [
+    "Node.js",
+    "Docker"
+  ],
+  "findings": [],
+  "ambiguities": [],
+  "keyFiles": []
+}

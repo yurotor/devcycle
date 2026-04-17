@@ -1,0 +1,17 @@
+{
+  "_headHash": "3db5fa98134463398d1e08404000bda59b6ffdfc",
+  "purpose": "Repository \"cos-explorer-common-lib\" contains 939 files. (Stub — re-scan with Claude API to get deep analysis.)",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [
+    "Node.js"
+  ],
+  "findings": [],
+  "ambiguities": [],
+  "keyFiles": []
+}

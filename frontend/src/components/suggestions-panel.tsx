@@ -45,7 +45,7 @@ const SEVERITY_STYLE = {
   high: "bg-amber/15 text-amber border-amber/20",
 };
 
-export function SuggestionsPanel() {
+export function SuggestionsPanel({ wsId }: { wsId?: number | null }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [dismissing, setDismissing] = useState<Set<string>>(new Set());
@@ -54,7 +54,7 @@ export function SuggestionsPanel() {
 
   const fetchSuggestions = () => {
     setLoading(true);
-    fetch("/api/suggestions")
+    fetch(`/api/suggestions${wsId ? `?wsId=${wsId}` : ""}`)
       .then((res) => res.json())
       .then((data) => setSuggestions(data.suggestions ?? []))
       .catch(() => setSuggestions([]))

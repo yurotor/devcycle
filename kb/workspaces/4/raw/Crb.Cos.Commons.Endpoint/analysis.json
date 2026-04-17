@@ -1,0 +1,49 @@
+{
+  "_headHash": "01c04f944b9026b3a3312ba40d571d80cc703b6c",
+  "purpose": "Provides a standardized way to configure and bootstrap .NET host applications with common concerns like dependency injection, messaging, logging, configuration management, and health checks.",
+  "businessFeatures": [
+    "Standardized host creation and bootstrapping for backend services",
+    "Environment-variable based configuration loading",
+    "RabbitMQ health check implementation",
+    "NewRelic integration for application monitoring",
+    "Support for secrets management"
+  ],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "RabbitMQ connection string is converted from NServiceBus format to AMQP URI format but includes credentials in the URI which may appear in logs"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Endpoint/CrbHostBuilder.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Endpoint/HostingExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Endpoint/Configuration/ConfigurationManagerLoader.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Endpoint/Healthchecks/RabbitMqHealthCheck.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Endpoint/CommonsModule.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

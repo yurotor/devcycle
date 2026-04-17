@@ -15,8 +15,8 @@ import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
-const REPOS_DIR = path.join(KB_ROOT, "repos");
+import { getKbRoot, getKbBase } from "@/lib/kb-path";
+const REPOS_DIR = path.join(getKbBase(), "repos");
 const SKILLS_DIR = path.join(process.cwd(), "..", ".claude", "skills");
 const PLUGINS_DIR = path.join(process.env.HOME ?? "", ".claude", "plugins", "marketplaces");
 
@@ -98,6 +98,7 @@ export async function POST(
   const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
   if (!ticket) return Response.json({ error: "Ticket not found" }, { status: 404 });
 
+  const kbRoot = getKbRoot(ticket.workspaceId);
   const now = Date.now();
 
   // Save user message
@@ -156,7 +157,7 @@ export async function POST(
 
       if (isFirstTurn) {
         // Load business context
-        const kbContext = loadBusinessContext();
+        const kbContext = loadBusinessContext(kbRoot);
 
         prompt = `## Ticket
 **${ticket.jiraKey}: ${ticket.title}**
@@ -184,7 +185,7 @@ ${message}`;
       };
 
       const streamResult = await claudeExecStreaming(prompt, {
-        addDirs: [KB_ROOT, ...repoDirs],
+        addDirs: [kbRoot, ...repoDirs],
         model: "sonnet",
         maxBudget: 1.50,
         allowedTools: ["Read", "Grep", "Glob"],
@@ -330,9 +331,9 @@ IMPORTANT: You MUST explore the codebase (Read, Grep, Glob) before and between q
 
 // ─── Business context from KB ─────────────────────────────────────
 
-function loadBusinessContext(): string {
+function loadBusinessContext(kbRoot: string): string {
   const sections: string[] = [];
-  const synthPath = path.join(KB_ROOT, "raw", "system-synthesis.json");
+  const synthPath = path.join(kbRoot, "raw", "system-synthesis.json");
   if (fs.existsSync(synthPath)) {
     try {
       const synth = JSON.parse(fs.readFileSync(synthPath, "utf8"));

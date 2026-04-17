@@ -2,14 +2,15 @@
 // Returns all tickets for the current workspace, mapped to the UI Ticket shape.
 
 import { db } from "@/lib/db";
-import { tickets, workspace } from "@/lib/db/schema";
+import { tickets } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ensurePreprocessing } from "@/lib/preprocess";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   // Kick off background pre-processing of new tickets (no-op if already started)
   ensurePreprocessing();
-  const [ws] = await db.select().from(workspace).limit(1);
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws) {
     return Response.json({ tickets: [] });
   }

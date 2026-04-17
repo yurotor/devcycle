@@ -1,0 +1,116 @@
+{
+  "_headHash": "5a33dd50dba15b0273206db5f657cacca1742ed9",
+  "purpose": "AWS ECS autoscaling service for RabbitMQ queues",
+  "businessFeatures": [
+    "Automatic scaling of ECS services based on RabbitMQ queue metrics",
+    "Support for scheduled scaling based on time of day and day of week",
+    "Configurable minimum and maximum instance counts",
+    "Monitoring of queue message rates and backlogs"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "AWS ECS",
+      "type": "External Service"
+    },
+    {
+      "target": "AWS DynamoDB",
+      "type": "External Service"
+    },
+    {
+      "target": "RabbitMQ Management API",
+      "type": "External Service"
+    },
+    {
+      "target": "Crb.Cos.Commons.Nsb.Host",
+      "type": "Internal NuGet Package"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "ScaledObject",
+      "description": "Configuration for scaling a specific service/queue"
+    },
+    {
+      "name": "Queue",
+      "description": "RabbitMQ queue metrics"
+    },
+    {
+      "name": "ScheduledScaling",
+      "description": "Time-based scaling configuration"
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [
+    {
+      "system": "RabbitClient",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "ECSClient",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    },
+    {
+      "system": "DynamoDBClient",
+      "direction": "bidirectional",
+      "protocol": "unknown"
+    }
+  ],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "The repository lacks comprehensive documentation about configuration options and deployment instructions"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "The README.md is a placeholder template with no actual content about the service"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/Startup.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/ScaleController.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/Models/ScaledObject.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/Clients/ECSClient.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/Clients/RabbitClient.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/MonitorMQ.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler/ScheduleEvaluator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Aws.DynamoDB/DynamoTableRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Ecs.AutoScaler.Dynamo.Tool/Program.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

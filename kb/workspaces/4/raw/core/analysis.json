@@ -1,0 +1,64 @@
+{
+  "_headHash": "e88484255064fe82cfd907832cf3ab24e433b1cb",
+  "purpose": "",
+  "businessFeatures": [],
+  "apis": [],
+  "dependencies": [],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "Cos/src/Crb.Cos.Core.Api/Controllers/Customers/CustomerController.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Api/Controllers/AccountingController.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Activity.Endpoint/Handlers/TransactionCompletedHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Activity.Endpoint/Handlers/TransactionRejectedHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Handlers/Prologue/ExportRollupEntriesHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Handlers/Prologue/ProcessRollupEntriesHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Handlers/Sweeps/AllocateSweepAccountsHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Handlers/TaxDocuments/ImportTaxDocumentHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Handlers/Treasury/ProcessZeroBalanceAccountsHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Accounting.Endpoint/Components/LocalFileManager.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Activity.Endpoint/Program.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Cos/src/Crb.Cos.Core.Api/Startup.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

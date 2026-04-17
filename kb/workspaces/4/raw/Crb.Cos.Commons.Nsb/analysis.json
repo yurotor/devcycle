@@ -1,0 +1,129 @@
+{
+  "_headHash": "0943bd5db931cbb3f42a35a79b77396d5c543c88",
+  "purpose": "This repository provides a common utility library for NServiceBus implementation in the CRB COS (Corebridge Customer Operations System) platform. It offers standardized configurations, behaviors, extensions, and patterns for using NServiceBus messaging across the COS ecosystem.",
+  "businessFeatures": [
+    "Message routing and endpoint configuration",
+    "Global settings management with database-backed configuration",
+    "Message auditing with configurable filtering",
+    "Database-driven endpoint instance mapping for dynamic routing",
+    "Interoperability with MassTransit messaging",
+    "Standardized logging configuration and enrichment",
+    "Well-known message header propagation and management",
+    "Support for unsubscribing from events when no longer needed",
+    "NewRelic performance monitoring integration"
+  ],
+  "apis": [
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Provides standardized configuration methods for NServiceBus endpoints with CRB-specific defaults"
+    },
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Provides access to centralized configuration settings stored in database"
+    },
+    {
+      "method": "GET",
+      "endpoint": "",
+      "purpose": "Extends NServiceBus message handling with CRB-specific functionality including user context and simplified sending/publishing"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "NServiceBus",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NHibernate",
+      "type": "shared-lib"
+    },
+    {
+      "target": "RabbitMQ",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Serilog",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NewRelic",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "GlobalSetting",
+      "description": ""
+    },
+    {
+      "name": "PhysicalEndpointInstance",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [
+    "Message-based architecture",
+    "Pipeline behaviors",
+    "Feature-based configuration",
+    "Repository pattern"
+  ],
+  "techStack": [],
+  "findings": [],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/BusExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/GlobalSettingsRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/GlobalSettingsProvider.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/PhysicalEndpointInstanceRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/Features/DatabaseDrivenInstanceMappingFeature.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/Features/NewRelicFeature.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/Behaviors/AuditBehavior.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/Interoperability/MassTransitMessageIngestBehavior.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/Logging/LoggingConfig.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Nsb/WellKnownHeadersMutator.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": [
+    "The 'COS' system appears to be a Customer Operations System but its specific business functionality is not defined in this library",
+    "References to 'CredentialWatcherConnectionProvider' but the implementation details are not present in this repository",
+    "The 'WellKnownHeaderNames' class is referenced but not fully defined in the visible code"
+  ]
+}

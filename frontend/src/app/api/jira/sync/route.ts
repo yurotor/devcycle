@@ -2,13 +2,14 @@
 // Re-fetches all Jira tickets using stored credentials.
 
 import { db } from "@/lib/db";
-import { workspace, pats, tickets } from "@/lib/db/schema";
+import { pats, tickets } from "@/lib/db/schema";
 import { decryptPat } from "@/lib/crypto";
 import { JiraClient } from "@/lib/jira/client";
 import { and, eq } from "drizzle-orm";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
-export async function POST() {
-  const [ws] = await db.select().from(workspace).limit(1);
+export async function POST(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
   if (!ws?.jiraUrl) {
     return Response.json({ error: "Jira not configured" }, { status: 404 });
   }
@@ -16,7 +17,7 @@ export async function POST() {
   const [pat] = await db
     .select()
     .from(pats)
-    .where(and(eq(pats.workspaceId, ws.id), eq(pats.service, "jira")));
+    .where(eq(pats.service, "jira"));
 
   if (!pat) {
     return Response.json({ error: "Jira credentials not found" }, { status: 404 });

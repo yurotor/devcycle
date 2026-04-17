@@ -1,0 +1,90 @@
+{
+  "_headHash": "c26595a6f208201324641a9541cd7cc5f05ba124",
+  "purpose": "A build toolkit repository that provides standardized build processes, pipeline templates, and TypeScript code generation for .NET projects within the Cross River Bank (CRB) ecosystem.",
+  "businessFeatures": [
+    "Automatic TypeScript client generation from C# API contracts",
+    "Database deployment scripts management",
+    "Assembly binding redirect management",
+    "Standardized versioning using GitVersion"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Nuke.Common",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NSwag",
+      "type": "shared-lib"
+    },
+    {
+      "target": "NJsonSchema",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Buildalyzer",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Microsoft.CodeAnalysis",
+      "type": "shared-lib"
+    },
+    {
+      "target": "GitVersion",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [
+    "Shared build tooling",
+    "Code generation",
+    "CI/CD pipeline templates",
+    "Convention over configuration"
+  ],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "Repository has minimal documentation - the README.md is a template without actual implementation details"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "Domain.Build/Build.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Build.Db.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Build.GenTS.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Build.Bindings.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Generation/Generator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Generation/ImportGenerator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "Domain.Build/Generation/CosTypeNameGenerator.cs",
+      "purpose": ""
+    },
+    {
+      "path": "azure-devops/pipeline-templates/",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface MarkdownViewerProps {
   path: string;
   onNavigate?: (path: string) => void;
+  wsId?: number | null;
 }
 
 /** Resolve a relative link against the current file's directory. */
@@ -79,7 +80,7 @@ function renderInline(
   });
 }
 
-export function MarkdownViewer({ path, onNavigate }: MarkdownViewerProps) {
+export function MarkdownViewer({ path, onNavigate, wsId }: MarkdownViewerProps) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -87,14 +88,14 @@ export function MarkdownViewer({ path, onNavigate }: MarkdownViewerProps) {
     setContent(null);
     setError(false);
 
-    fetch(`/api/kb/file?path=${encodeURIComponent(path)}`)
+    fetch(`/api/kb/file?path=${encodeURIComponent(path)}${wsId ? `&wsId=${wsId}` : ""}`)
       .then((res) => {
         if (!res.ok) throw new Error("Not found");
         return res.text();
       })
       .then(setContent)
       .catch(() => setError(true));
-  }, [path]);
+  }, [path, wsId]);
 
   if (content === null && !error) {
     return (

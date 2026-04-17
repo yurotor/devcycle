@@ -4,10 +4,10 @@
 
 import fs from "fs";
 import path from "path";
+import { getKbRoot } from "@/lib/kb-path";
+import { getWorkspace, getWsIdFromRequest } from "@/lib/db/helpers";
 
 export const dynamic = "force-dynamic";
-
-const KB_ROOT = path.join(process.cwd(), "..", "kb");
 
 interface KBFile {
   name: string;
@@ -16,12 +16,16 @@ interface KBFile {
   children?: KBFile[];
 }
 
-export async function GET() {
-  if (!fs.existsSync(KB_ROOT)) {
+export async function GET(request: Request) {
+  const ws = await getWorkspace(getWsIdFromRequest(request));
+  if (!ws) return Response.json([]);
+
+  const kbRoot = getKbRoot(ws.id);
+  if (!fs.existsSync(kbRoot)) {
     return Response.json([]);
   }
 
-  const tree = buildTree(KB_ROOT, "");
+  const tree = buildTree(kbRoot, "");
   return Response.json(tree);
 }
 

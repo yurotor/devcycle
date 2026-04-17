@@ -1,0 +1,128 @@
+{
+  "_headHash": "d48f7347216520e172f3fae8dfa59524e1b844b6",
+  "purpose": "",
+  "businessFeatures": [
+    "User permission-based authorization",
+    "Idempotency handling for API requests",
+    "Request/response logging",
+    "Health check endpoints",
+    "Request tracing and correlation"
+  ],
+  "apis": [],
+  "dependencies": [
+    {
+      "target": "Crb.Cos.Commons",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Contracts",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Logging",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Crb.Cos.Commons.Security",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Asp.Versioning",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Swashbuckle",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Dapper",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Serilog",
+      "type": "shared-lib"
+    },
+    {
+      "target": "Autofac",
+      "type": "shared-lib"
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "IdempotentKey",
+      "description": ""
+    },
+    {
+      "name": "IdempotentContent",
+      "description": ""
+    },
+    {
+      "name": "ApiLogEntry",
+      "description": ""
+    }
+  ],
+  "messagingPatterns": [],
+  "integrations": [],
+  "architecturePatterns": [
+    "Middleware Pipeline",
+    "Attribute-based Authorization",
+    "Health Check Pattern",
+    "Policy-based Authorization",
+    "Repository Pattern",
+    "Filters"
+  ],
+  "techStack": [],
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "architecture",
+      "title": "",
+      "description": "The IdempotentRepository uses direct SQL queries without parameterized queries in some places, potentially exposing the system to SQL injection attacks"
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "title": "",
+      "description": "The library depends on a 'Logging' connection string for idempotency features, but doesn't clearly document this requirement"
+    }
+  ],
+  "keyFiles": [
+    {
+      "path": "src/Crb.Cos.Commons.Api/Extensions/CosWebAppBuilderExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Extensions/CosWebAppExtensions.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Attributes/RequirePermissionsAttribute.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Framework/IdempotentRepository.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Attributes/IdempotencyKeyAttribute.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Authorization/RequirePermissionsHandler.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Controllers/PingController.cs",
+      "purpose": ""
+    },
+    {
+      "path": "src/Crb.Cos.Commons.Api/Middleware/CosErrorResponseMiddleware.cs",
+      "purpose": ""
+    },
+    {
+      "path": "examples/Examples.Defaults/Program.cs",
+      "purpose": ""
+    }
+  ],
+  "ambiguities": []
+}

@@ -1,0 +1,985 @@
+{
+  "ambiguities": [],
+  "systemOverview": "The COS (Customer Operations System) is Cross River Bank's core banking platform built on a distributed microservices architecture using .NET and Node.js technologies. The system provides comprehensive banking operations including account management, payment processing, transaction handling, accounting operations, tax document management, treasury operations, and customer onboarding. The architecture is organized into three layers: 1) Shared infrastructure libraries (Crb.Cos.Commons.*) providing common functionality like database access (NHibernate/PostgreSQL), messaging (NServiceBus/MassTransit over RabbitMQ), API standardization, security, logging, and domain patterns; 2) Core business services including 'core' (main banking API with customer/accounting controllers), 'core-ht', transaction activity processors, and accounting endpoints that handle prologue entries, sweeps, tax documents, and treasury operations; 3) Supporting services including data export tools, database migration utilities, ECS autoscaling, and frontend applications (Explorer UI built with Node.js). The system runs on AWS infrastructure using ECS containers with RDS databases, communicates via asynchronous messaging through RabbitMQ, and integrates with New Relic for monitoring. The platform supports multi-tenancy with partner-based access control and enforces permission-based authorization.",
+  "serviceMap": [
+    {
+      "repo": "core",
+      "role": "Main banking API providing customer management and accounting operations via REST endpoints",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Security",
+        "core-explorer",
+        "cos-explorer-2"
+      ]
+    },
+    {
+      "repo": "core-ht",
+      "role": "Backend service for specialized banking operations (stub analysis, likely handles high-throughput transactions)",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Messaging"
+      ]
+    },
+    {
+      "repo": "core-explorer",
+      "role": "Node.js-based frontend application for exploring/managing banking data",
+      "communicatesWith": [
+        "core",
+        "cos-explorer-common-lib"
+      ]
+    },
+    {
+      "repo": "cos-explorer-2",
+      "role": "Next-generation Node.js frontend application for banking operations",
+      "communicatesWith": [
+        "core",
+        "cos-explorer-common-lib"
+      ]
+    },
+    {
+      "repo": "cos-explorer-common-lib",
+      "role": "Shared Node.js library providing common functionality for Explorer frontend applications",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons.Api",
+      "role": "Shared library providing API middleware, authorization, idempotency, health checks, and logging for REST services",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Contracts",
+        "Crb.Cos.Commons.Security",
+        "Crb.Cos.Commons.Logging"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Api.Core",
+      "role": "Core version of API library with .NET Core-specific implementations",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Contracts",
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Database",
+      "role": "Database access layer providing NHibernate-based ORM with repository patterns, supporting PostgreSQL with AWS IAM authentication",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons.Domain",
+      "role": "Domain layer library providing custom NHibernate data types, enum lookup services, and partitioned entity support",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Database"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Messaging",
+      "role": "MassTransit-based messaging library with RabbitMQ transport, Hangfire scheduling, and NServiceBus interoperability",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Contracts"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Nsb",
+      "role": "NServiceBus wrapper library providing messaging configuration, global settings, audit behaviors, and MassTransit interoperability",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Logging"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Nsb.Core",
+      "role": ".NET Core version of NServiceBus integration with health checks, trace propagation, and host builder utilities",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Logging"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Security",
+      "role": "Security library providing user authentication, role-based permissions, multi-tenant access control, and domain security",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Database"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Contracts",
+      "role": "Shared data models, validation framework, exception types, and serialization converters used across all services",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons",
+      "role": "Base utility library providing banking utilities, caching, database connections, date handling, secret management, and IoC support",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons.Logging",
+      "role": "Serilog-based logging library with log enrichment, filtering, and configuration management",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons.Endpoint",
+      "role": "Host builder library for standardizing backend service bootstrapping with configuration, messaging, and health checks",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Logging"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Services",
+      "role": "Service layer library providing handler patterns and security service facade",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "repo": "Crb.Cos.Commons.Testing",
+      "role": "Testing framework providing BDD patterns, repository mocking, and NHibernate mapping validation",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Commons.Data.JsonPopulator",
+      "role": "Utility for populating database tables from JSON files for both SQL Server and PostgreSQL",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Database.Export",
+      "role": "Data export service that extracts database data to Parquet files on S3 with DynamoDB progress tracking",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Crb.Cos.Dbup.Database",
+      "role": "Database migration tool using DbUp for managing SQL scripts in PostgreSQL and SQL Server",
+      "communicatesWith": []
+    },
+    {
+      "repo": "cos-ecs-autoscaler",
+      "role": "ECS autoscaling service that scales services based on RabbitMQ queue metrics and scheduled scaling rules",
+      "communicatesWith": [
+        "Crb.Cos.Commons.Nsb.Host"
+      ]
+    },
+    {
+      "repo": "cos-build-tools",
+      "role": "Build toolkit providing TypeScript client generation from C# contracts, database deployment scripts, and versioning",
+      "communicatesWith": []
+    },
+    {
+      "repo": "cos-container-base-image",
+      "role": "Custom Docker base images for .NET applications with Alpine Linux and New Relic monitoring",
+      "communicatesWith": []
+    },
+    {
+      "repo": "cos-container-deployment",
+      "role": "Terraform modules for ECS container deployment infrastructure (listening, non-listening, and dynamic services)",
+      "communicatesWith": []
+    },
+    {
+      "repo": "cos-environment",
+      "role": "Infrastructure-as-code repository managing AWS resources including VPC, EC2, ECS, RDS, Lambda, IAM, and networking",
+      "communicatesWith": []
+    },
+    {
+      "repo": "core-payments",
+      "role": "Empty repository placeholder (likely planned payment processing service)",
+      "communicatesWith": []
+    },
+    {
+      "repo": "Cos.Exercise.DistributedPaymentSolution",
+      "role": "Empty template repository for distributed payment system exercises",
+      "communicatesWith": []
+    }
+  ],
+  "features": [
+    {
+      "name": "Customer Management",
+      "description": "Provides APIs for creating, retrieving, updating customer records including KYC information, contact details, and account associations",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Security"
+      ],
+      "dataFlow": "1) Frontend (core-explorer/cos-explorer-2) sends REST request to core API → 2) Crb.Cos.Commons.Api middleware handles authentication, authorization, idempotency → 3) core CustomerController processes business logic → 4) Crb.Cos.Commons.Database repository persists to PostgreSQL RDS → 5) Response returned to frontend"
+    },
+    {
+      "name": "Transaction Processing",
+      "description": "Handles banking transaction lifecycle including completion, rejection, and activity tracking with asynchronous event-driven processing",
+      "repos": [
+        "core",
+        "core-ht",
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Database"
+      ],
+      "dataFlow": "1) Transaction initiated via core API → 2) Transaction event published to RabbitMQ via Crb.Cos.Commons.Messaging → 3) core Activity.Endpoint TransactionCompletedHandler or TransactionRejectedHandler consumes message → 4) Handler updates transaction state in database via Crb.Cos.Commons.Database → 5) Activity records persisted to PostgreSQL"
+    },
+    {
+      "name": "Accounting Operations",
+      "description": "Manages general ledger entries, rollup processing, journal entries, and financial reporting for banking operations",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Messaging"
+      ],
+      "dataFlow": "1) Scheduled job or API trigger initiates accounting process → 2) Accounting.Endpoint handlers (ExportRollupEntriesHandler, ProcessRollupEntriesHandler) process accounting entries → 3) Entries aggregated and validated → 4) Results persisted to database via Crb.Cos.Commons.Database → 5) Completion events published to RabbitMQ → 6) LocalFileManager exports reports to file storage"
+    },
+    {
+      "name": "Treasury Operations",
+      "description": "Manages sweep accounts, zero balance accounts, and treasury workflows for liquidity management",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Database"
+      ],
+      "dataFlow": "1) Scheduled AllocateSweepAccountsHandler or ProcessZeroBalanceAccountsHandler triggered → 2) Handler queries accounts requiring sweep via Crb.Cos.Commons.Database → 3) Sweep calculations performed based on business rules → 4) Transfer instructions created and persisted → 5) Sweep completion notifications sent via messaging"
+    },
+    {
+      "name": "Tax Document Management",
+      "description": "Imports, processes, and manages tax documents (1099s, 1098s) for customer accounts with validation and storage",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Database"
+      ],
+      "dataFlow": "1) ImportTaxDocumentHandler receives tax document import message → 2) Document parsed and validated against account records → 3) Tax document entity created via Crb.Cos.Commons.Database repository → 4) Document stored in database with audit trail → 5) Customer notification triggered via messaging"
+    },
+    {
+      "name": "Data Export & Analytics",
+      "description": "Extracts banking data incrementally to Parquet files on S3 for analytics and data warehousing with progress tracking",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ],
+      "dataFlow": "1) Apache Airflow DAG triggers export job with table/schema parameters → 2) DatabaseReaderBase queries source PostgreSQL/SQL Server with batching → 3) ParquetExporterBase converts rows to Parquet format → 4) ParquetS3Exporter uploads to S3 bucket → 5) DynamoDbProgessStore updates checkpoint in DynamoDB → 6) SQS notification sent on completion"
+    },
+    {
+      "name": "ECS Service Autoscaling",
+      "description": "Dynamically scales ECS container services based on RabbitMQ queue depth and scheduled scaling rules",
+      "repos": [
+        "cos-ecs-autoscaler",
+        "Crb.Cos.Commons.Nsb.Host"
+      ],
+      "dataFlow": "1) MonitorMQ periodically polls RabbitMQ Management API via RabbitClient → 2) Queue metrics (depth, rate) evaluated against ScaledObject configuration from DynamoDB → 3) ScheduleEvaluator checks time-based scaling rules → 4) ScaleController calculates desired task count → 5) ECSClient updates ECS service desired count via AWS API → 6) ECS orchestrates container scaling"
+    },
+    {
+      "name": "Database Migration",
+      "description": "Manages schema migrations and data scripts for PostgreSQL and SQL Server databases with version tracking",
+      "repos": [
+        "Crb.Cos.Dbup.Database"
+      ],
+      "dataFlow": "1) Migration tool invoked with connection string and scripts directory → 2) Upgrader checks 'dbupscripts' journal table for executed scripts → 3) FileScriptProvider loads unexecuted scripts from filesystem → 4) Scripts executed in order via DbUp engine → 5) Successful executions recorded in journal table → 6) Summary logged with success/failure status"
+    },
+    {
+      "name": "Role-Based Access Control",
+      "description": "Enforces permission-based authorization with multi-tenant partner isolation across all API endpoints",
+      "repos": [
+        "Crb.Cos.Commons.Security",
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Database"
+      ],
+      "dataFlow": "1) API request includes authentication token (JWT/Auth0) → 2) RequirePermissionsHandler extracts user identity → 3) SecurityUserRepository queries user permissions from SQL database → 4) DomainPermissionService evaluates user roles and permissions → 5) PartnersFilterDefinition applies tenant isolation filters → 6) Request allowed/denied based on permission check"
+    },
+    {
+      "name": "Asynchronous Messaging",
+      "description": "Provides reliable message-based communication between services with routing, retries, idempotency, and interoperability",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core"
+      ],
+      "dataFlow": "1) Service publishes message via MassTransit ISendEndpointProvider or NServiceBus IMessageSession → 2) WellKnownHeadersOutgoingFilter adds correlation headers (TraceId, RequestId, UserId) → 3) Message serialized to JSON and sent to RabbitMQ exchange → 4) RabbitMQ routes to target queue based on message type → 5) Consuming service receives message via MassTransit consumer or NServiceBus handler → 6) NServiceBusInteropFilter handles cross-framework compatibility → 7) Handler processes message with automatic retry on failure → 8) NewRelic observers record message metrics"
+    },
+    {
+      "name": "TypeScript Client Generation",
+      "description": "Automatically generates TypeScript client SDKs from C# API contracts for frontend consumption",
+      "repos": [
+        "cos-build-tools"
+      ],
+      "dataFlow": "1) Build process invokes Nuke Build.GenTS target → 2) Generator scans .NET assemblies for API controllers via Buildalyzer → 3) NSwag extracts OpenAPI schema from controller attributes → 4) CosTypeNameGenerator customizes TypeScript type names → 5) ImportGenerator creates TypeScript interface definitions → 6) Generated .ts files written to output directory → 7) Frontend projects reference generated SDK"
+    },
+    {
+      "name": "Distributed Tracing",
+      "description": "Propagates trace context across HTTP and messaging boundaries for end-to-end observability",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb.Core",
+        "Crb.Cos.Commons.Api"
+      ],
+      "dataFlow": "1) Incoming request generates/extracts OpenTelemetry-compatible TraceId → 2) WellKnownHeadersMutator adds TraceId to message headers → 3) TraceIdPropagationFeature ensures header propagation across service boundaries → 4) Each service logs with TraceId via LogIdEnricher → 5) NewRelic captures trace spans → 6) End-to-end trace viewable in New Relic APM"
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "Customer Onboarding Flow",
+      "description": "End-to-end flow for onboarding a new banking customer with account setup",
+      "steps": [
+        "1. User submits customer application via Explorer frontend (cos-explorer-2)",
+        "2. Frontend calls core API POST /customers endpoint with customer details",
+        "3. Crb.Cos.Commons.Api middleware validates request, checks idempotency, authenticates user",
+        "4. core CustomerController validates business rules using Crb.Cos.Commons.Contracts.ValidatableModel",
+        "5. SecurityService checks user has CREATE_CUSTOMER permission via Crb.Cos.Commons.Security",
+        "6. Customer entity persisted to PostgreSQL via Crb.Cos.Commons.Database NHibernate repository",
+        "7. CustomerCreated event published to RabbitMQ via Crb.Cos.Commons.Messaging",
+        "8. Downstream services (KYC, account creation) consume event and perform onboarding steps",
+        "9. Response returned to frontend with customer ID and status"
+      ]
+    },
+    {
+      "name": "Payment Transaction Flow",
+      "description": "Processing of a payment transaction from initiation to completion with accounting entries",
+      "steps": [
+        "1. Payment initiated via core API or received from external integration",
+        "2. Transaction record created in database with PENDING status",
+        "3. TransactionInitiated event published to RabbitMQ",
+        "4. core-ht or payment processing service validates and processes transaction",
+        "5. Transaction validation checks (balance, limits, fraud) performed",
+        "6. Transaction completed or rejected, TransactionCompleted/TransactionRejected event published",
+        "7. core Activity.Endpoint TransactionCompletedHandler consumes event",
+        "8. Handler updates transaction status and creates activity record",
+        "9. Accounting.Endpoint handlers create GL entries for the transaction",
+        "10. ProcessRollupEntriesHandler aggregates entries for financial reporting",
+        "11. ExportRollupEntriesHandler exports entries to LocalFileManager",
+        "12. Final status notification sent to customer via messaging"
+      ]
+    },
+    {
+      "name": "End-of-Day Accounting Processing",
+      "description": "Nightly batch process for generating accounting reports and reconciling accounts",
+      "steps": [
+        "1. Scheduled trigger initiates EOD processing (Hangfire via Crb.Cos.Commons.Messaging)",
+        "2. ProcessRollupEntriesHandler queries all day's transactions from database",
+        "3. Handler aggregates entries by account, GL code, and partner",
+        "4. Validation rules applied to ensure balanced entries",
+        "5. Rollup entries persisted to accounting tables via Crb.Cos.Commons.Database",
+        "6. ExportRollupEntriesHandler generates accounting reports",
+        "7. LocalFileManager exports reports to file storage or SFTP",
+        "8. ProcessZeroBalanceAccountsHandler processes sweep operations",
+        "9. AllocateSweepAccountsHandler allocates funds to sweep accounts",
+        "10. Completion event published to RabbitMQ",
+        "11. External accounting systems notified via integration"
+      ]
+    },
+    {
+      "name": "Database Migration Deployment",
+      "description": "Deploying schema changes and data migrations to production databases",
+      "steps": [
+        "1. Developer commits SQL scripts to repository in one-time or every-time directories",
+        "2. CI/CD pipeline (Azure DevOps) builds database migration Docker image",
+        "3. Terraform (cos-container-deployment) deploys migration task to ECS",
+        "4. Crb.Cos.Dbup.Database container starts with connection string from AWS Secrets Manager",
+        "5. Upgrader reads 'dbupscripts' journal table to identify executed scripts",
+        "6. FileScriptProvider loads unexecuted one-time scripts",
+        "7. Scripts executed sequentially via DbUp engine",
+        "8. Successful scripts recorded in journal table with timestamp",
+        "9. EveryTimeFileScriptProvider executes every-time scripts (views, stored procs)",
+        "10. Migration logs sent to Serilog and New Relic",
+        "11. Task completes and ECS task terminates"
+      ]
+    },
+    {
+      "name": "Data Analytics Export Pipeline",
+      "description": "Incremental extraction of banking data to data lake for analytics and reporting",
+      "steps": [
+        "1. Apache Airflow DAG (data_export_dynamic_dags.py) schedules export job",
+        "2. Airflow triggers Crb.Cos.Database.Export Lambda or ECS task",
+        "3. ExportOperation reads export configuration from environment variables",
+        "4. DynamoDbProgessStore retrieves last checkpoint for table from DynamoDB",
+        "5. DatabaseReaderBase queries PostgreSQL with incremental WHERE clause",
+        "6. Data fetched in batches (configurable batch size)",
+        "7. ParquetExporterBase converts rows to Parquet columnar format",
+        "8. ParquetS3Exporter streams Parquet files to S3 bucket",
+        "9. Checkpoint updated in DynamoDB after each successful batch",
+        "10. SQS notification sent on completion for downstream processing",
+        "11. Airflow DAG monitors completion and triggers dependent analytics jobs"
+      ]
+    },
+    {
+      "name": "Service Autoscaling Based on Queue Depth",
+      "description": "Dynamic scaling of ECS services in response to RabbitMQ queue backlog",
+      "steps": [
+        "1. cos-ecs-autoscaler MonitorMQ polls RabbitMQ Management API every 30 seconds",
+        "2. RabbitClient retrieves queue metrics (message count, rate) for monitored queues",
+        "3. DynamoTableRepository loads ScaledObject configurations from DynamoDB",
+        "4. For each queue, current metrics compared to target thresholds",
+        "5. ScheduleEvaluator checks if current time matches scheduled scaling rules",
+        "6. ScaleController calculates desired task count based on queue depth and rate",
+        "7. Desired count clamped to configured min/max values",
+        "8. ECSClient calls AWS ECS UpdateService API with new desired count",
+        "9. ECS orchestrates container scaling (launch or terminate tasks)",
+        "10. New Relic records scaling event with metrics",
+        "11. Process repeats continuously with monitoring interval"
+      ]
+    },
+    {
+      "name": "Message Processing with Retry and Dead Letter",
+      "description": "Reliable message processing with automatic retries and dead letter handling",
+      "steps": [
+        "1. Service publishes message to RabbitMQ via Crb.Cos.Commons.Messaging",
+        "2. WellKnownHeadersOutgoingFilter adds TraceId, RequestId, UserId headers",
+        "3. Message routed to target service's queue",
+        "4. Consumer receives message and begins processing",
+        "5. If processing fails, MassTransit/NServiceBus retry policy kicks in",
+        "6. Message redelivered with exponential backoff (configured retry count)",
+        "7. If all retries exhausted, message moved to error queue",
+        "8. AuditBehavior logs message failure with full context",
+        "9. NewRelicMassTransitObserver records failure metrics",
+        "10. Alert triggered for manual investigation",
+        "11. Manual retry from error queue possible after issue resolution"
+      ]
+    },
+    {
+      "name": "Multi-Tenant Data Isolation",
+      "description": "Enforcing partner-based data isolation across all database queries",
+      "steps": [
+        "1. User authenticates and JWT token includes partner IDs",
+        "2. RequirePermissionsHandler extracts user identity from token",
+        "3. SecurityUserRepository loads user with accessible partner list",
+        "4. User context stored in thread-local or async-local storage",
+        "5. Repository query initiated via Crb.Cos.Commons.Database",
+        "6. PartnersFilterDefinition NHibernate filter applied to query",
+        "7. Filter adds WHERE clause: partner_id IN (user's accessible partners)",
+        "8. Query executed against PostgreSQL with tenant filter",
+        "9. Only records matching user's partner access returned",
+        "10. Results serialized and returned to API consumer"
+      ]
+    },
+    {
+      "name": "TypeScript SDK Generation and Usage",
+      "description": "Generating frontend TypeScript clients from backend C# APIs",
+      "steps": [
+        "1. Developer defines API endpoint in C# controller with attributes",
+        "2. CI/CD build pipeline invokes Nuke build (cos-build-tools)",
+        "3. Build.GenTS target executes Generator.cs",
+        "4. Buildalyzer analyzes .csproj and loads compiled assemblies",
+        "5. NSwag extracts OpenAPI schema from controller metadata",
+        "6. CosTypeNameGenerator converts C# types to TypeScript conventions",
+        "7. ImportGenerator creates .ts files with interfaces and API client methods",
+        "8. Generated SDK committed to frontend repository or published to npm",
+        "9. Frontend imports generated SDK: import { CustomerApi } from '@crb/cos-sdk'",
+        "10. Frontend invokes API with type-safe methods: await customerApi.getCustomer(id)"
+      ]
+    },
+    {
+      "name": "Infrastructure Provisioning and Deployment",
+      "description": "Provisioning AWS infrastructure and deploying services via Terraform",
+      "steps": [
+        "1. Infrastructure changes committed to cos-environment repository",
+        "2. Terraform plan executed in CI/CD pipeline",
+        "3. VPC, subnets, security groups created via terraform/modules/vpc",
+        "4. RDS PostgreSQL instances provisioned via terraform/modules/rds",
+        "5. ECS clusters created via terraform/modules/cos-ecs",
+        "6. IAM roles and policies defined via terraform/modules/iam",
+        "7. Application service deployed to ECS via cos-container-deployment modules",
+        "8. ECS task definition references custom base image from cos-container-base-image",
+        "9. Secrets fetched from AWS Secrets Manager at runtime",
+        "10. New Relic agent configured via environment variables",
+        "11. Service registered with internal ALB for routing",
+        "12. Health checks configured and monitored"
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "system": "RabbitMQ",
+      "direction": "bidirectional",
+      "protocol": "AMQP",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core",
+        "cos-ecs-autoscaler"
+      ]
+    },
+    {
+      "system": "PostgreSQL (AWS RDS)",
+      "direction": "bidirectional",
+      "protocol": "PostgreSQL wire protocol with AWS IAM authentication",
+      "repos": [
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Domain",
+        "core",
+        "core-ht",
+        "Crb.Cos.Database.Export",
+        "Crb.Cos.Dbup.Database"
+      ]
+    },
+    {
+      "system": "SQL Server",
+      "direction": "bidirectional",
+      "protocol": "TDS (Tabular Data Stream)",
+      "repos": [
+        "Crb.Cos.Commons",
+        "Crb.Cos.Commons.Data.JsonPopulator",
+        "Crb.Cos.Database.Export",
+        "Crb.Cos.Dbup.Database"
+      ]
+    },
+    {
+      "system": "New Relic APM",
+      "direction": "outbound",
+      "protocol": "New Relic Agent Protocol",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core",
+        "cos-container-base-image",
+        "cos-environment"
+      ]
+    },
+    {
+      "system": "AWS Secrets Manager",
+      "direction": "outbound",
+      "protocol": "AWS SDK (HTTPS)",
+      "repos": [
+        "Crb.Cos.Commons",
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "system": "AWS S3",
+      "direction": "outbound",
+      "protocol": "AWS SDK (HTTPS)",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "system": "AWS DynamoDB",
+      "direction": "bidirectional",
+      "protocol": "AWS SDK (HTTPS)",
+      "repos": [
+        "Crb.Cos.Database.Export",
+        "cos-ecs-autoscaler",
+        "cos-environment"
+      ]
+    },
+    {
+      "system": "AWS SQS",
+      "direction": "outbound",
+      "protocol": "AWS SDK (HTTPS)",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "system": "AWS ECS",
+      "direction": "outbound",
+      "protocol": "AWS SDK (HTTPS)",
+      "repos": [
+        "cos-ecs-autoscaler",
+        "cos-environment",
+        "cos-container-deployment"
+      ]
+    },
+    {
+      "system": "Apache Airflow",
+      "direction": "inbound",
+      "protocol": "HTTP/REST",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "system": "Azure DevOps Pipelines",
+      "direction": "inbound",
+      "protocol": "Azure Pipelines Agent",
+      "repos": [
+        "cos-build-tools",
+        "cos-container-base-image",
+        "cos-container-deployment"
+      ]
+    },
+    {
+      "system": "Octopus Deploy",
+      "direction": "inbound",
+      "protocol": "Octopus Tentacle",
+      "repos": [
+        "cos-environment"
+      ]
+    },
+    {
+      "system": "Active Directory",
+      "direction": "outbound",
+      "protocol": "LDAP/Kerberos",
+      "repos": [
+        "cos-environment"
+      ]
+    },
+    {
+      "system": "Auth0",
+      "direction": "outbound",
+      "protocol": "OAuth 2.0/OIDC",
+      "repos": [
+        "Crb.Cos.Commons.Services",
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "system": "Hangfire (with PostgreSQL storage)",
+      "direction": "bidirectional",
+      "protocol": "In-process library with PostgreSQL backend",
+      "repos": [
+        "Crb.Cos.Commons.Messaging"
+      ]
+    }
+  ],
+  "dataModel": [
+    {
+      "entity": "Account",
+      "description": "Represents a bank account owned by a customer, with balance, status, account type, and partner association. Supports multi-tenancy via partner_id.",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Testing",
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "entity": "Customer",
+      "description": "Bank customer entity with personal information, KYC status, contact details, and associated accounts. Managed via CustomerController in core API.",
+      "repos": [
+        "core"
+      ]
+    },
+    {
+      "entity": "Partner",
+      "description": "Multi-tenant partner entity representing banking partners who own accounts. Used for data isolation and access control.",
+      "repos": [
+        "core",
+        "Crb.Cos.Commons.Testing",
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "entity": "Transaction",
+      "description": "Banking transaction with amount, type, status, source/destination accounts, and timestamps. Processed by transaction handlers with completion/rejection events.",
+      "repos": [
+        "core",
+        "core-ht"
+      ]
+    },
+    {
+      "entity": "Payment",
+      "description": "Payment entity referenced in Crb.Cos.Commons.Database examples, likely tracks payment instructions and status.",
+      "repos": [
+        "Crb.Cos.Commons.Database"
+      ]
+    },
+    {
+      "entity": "SecurityUser",
+      "description": "User entity with authentication details, assigned roles, permissions, accessible partners, and status. Supports RBAC and multi-tenancy.",
+      "repos": [
+        "Crb.Cos.Commons.Security",
+        "Crb.Cos.Commons.Services"
+      ]
+    },
+    {
+      "entity": "RoleConfig",
+      "description": "Configuration entity defining roles with associated permissions for domain-specific authorization.",
+      "repos": [
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "entity": "IdempotentKey / IdempotentContent",
+      "description": "Idempotency tracking entities storing request keys and cached responses to prevent duplicate API operations.",
+      "repos": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Api.Core"
+      ]
+    },
+    {
+      "entity": "ApiLogEntry",
+      "description": "API request/response log entry with endpoint, method, user, duration, and status for audit trails.",
+      "repos": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Api.Core"
+      ]
+    },
+    {
+      "entity": "GlobalSetting",
+      "description": "System-wide configuration setting stored in database, accessed by NServiceBus endpoints for dynamic configuration.",
+      "repos": [
+        "Crb.Cos.Commons.Nsb"
+      ]
+    },
+    {
+      "entity": "PhysicalEndpointInstance",
+      "description": "Database-driven mapping of logical endpoint names to physical NServiceBus endpoint instances for message routing.",
+      "repos": [
+        "Crb.Cos.Commons.Nsb"
+      ]
+    },
+    {
+      "entity": "Checkpoint / CosDatabaseTableSyncProgress",
+      "description": "Tracks incremental data export progress with last exported record ID and timestamp for resumable exports.",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "entity": "ScaledObject",
+      "description": "Autoscaling configuration entity defining ECS service, queue, target metrics, min/max instances, and scheduled scaling rules.",
+      "repos": [
+        "cos-ecs-autoscaler"
+      ]
+    },
+    {
+      "entity": "General Ledger Entry",
+      "description": "Accounting entity with debit/credit amounts, GL codes, accounts, transaction references, and posting dates. Processed by accounting endpoints.",
+      "repos": [
+        "core"
+      ]
+    },
+    {
+      "entity": "Rollup Entry",
+      "description": "Aggregated accounting entry grouping transactions by period, account, and partner for financial reporting.",
+      "repos": [
+        "core"
+      ]
+    },
+    {
+      "entity": "Tax Document",
+      "description": "Tax form entity (1099, 1098) associated with accounts, containing form type, tax year, amounts, and import status.",
+      "repos": [
+        "core"
+      ]
+    },
+    {
+      "entity": "Sweep Account Configuration",
+      "description": "Configuration entity defining sweep account relationships, thresholds, and allocation rules for treasury operations.",
+      "repos": [
+        "core"
+      ]
+    },
+    {
+      "entity": "WellKnownHeaders",
+      "description": "Message header entity with UserId, RequestId, IdempotencyKey, TraceId for correlation and tracing across services.",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core"
+      ]
+    }
+  ],
+  "architecturePatterns": [
+    {
+      "pattern": "Microservices Architecture",
+      "description": "System decomposed into multiple independent services (core, core-ht, accounting endpoints, activity endpoints) that communicate via messaging and REST APIs. Each service owns its data and can be deployed independently.",
+      "repos": [
+        "core",
+        "core-ht",
+        "Crb.Cos.Commons.Endpoint",
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb"
+      ]
+    },
+    {
+      "pattern": "Event-Driven Architecture",
+      "description": "Services communicate asynchronously via events published to RabbitMQ. Transaction processing, accounting operations, and customer workflows are event-driven with publish/subscribe patterns.",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core",
+        "core"
+      ]
+    },
+    {
+      "pattern": "Repository Pattern",
+      "description": "Data access abstracted through IRepository<T> interfaces implemented by NHibernate-backed repositories. Provides consistent CRUD operations with caching support.",
+      "repos": [
+        "Crb.Cos.Commons.Database",
+        "Crb.Cos.Commons.Domain",
+        "Crb.Cos.Commons.Security"
+      ]
+    },
+    {
+      "pattern": "Domain-Driven Design (DDD)",
+      "description": "Business logic organized around domain entities with rich models, aggregate roots, and domain services. Shared kernel provided by Crb.Cos.Commons.Domain with custom data types and validation.",
+      "repos": [
+        "Crb.Cos.Commons.Domain",
+        "Crb.Cos.Commons.Contracts",
+        "core"
+      ]
+    },
+    {
+      "pattern": "API Gateway / Backend for Frontend",
+      "description": "core API acts as gateway aggregating multiple backend services, exposing unified REST endpoints for frontend applications (core-explorer, cos-explorer-2).",
+      "repos": [
+        "core",
+        "core-explorer",
+        "cos-explorer-2"
+      ]
+    },
+    {
+      "pattern": "Middleware Pipeline",
+      "description": "ASP.NET Core middleware pipeline with layers for authentication, authorization, idempotency, logging, error handling, and correlation ID propagation.",
+      "repos": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Api.Core"
+      ]
+    },
+    {
+      "pattern": "Multi-Tenancy with Data Isolation",
+      "description": "Partner-based multi-tenancy enforced via NHibernate filters and security policies. Every query automatically filtered by user's accessible partner IDs.",
+      "repos": [
+        "Crb.Cos.Commons.Security",
+        "Crb.Cos.Commons.Database"
+      ]
+    },
+    {
+      "pattern": "Saga / Process Manager",
+      "description": "Long-running business processes coordinated via NServiceBus sagas or MassTransit state machines, managing distributed transactions across services.",
+      "repos": [
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Messaging"
+      ]
+    },
+    {
+      "pattern": "CQRS (Command Query Responsibility Segregation)",
+      "description": "Read and write operations separated with different models. Handler pattern (IRequestHandler/IRequestHandlerAsync) separates command execution from queries.",
+      "repos": [
+        "Crb.Cos.Commons.Services"
+      ]
+    },
+    {
+      "pattern": "Database per Service",
+      "description": "Each microservice has its own database schema or database instance. Services communicate via events rather than direct database access.",
+      "repos": [
+        "Crb.Cos.Commons.Database",
+        "core",
+        "core-ht"
+      ]
+    },
+    {
+      "pattern": "Idempotency Pattern",
+      "description": "API endpoints use idempotency keys to prevent duplicate operations. Requests cached in database with IdempotentKey/IdempotentContent tables.",
+      "repos": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Api.Core"
+      ]
+    },
+    {
+      "pattern": "Circuit Breaker & Retry with Polly",
+      "description": "Resilience patterns implemented using Polly library for database connections, external service calls, and message processing with exponential backoff.",
+      "repos": [
+        "Crb.Cos.Database.Export",
+        "Crb.Cos.Commons.Messaging"
+      ]
+    },
+    {
+      "pattern": "Infrastructure as Code",
+      "description": "All AWS infrastructure defined as Terraform modules with versioned, repeatable deployments. Environments managed via cos-environment and cos-container-deployment.",
+      "repos": [
+        "cos-environment",
+        "cos-container-deployment"
+      ]
+    },
+    {
+      "pattern": "Container Orchestration with ECS",
+      "description": "Services deployed as Docker containers orchestrated by AWS ECS with dynamic scaling, health checks, and service discovery.",
+      "repos": [
+        "cos-container-base-image",
+        "cos-container-deployment",
+        "cos-ecs-autoscaler",
+        "cos-environment"
+      ]
+    },
+    {
+      "pattern": "Distributed Tracing",
+      "description": "OpenTelemetry-compatible trace IDs propagated across HTTP and messaging boundaries. Integrated with New Relic for end-to-end observability.",
+      "repos": [
+        "Crb.Cos.Commons.Nsb.Core",
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Api"
+      ]
+    },
+    {
+      "pattern": "Strangler Fig Pattern",
+      "description": "Migration from NServiceBus to MassTransit in progress with interoperability layer allowing both frameworks to coexist during transition.",
+      "repos": [
+        "Crb.Cos.Commons.Messaging",
+        "Crb.Cos.Commons.Nsb",
+        "Crb.Cos.Commons.Nsb.Core"
+      ]
+    },
+    {
+      "pattern": "Database Migration with Versioning",
+      "description": "Schema changes managed via DbUp with version-controlled SQL scripts, journal tracking, and support for both one-time and repeatable migrations.",
+      "repos": [
+        "Crb.Cos.Dbup.Database"
+      ]
+    },
+    {
+      "pattern": "Shared Kernel",
+      "description": "Common domain concepts, utilities, and infrastructure shared across services via Crb.Cos.Commons.* libraries distributed as NuGet packages.",
+      "repos": [
+        "Crb.Cos.Commons",
+        "Crb.Cos.Commons.Contracts",
+        "Crb.Cos.Commons.Domain"
+      ]
+    },
+    {
+      "pattern": "Dependency Injection",
+      "description": "Autofac used for IoC container with module-based registration, lifetime scopes, and integration with ASP.NET Core and NServiceBus.",
+      "repos": [
+        "Crb.Cos.Commons",
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Endpoint",
+        "Crb.Cos.Commons.Nsb"
+      ]
+    },
+    {
+      "pattern": "Secret Management",
+      "description": "Sensitive configuration stored in AWS Secrets Manager with runtime retrieval. Database credentials rotated via Lambda functions.",
+      "repos": [
+        "Crb.Cos.Commons",
+        "cos-environment"
+      ]
+    },
+    {
+      "pattern": "Data Lake / ETL Pipeline",
+      "description": "Banking data incrementally exported to S3 data lake in Parquet format for analytics, orchestrated by Apache Airflow DAGs.",
+      "repos": [
+        "Crb.Cos.Database.Export"
+      ]
+    },
+    {
+      "pattern": "API Versioning",
+      "description": "REST APIs versioned using Asp.Versioning library with URL path or header-based versioning for backward compatibility.",
+      "repos": [
+        "Crb.Cos.Commons.Api"
+      ]
+    },
+    {
+      "pattern": "Health Check Pattern",
+      "description": "Services expose health check endpoints for RabbitMQ, database, and ECS task health monitoring with automated alerting.",
+      "repos": [
+        "Crb.Cos.Commons.Api",
+        "Crb.Cos.Commons.Endpoint",
+        "Crb.Cos.Commons.Nsb.Core"
+      ]
+    },
+    {
+      "pattern": "Code Generation",
+      "description": "TypeScript client SDKs automatically generated from C# API contracts using NSwag, ensuring type safety across frontend/backend.",
+      "repos": [
+        "cos-build-tools"
+      ]
+    },
+    {
+      "pattern": "Feature Toggles",
+      "description": "GlobalSettings entity in database provides dynamic feature flags and configuration without redeployment.",
+      "repos": [
+        "Crb.Cos.Commons.Nsb"
+      ]
+    },
+    {
+      "pattern": "Scheduled Job Pattern with Hangfire",
+      "description": "Recurring and one-time scheduled jobs managed by Hangfire with PostgreSQL persistence for reliable job execution.",
+      "repos": [
+        "Crb.Cos.Commons.Messaging"
+      ]
+    }
+  ]
+}
