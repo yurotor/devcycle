@@ -188,6 +188,28 @@ export const jenkinsJobMappings = sqliteTable("jenkins_job_mappings", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ─── KB Chat Sessions ────────────────────────────────────────────
+
+export const kbChatSessions = sqliteTable("kb_chat_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  name: text("name").notNull(),
+  cliSessionId: text("cli_session_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── KB Chat Messages ────────────────────────────────────────────
+
+export const kbChatMessages = sqliteTable("kb_chat_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id").notNull(),
+  role: text("role").notNull(), // 'ai' | 'user'
+  content: text("content").notNull(),
+  toolEvents: text("tool_events"), // JSON: ToolEvent[]
+  createdAt: integer("created_at").notNull(),
+});
+
 // ─── Chat Messages ────────────────────────────────────────────────
 
 export const chatMessages = sqliteTable("chat_messages", {

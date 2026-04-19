@@ -27,6 +27,7 @@ import { MarkdownViewer } from "@/components/markdown-viewer";
 import { ScanPill } from "@/components/scan-pill";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { SetupFlow } from "@/components/setup-flow";
+import { KBChatDrawer } from "@/components/kb-chat-drawer";
 import { type Ticket } from "@/lib/fake-data";
 
 type SidebarTab = "kb" | "suggestions";
@@ -439,6 +440,9 @@ export function AppShell() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* KB Chat Drawer */}
+      <KBChatDrawer wsId={activeWorkspaceId} />
 
       {/* New workspace overlay */}
       <AnimatePresence>
