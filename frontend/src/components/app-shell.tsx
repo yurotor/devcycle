@@ -17,6 +17,7 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
+  Activity,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { KBBrowser } from "@/components/kb-browser";
@@ -28,10 +29,11 @@ import { ScanPill } from "@/components/scan-pill";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { SetupFlow } from "@/components/setup-flow";
 import { KBChatDrawer } from "@/components/kb-chat-drawer";
+import { LogInsightsPanel } from "@/components/log-insights-panel";
 import { type Ticket } from "@/lib/fake-data";
 
 type SidebarTab = "kb" | "suggestions";
-type MainView = "board" | "file";
+type MainView = "board" | "file" | "insights";
 type TicketPanel = { ticket: Ticket } | null;
 
 export function AppShell() {
@@ -258,6 +260,18 @@ export function AppShell() {
           <LayoutGrid className="w-4 h-4" />
         </button>
 
+        <button
+          onClick={() => { setMainView("insights"); setTicketPanel(null); setSidebarTab(null); }}
+          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+            mainView === "insights"
+              ? "bg-cyan/10 text-cyan"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+          title="Log Insights"
+        >
+          <Activity className="w-4 h-4" />
+        </button>
+
         {sidebarItems.map((item) => (
           <button
             key={item.id}
@@ -397,6 +411,18 @@ export function AppShell() {
                       filter={boardFilter}
                     />
                   )}
+                </motion.div>
+              )}
+              {mainView === "insights" && (
+                <motion.div
+                  key="insights"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <LogInsightsPanel wsId={activeWorkspaceId} />
                 </motion.div>
               )}
               {mainView === "file" && filePath && (

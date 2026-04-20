@@ -122,6 +122,52 @@ CREATE TABLE IF NOT EXISTS kb_chat_messages (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS elastic_connections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL,
+  repo_id INTEGER,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  api_key_encrypted TEXT NOT NULL,
+  api_key_iv TEXT NOT NULL,
+  index_pattern TEXT NOT NULL,
+  environment TEXT DEFAULT 'production',
+  polling_enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS log_baseline (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id INTEGER NOT NULL,
+  environment TEXT NOT NULL DEFAULT 'production',
+  message_template TEXT NOT NULL,
+  avg_hourly_rate INTEGER NOT NULL DEFAULT 0,
+  last_seen INTEGER,
+  first_seen INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS log_insights (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id INTEGER NOT NULL,
+  environment TEXT NOT NULL DEFAULT 'production',
+  type TEXT NOT NULL DEFAULT 'pattern',
+  severity TEXT NOT NULL DEFAULT 'info',
+  message_template TEXT,
+  exception_class_name TEXT,
+  diagnosis TEXT,
+  fix_suggestion TEXT,
+  fix_prd TEXT,
+  count INTEGER NOT NULL DEFAULT 0,
+  current_rate INTEGER NOT NULL DEFAULT 0,
+  sample_data TEXT,
+  histogram_data TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  jira_ticket_id INTEGER,
+  detected_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ticket_id INTEGER NOT NULL,

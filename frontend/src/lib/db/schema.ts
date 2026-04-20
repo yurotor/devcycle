@@ -210,6 +210,58 @@ export const kbChatMessages = sqliteTable("kb_chat_messages", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ─── Elastic Connections ─────────────────────────────────────────
+
+export const elasticConnections = sqliteTable("elastic_connections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  repoId: integer("repo_id"),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  apiKeyIv: text("api_key_iv").notNull(),
+  indexPattern: text("index_pattern").notNull(),
+  environment: text("environment").default("dev"),
+  pollingEnabled: integer("polling_enabled").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── Log Baseline ───────────────────────────────────────────────
+
+export const logBaseline = sqliteTable("log_baseline", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  connectionId: integer("connection_id").notNull(),
+  environment: text("environment").notNull().default("production"),
+  messageTemplate: text("message_template").notNull(),
+  avgHourlyRate: integer("avg_hourly_rate").notNull().default(0),
+  lastSeen: integer("last_seen"),
+  firstSeen: integer("first_seen"),
+});
+
+// ─── Log Insights ───────────────────────────────────────────────
+
+export const logInsights = sqliteTable("log_insights", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  connectionId: integer("connection_id").notNull(),
+  environment: text("environment").notNull().default("production"),
+  type: text("type").notNull().default("pattern"), // 'pattern' | 'new_error' | 'exception'
+  severity: text("severity").notNull().default("info"), // 'info' | 'warning' | 'critical'
+  messageTemplate: text("message_template"),
+  exceptionClassName: text("exception_class_name"),
+  diagnosis: text("diagnosis"),
+  fixSuggestion: text("fix_suggestion"),
+  fixPrd: text("fix_prd"),
+  count: integer("count").notNull().default(0),
+  currentRate: integer("current_rate").notNull().default(0),
+  sampleData: text("sample_data"), // JSON
+  histogramData: text("histogram_data"), // JSON: sparkline buckets
+  status: text("status").notNull().default("active"), // 'active' | 'muted' | 'accepted'
+  jiraTicketId: integer("jira_ticket_id"),
+  detectedAt: integer("detected_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // ─── Chat Messages ────────────────────────────────────────────────
 
 export const chatMessages = sqliteTable("chat_messages", {
