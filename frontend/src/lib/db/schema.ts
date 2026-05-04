@@ -262,6 +262,122 @@ export const logInsights = sqliteTable("log_insights", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// ─── NewRelic Connections ────────────────────────────────────────
+
+export const nrConnections = sqliteTable("nr_connections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  name: text("name").notNull(),
+  accountId: text("account_id").notNull(),
+  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  apiKeyIv: text("api_key_iv").notNull(),
+  appNames: text("app_names").notNull(), // JSON: string[]
+  pollingEnabled: integer("polling_enabled").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── NewRelic Baseline ──────────────────────────────────────────
+
+export const nrBaseline = sqliteTable("nr_baseline", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  connectionId: integer("connection_id").notNull(),
+  appName: text("app_name").notNull(),
+  metricType: text("metric_type").notNull(), // 'error_rate' | 'latency_p95' | 'slow_db'
+  avgValue: integer("avg_value").notNull().default(0), // stored as integer (multiply by 1000 for decimals)
+  lastSeen: integer("last_seen"),
+  firstSeen: integer("first_seen"),
+});
+
+// ─── NewRelic Insights ──────────────────────────────────────────
+
+export const nrInsights = sqliteTable("nr_insights", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  connectionId: integer("connection_id").notNull(),
+  appName: text("app_name").notNull(),
+  metricType: text("metric_type").notNull(), // 'error_rate' | 'latency_p95' | 'slow_db'
+  metricLabel: text("metric_label"), // e.g. endpoint name for latency, query name for DB
+  currentValue: integer("current_value").notNull().default(0),
+  baselineValue: integer("baseline_value").notNull().default(0),
+  severity: text("severity").notNull().default("info"), // 'info' | 'warning' | 'critical'
+  nrqlQuery: text("nrql_query"),
+  diagnosis: text("diagnosis"),
+  fixSuggestion: text("fix_suggestion"),
+  fixPrd: text("fix_prd"),
+  crossRefData: text("cross_ref_data"), // JSON: { elasticLogs, kbDocs }
+  histogramData: text("histogram_data"), // JSON: sparkline buckets
+  status: text("status").notNull().default("active"), // 'active' | 'muted' | 'accepted'
+  jiraTicketId: integer("jira_ticket_id"),
+  detectedAt: integer("detected_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── SDLC Epics ─────────────────────────────────────────────────
+
+export const sdlcEpics = sqliteTable("sdlc_epics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  jiraKey: text("jira_key").notNull(),
+  jiraId: text("jira_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull(), // raw Jira status
+  assignee: text("assignee"),
+  sdlcPhase: text("sdlc_phase").notNull().default("design"), // design | development | testing | deployed
+  lastSyncedAt: integer("last_synced_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── SDLC Artifacts ─────────────────────────────────────────────
+
+export const sdlcArtifacts = sqliteTable("sdlc_artifacts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  epicId: integer("epic_id").notNull(),
+  workspaceId: integer("workspace_id").notNull(),
+  type: text("type").notNull(), // 'design_doc' | 'test_plan'
+  status: text("status").notNull().default("draft"), // 'draft' | 'reviewed' | 'approved'
+  generatedAt: integer("generated_at"),
+  editedAt: integer("edited_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// ─── SDLC Artifact Sections ────────────────────────────────────
+
+export const sdlcArtifactSections = sqliteTable("sdlc_artifact_sections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  artifactId: integer("artifact_id").notNull(),
+  sectionKey: text("section_key").notNull(), // e.g. 'background', 'risks', 'proposal'
+  title: text("title").notNull(),
+  contentMarkdown: text("content_markdown").notNull().default(""),
+  lastGeneratedAt: integer("last_generated_at"),
+  lastEditedByUser: integer("last_edited_by_user").notNull().default(0), // 0/1 boolean
+  orderIndex: integer("order_index").notNull().default(0),
+});
+
+// ─── SDLC Signoffs ──────────────────────────────────────────────
+
+export const sdlcSignoffs = sqliteTable("sdlc_signoffs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  epicId: integer("epic_id").notNull(),
+  artifactId: integer("artifact_id"), // nullable — can be epic-level
+  role: text("role").notNull(), // 'vp_eng' | 'solution_architect' | 'product_manager' | 'engineering_manager'
+  personName: text("person_name"),
+  jiraUsername: text("jira_username"),
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved'
+  signedAt: integer("signed_at"),
+});
+
+// ─── SDLC Phase Config ─────────────────────────────────────────
+
+export const sdlcPhaseConfig = sqliteTable("sdlc_phase_config", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  jiraStatus: text("jira_status").notNull(),
+  sdlcPhase: text("sdlc_phase").notNull(), // 'design' | 'development' | 'testing' | 'deployed'
+});
+
 // ─── Chat Messages ────────────────────────────────────────────────
 
 export const chatMessages = sqliteTable("chat_messages", {

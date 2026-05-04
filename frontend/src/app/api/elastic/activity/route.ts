@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     return Response.json({ counters: [] });
   }
 
-  const conn = connections[0];
+  const conn = connections.find((c) => c.environment === environment) ?? connections[0];
   let apiKey: string;
   try {
     apiKey = decryptPat(conn.apiKeyEncrypted, conn.apiKeyIv);
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
   const filters = BUSINESS_EVENTS.map((evt) => ({
     key: evt.key,
     label: evt.label,
-    filter: { term: { messageTemplate: evt.template } },
+    filter: { match_phrase: { messageTemplate: evt.template } },
   }));
 
   const aggs: Record<string, unknown> = {};

@@ -126,7 +126,6 @@ export async function claudeExec<T = string>(prompt: string, options: ClaudeExec
         reject(new Error(`Failed to parse Claude CLI output: ${stdout.slice(0, 300)}`));
       }
     });
-    // Close stdin immediately so Claude CLI doesn't wait for input
     child.stdin?.end();
   });
 }

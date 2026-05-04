@@ -1,51 +1,24 @@
-// POST /api/kb/chat — KB Q&A chat using Claude CLI streaming with read-only tools.
-// GET  /api/kb/chat — list sessions, load session messages, or poll streaming status.
+// POST /api/kb/chat — KB Q&A chat with retrieval-based wiki context.
+// GET  /api/kb/chat — list sessions, load session messages.
 
 import fs from "fs";
 import path from "path";
 import { db } from "@/lib/db";
 import { kbChatSessions, kbChatMessages } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { claudeExecStreaming, isClaudeCliAvailable } from "@/lib/claude-cli";
-import { complete } from "@/lib/anthropic";
 import { getKbRoot } from "@/lib/kb-path";
 import { getWorkspace } from "@/lib/db/helpers";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
-interface ToolEvent {
-  toolName: string;
-  summary: string;
-  timestamp: number;
-}
-
-const streamingState = new Map<string, {
-  label: string;
-  tool: string;
-  updatedAt: number;
-  toolEvents: ToolEvent[];
-  thinkingText: string;
-}>();
-
 // ─── GET handler ─────────────────────────────────────────────────
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const action = url.searchParams.get("action");
   const wsId = url.searchParams.get("wsId");
 
-  // Streaming status polling
-  if (action === "streaming-status") {
-    const sessionKey = url.searchParams.get("sessionKey");
-    if (sessionKey) {
-      const status = streamingState.get(sessionKey);
-      return Response.json(status ?? { label: "Thinking...", tool: "", updatedAt: 0, toolEvents: [], thinkingText: "" });
-    }
-    return Response.json({ error: "Missing sessionKey" }, { status: 400 });
-  }
-
-  // Load messages for a specific session
   const sessionIdParam = url.searchParams.get("sessionId");
   if (sessionIdParam) {
     const sessionId = parseInt(sessionIdParam, 10);
@@ -56,7 +29,6 @@ export async function GET(request: Request) {
     return Response.json({ messages });
   }
 
-  // List sessions for workspace
   if (wsId) {
     const sessions = await db
       .select({
@@ -74,6 +46,55 @@ export async function GET(request: Request) {
   return Response.json({ error: "Provide wsId or sessionId" }, { status: 400 });
 }
 
+// ─── Retrieval: pick relevant wiki pages ─────────────────────────
+
+function retrieveRelevantPages(kbRoot: string, question: string): string[] {
+  const indexMd = loadFileIfExists(path.join(kbRoot, "wiki", "INDEX.md"));
+
+  // Parse INDEX.md into entries: { title, path }
+  const entries: { title: string; path: string }[] = [];
+  for (const line of indexMd.split("\n")) {
+    const m = line.match(/^- \[(.+?)\]\((.+?\.md)\)/);
+    if (m) entries.push({ title: m[1].toLowerCase(), path: m[2] });
+  }
+
+  // Tokenize question into keywords, drop common stop words
+  const stopWords = new Set(["a","an","the","is","are","was","were","be","been","how","do","does","did","to","of","in","for","on","with","at","by","from","what","which","who","when","where","why","can","could","would","should","i","we","it","this","that","my","our","its"]);
+  const keywords = question.toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+
+  // Score each entry by keyword matches in title
+  const scored = entries.map((e) => {
+    const score = keywords.filter((kw) => e.title.includes(kw)).length;
+    return { ...e, score };
+  });
+
+  // Always include architecture overview + data model as baseline context
+  const alwaysInclude = new Set(["architecture/system-overview.md", "data-model/entities.md"]);
+  const baseline = scored.filter((e) => alwaysInclude.has(e.path));
+  const matched = scored
+    .filter((e) => e.score > 0 && !alwaysInclude.has(e.path))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  const results = [...baseline, ...matched].map((e) => e.path);
+  return results.length > 0 ? results : scored.slice(0, 3).map((e) => e.path);
+}
+
+function loadRetrievedPages(kbRoot: string, pagePaths: string[]): string {
+  const wikiDir = path.join(kbRoot, "wiki");
+  const sections: string[] = [];
+  for (const rel of pagePaths) {
+    const full = path.join(wikiDir, rel);
+    if (!fs.existsSync(full)) continue;
+    const content = fs.readFileSync(full, "utf8").trim();
+    if (content) sections.push(`### ${rel}\n\n${content}`);
+  }
+  return sections.join("\n\n---\n\n");
+}
+
 // ─── POST handler ────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -86,6 +107,10 @@ export async function POST(request: Request) {
 
   if (!message?.trim()) {
     return Response.json({ error: "Empty message" }, { status: 400 });
+  }
+
+  if (!isClaudeCliAvailable()) {
+    return Response.json({ error: "Claude CLI not available" }, { status: 503 });
   }
 
   const ws = await getWorkspace(wsId);
@@ -102,14 +127,12 @@ export async function POST(request: Request) {
   let isFirstTurn: boolean;
 
   if (clientSessionId) {
-    // Existing session
     dbSessionId = clientSessionId;
     const [session] = await db.select().from(kbChatSessions).where(eq(kbChatSessions.id, dbSessionId));
     if (!session) return Response.json({ error: "Session not found" }, { status: 404 });
     cliSessionId = session.cliSessionId ?? undefined;
     isFirstTurn = !cliSessionId;
   } else {
-    // New session — name from first message
     const name = message.trim().slice(0, 60);
     const [inserted] = await db.insert(kbChatSessions).values({
       workspaceId: ws.id,
@@ -121,7 +144,6 @@ export async function POST(request: Request) {
     isFirstTurn = true;
   }
 
-  // Save user message
   await db.insert(kbChatMessages).values({
     sessionId: dbSessionId,
     role: "user",
@@ -129,139 +151,83 @@ export async function POST(request: Request) {
     createdAt: now,
   });
 
-  const streamKey = cliSessionId ?? randomUUID();
-  const toolEvents: ToolEvent[] = [];
   let responseText: string;
 
-  if (isClaudeCliAvailable()) {
-    streamingState.set(streamKey, { label: "Starting...", tool: "", updatedAt: Date.now(), toolEvents: [], thinkingText: "" });
+  try {
+    // Step 1: Retrieve relevant wiki pages
+    const pagePaths = retrieveRelevantPages(kbRoot, message);
+    console.log(`[kb/chat] Retrieved ${pagePaths.length} pages:`, pagePaths);
+    const retrievedContent = loadRetrievedPages(kbRoot, pagePaths);
 
-    const onToolUse = (toolName: string, toolInput: unknown) => {
-      let summary = `Using ${toolName}...`;
-      if (toolName === "Read" && typeof toolInput === "object" && toolInput && "file_path" in toolInput) {
-        const fp = (toolInput as { file_path: string }).file_path;
-        const short = fp.split("/").slice(-2).join("/");
-        summary = `Reading ${short}`;
-      } else if (toolName === "Grep" && typeof toolInput === "object" && toolInput && "pattern" in toolInput) {
-        summary = `Searching for "${(toolInput as { pattern: string }).pattern}"`;
-      } else if (toolName === "Glob" && typeof toolInput === "object" && toolInput && "pattern" in toolInput) {
-        summary = `Scanning ${(toolInput as { pattern: string }).pattern}`;
-      }
+    // Step 2: Chat via CLI with only relevant pages
+    let prompt: string;
+    let systemPrompt: string | undefined;
+    const newCliSessionId = isFirstTurn ? randomUUID() : undefined;
 
-      const event: ToolEvent = { toolName, summary, timestamp: Date.now() };
-      toolEvents.push(event);
-
-      const state = streamingState.get(streamKey);
-      if (state) {
-        state.label = summary + "...";
-        state.tool = toolName;
-        state.updatedAt = Date.now();
-        state.toolEvents = [...toolEvents];
-      }
-    };
-
-    const onText = (text: string) => {
-      const state = streamingState.get(streamKey);
-      if (state) {
-        state.thinkingText = text;
-        state.label = "Composing response...";
-        state.updatedAt = Date.now();
-      }
-    };
-
-    try {
-      const systemPrompt = isFirstTurn ? buildKBChatSystemPrompt(kbRoot) : undefined;
-      const newCliSessionId = isFirstTurn ? randomUUID() : undefined;
-
-      const streamResult = await claudeExecStreaming(message, {
-        addDirs: [kbRoot],
-        model: "sonnet",
-        maxBudget: 1.00,
-        allowedTools: ["Read", "Grep", "Glob"],
-        timeoutMs: 120_000,
-        ...(isFirstTurn
-          ? { sessionId: newCliSessionId, systemPrompt }
-          : { resumeSessionId: cliSessionId! }),
-        onToolUse,
-        onText,
-      });
-
-      responseText = streamResult.result as string;
-      const finalCliSessionId = streamResult.sessionId ?? newCliSessionId;
-
-      // Persist CLI session ID
-      if (finalCliSessionId) {
-        await db.update(kbChatSessions).set({
-          cliSessionId: finalCliSessionId,
-          updatedAt: Date.now(),
-        }).where(eq(kbChatSessions.id, dbSessionId));
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[kb/chat] Claude CLI failed:", msg);
-      responseText = `Error exploring KB: ${msg.slice(0, 200)}. Try rephrasing.`;
-    } finally {
-      streamingState.delete(streamKey);
+    if (isFirstTurn) {
+      systemPrompt = buildKBChatSystemPrompt(retrievedContent);
+      prompt = message;
+    } else {
+      prompt = retrievedContent
+        ? `[Reference material for this question]\n---\n${retrievedContent}\n---\n\n${message}`
+        : message;
     }
-  } else {
-    // Fallback: direct API without tool access
-    const indexContent = loadFileIfExists(path.join(kbRoot, "wiki", "INDEX.md"));
-    const claudeMd = loadFileIfExists(path.join(kbRoot, "CLAUDE.md"));
-    const systemPrompt = `You are a knowledge base assistant. Answer questions about the system based on this documentation.\n\n${claudeMd}\n\n## Wiki Index\n${indexContent}`;
 
-    responseText = await complete(
-      [{ role: "user", content: message }],
-      { system: systemPrompt, maxTokens: 2048 }
-    );
+    const streamResult = await claudeExecStreaming(prompt, {
+      model: "sonnet",
+      maxBudget: 1.00,
+      allowedTools: [],
+      timeoutMs: 120_000,
+      ...(isFirstTurn
+        ? { sessionId: newCliSessionId, systemPrompt }
+        : { resumeSessionId: cliSessionId! }),
+    });
+
+    responseText = streamResult.result as string;
+    const finalCliSessionId = streamResult.sessionId ?? newCliSessionId;
+
+    if (finalCliSessionId) {
+      await db.update(kbChatSessions).set({
+        cliSessionId: finalCliSessionId,
+        updatedAt: Date.now(),
+      }).where(eq(kbChatSessions.id, dbSessionId));
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[kb/chat] Claude CLI failed:", msg);
+    responseText = `Error: ${msg.slice(0, 200)}. Try rephrasing.`;
   }
 
-  // Save AI response
   await db.insert(kbChatMessages).values({
     sessionId: dbSessionId,
     role: "ai",
     content: responseText,
-    toolEvents: toolEvents.length > 0 ? JSON.stringify(toolEvents) : null,
     createdAt: Date.now(),
   });
 
-  // Update session timestamp
   await db.update(kbChatSessions).set({ updatedAt: Date.now() }).where(eq(kbChatSessions.id, dbSessionId));
 
   return Response.json({
     response: responseText,
     sessionId: dbSessionId,
-    streamKey,
-    toolEvents,
   });
 }
 
-// ─── System prompt ───────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────
 
-function buildKBChatSystemPrompt(kbRoot: string): string {
-  const claudeMd = loadFileIfExists(path.join(kbRoot, "CLAUDE.md"));
-  const indexMd = loadFileIfExists(path.join(kbRoot, "wiki", "INDEX.md"));
+function buildKBChatSystemPrompt(retrievedContent: string): string {
+  return `You are a knowledgeable assistant for a software system. Answer questions accurately using the knowledge base below.
 
-  return `You are a knowledgeable assistant for a software system. Your job is to answer questions accurately using the knowledge base files available to you.
+## Relevant Knowledge Base Pages
 
-## KB Overview
-
-${claudeMd}
-
-## Wiki Index
-
-${indexMd}
+${retrievedContent || "(no relevant pages found)"}
 
 ## How to Answer
 
-1. Use Read, Grep, Glob tools to find relevant KB files before answering.
-2. Base answers on KB content — cite specific files when relevant.
-3. If the KB doesn't cover a topic, say so clearly.
-4. Be concise and direct. No fluff.
-5. When data lends itself to tabular display, use markdown tables.
-6. For architectural questions, check wiki/architecture/ first.
-7. For feature questions, check wiki/features/ first.
-8. For repo-specific questions, check wiki/repos/ first.
-9. For integration questions, check wiki/integrations/ first.`;
+1. Base answers on KB content — cite specific files when relevant.
+2. If the KB doesn't cover a topic, say so clearly.
+3. Be concise and direct. No fluff.
+4. When data lends itself to tabular display, use markdown tables.`;
 }
 
 function loadFileIfExists(filePath: string): string {

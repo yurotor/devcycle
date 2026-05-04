@@ -18,6 +18,8 @@ import {
   RefreshCw,
   Search,
   Activity,
+  TrendingUp,
+  Shield,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { KBBrowser } from "@/components/kb-browser";
@@ -30,10 +32,13 @@ import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { SetupFlow } from "@/components/setup-flow";
 import { KBChatDrawer } from "@/components/kb-chat-drawer";
 import { LogInsightsPanel } from "@/components/log-insights-panel";
+import { NrInsightsPanel } from "@/components/nr-insights-panel";
+import { SdlcDashboard } from "@/components/sdlc-dashboard";
+import { SdlcEpicDetail } from "@/components/sdlc-epic-detail";
 import { type Ticket } from "@/lib/fake-data";
 
 type SidebarTab = "kb" | "suggestions";
-type MainView = "board" | "file" | "insights";
+type MainView = "board" | "file" | "insights" | "apm" | "sdlc" | "sdlc-epic";
 type TicketPanel = { ticket: Ticket } | null;
 
 export function AppShell() {
@@ -48,6 +53,8 @@ export function AppShell() {
   const [findingsCount, setFindingsCount] = useState(0);
   const [boardFilter, setBoardFilter] = useState("");
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
+  const [sdlcEpicId, setSdlcEpicId] = useState<number | null>(null);
+  const [showReconnectJira, setShowReconnectJira] = useState(false);
   const [workspaces, setWorkspaces] = useState<Array<{ id: number; name: string; jiraProjectKey: string | null }>>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
@@ -272,6 +279,30 @@ export function AppShell() {
           <Activity className="w-4 h-4" />
         </button>
 
+        <button
+          onClick={() => { setMainView("apm"); setTicketPanel(null); setSidebarTab(null); }}
+          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+            mainView === "apm"
+              ? "bg-violet/10 text-violet"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+          title="APM Insights"
+        >
+          <TrendingUp className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => { setMainView("sdlc"); setSdlcEpicId(null); setTicketPanel(null); setSidebarTab(null); }}
+          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+            mainView === "sdlc" || mainView === "sdlc-epic"
+              ? "bg-emerald/10 text-emerald"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+          title="SDLC"
+        >
+          <Shield className="w-4 h-4" />
+        </button>
+
         {sidebarItems.map((item) => (
           <button
             key={item.id}
@@ -349,6 +380,9 @@ export function AppShell() {
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
               )}
+              {(mainView === "sdlc" || mainView === "sdlc-epic") && (
+                <h2 className="text-base font-semibold tracking-tight">SDLC</h2>
+              )}
               {mainView === "board" && (
                 <>
                   <h2 className="text-base font-semibold tracking-tight">Board</h2>
@@ -375,6 +409,15 @@ export function AppShell() {
               <div className="ml-auto flex items-center gap-3">
                 <ScanPill wsId={activeWorkspaceId} />
                 {jiraUrl && mainView === "board" && (
+                  <>
+                  <button
+                    onClick={() => setShowReconnectJira(true)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    title="Reconnect Jira credentials"
+                  >
+                    <Key className="w-3 h-3" />
+                    Reconnect
+                  </button>
                   <button
                     onClick={syncTickets}
                     disabled={syncing}
@@ -384,6 +427,7 @@ export function AppShell() {
                     <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
                     {syncing ? "Syncing..." : "Sync Jira"}
                   </button>
+                  </>
                 )}
               </div>
             </div>
@@ -423,6 +467,56 @@ export function AppShell() {
                   className="h-full"
                 >
                   <LogInsightsPanel wsId={activeWorkspaceId} />
+                </motion.div>
+              )}
+              {mainView === "apm" && (
+                <motion.div
+                  key="apm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <NrInsightsPanel wsId={activeWorkspaceId} />
+                </motion.div>
+              )}
+              {mainView === "sdlc" && (
+                <motion.div
+                  key="sdlc"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <SdlcDashboard
+                    wsId={activeWorkspaceId}
+                    workspaces={workspaces}
+                    onEpicClick={(epicId) => {
+                      setSdlcEpicId(epicId);
+                      setMainView("sdlc-epic");
+                    }}
+                  />
+                </motion.div>
+              )}
+              {mainView === "sdlc-epic" && sdlcEpicId && (
+                <motion.div
+                  key={`sdlc-epic-${sdlcEpicId}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  <SdlcEpicDetail
+                    epicId={sdlcEpicId}
+                    wsId={activeWorkspaceId!}
+                    onBack={() => {
+                      setSdlcEpicId(null);
+                      setMainView("sdlc");
+                    }}
+                  />
                 </motion.div>
               )}
               {mainView === "file" && filePath && (
@@ -469,6 +563,34 @@ export function AppShell() {
 
       {/* KB Chat Drawer */}
       <KBChatDrawer wsId={activeWorkspaceId} />
+
+      {/* Reconnect Jira overlay */}
+      <AnimatePresence>
+        {showReconnectJira && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-50 bg-background/95 flex items-center justify-center"
+          >
+            <button
+              onClick={() => setShowReconnectJira(false)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <NoJiraState
+              wsId={activeWorkspaceId}
+              onConnected={(t) => {
+                setTickets(t);
+                setJiraUrl("connected");
+                setShowReconnectJira(false);
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New workspace overlay */}
       <AnimatePresence>

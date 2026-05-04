@@ -212,6 +212,26 @@ export class JiraClient {
     return this.paginate(this.buildJql("", doneStatuses, projectKey));
   }
 
+  async getAllEpics(
+    doneStatuses: string[] = DEFAULT_DONE_STATUSES,
+    projectKey?: string
+  ): Promise<JiraIssue[]> {
+    const escaped = doneStatuses.map((s) => `"${s.replace(/"/g, '\\"')}"`);
+    const statusClause = escaped.length
+      ? ` AND status NOT IN (${escaped.join(",")})`
+      : "";
+    const scopeClause = projectKey
+      ? `project = "${projectKey}"`
+      : "project is not EMPTY";
+    const jql = `issuetype = Epic${statusClause} AND ${scopeClause} ORDER BY updated DESC`;
+    return this.paginate(jql);
+  }
+
+  async getEpicChildren(epicKey: string): Promise<JiraIssue[]> {
+    const jql = `"Epic Link" = ${epicKey} OR parent = ${epicKey} ORDER BY created ASC`;
+    return this.paginate(jql);
+  }
+
   // ── Auth validation ───────────────────────────────────────────
 
   /**

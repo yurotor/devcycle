@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Activity,
-  AlertTriangle,
   AlertCircle,
   ChevronDown,
   ChevronRight,
@@ -11,12 +10,16 @@ import {
   EyeOff,
   Loader2,
   Sparkles,
-  Bug,
   Zap,
   BarChart3,
   Settings,
   Check,
   X,
+  Clock,
+  Database,
+  TrendingUp,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,65 +30,68 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-interface LogInsight {
+interface NrInsight {
   id: number;
   connectionId: number;
-  environment: string;
-  type: string;
+  appName: string;
+  metricType: string;
+  metricLabel: string | null;
+  currentValue: number;
+  baselineValue: number;
   severity: string;
-  messageTemplate: string | null;
-  exceptionClassName: string | null;
+  nrqlQuery: string | null;
   diagnosis: string | null;
   fixSuggestion: string | null;
   fixPrd: string | null;
-  count: number;
-  currentRate: number;
-  sampleData: unknown[] | null;
-  histogramData: { key: string; count: number }[] | null;
+  crossRefData: {
+    elasticErrors: Array<{ template: string; count: number; severity: string }>;
+    elasticSamples: Array<Record<string, unknown>>;
+    kbContext: string;
+  } | null;
+  histogramData: { key: number; count: number }[] | null;
   status: string;
   jiraTicketId: number | null;
   detectedAt: number;
   updatedAt: number;
 }
 
-interface Connection {
+interface NrConnection {
   id: number;
   name: string;
-  url: string;
-  indexPattern: string;
-  environment: string;
+  accountId: string;
+  appNames: string[];
   pollingEnabled: number;
 }
 
-interface ActivityCounter {
-  key: string;
-  label: string;
-  count: number;
-}
+const METRIC_TYPES = [
+  { key: "all", label: "All Metrics" },
+  { key: "error_rate", label: "Error Rate" },
+  { key: "latency_p95", label: "P95 Latency" },
+  { key: "slow_db", label: "Slow DB" },
+] as const;
 
-const ENVIRONMENTS = ["dev", "qa", "staging", "production"] as const;
-
-export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
-  const [insights, setInsights] = useState<LogInsight[]>([]);
-  const [connections, setConnections] = useState<Connection[]>([]);
+export function NrInsightsPanel({ wsId }: { wsId: number | null }) {
+  const [insights, setInsights] = useState<NrInsight[]>([]);
+  const [connections, setConnections] = useState<NrConnection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [environment, setEnvironment] = useState<string>("dev");
+  const [metricFilter, setMetricFilter] = useState<string>("all");
   const [showMuted, setShowMuted] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [analyzingId, setAnalyzingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
-  const [activityCounters, setActivityCounters] = useState<ActivityCounter[]>([]);
-  const [activityWindow, setActivityWindow] = useState<string>("1h");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const q = wsId ? `wsId=${wsId}` : "";
 
   const loadData = useCallback(async () => {
     try {
-      const [connRes, insRes, actRes] = await Promise.all([
-        fetch(`/api/elastic/connect?${q}`),
-        fetch(`/api/elastic/insights?${q}&environment=${environment}&showMuted=${showMuted}`),
-        fetch(`/api/elastic/activity?${q}&environment=${environment}&window=${activityWindow}`),
+      const params = new URLSearchParams(q);
+      params.set("showMuted", String(showMuted));
+      if (metricFilter !== "all") params.set("metricType", metricFilter);
+
+      const [connRes, insRes] = await Promise.all([
+        fetch(`/api/newrelic/connect?${q}`),
+        fetch(`/api/newrelic/insights?${params}`),
       ]);
       if (connRes.ok) {
         const data = await connRes.json();
@@ -95,14 +101,10 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
         const data = await insRes.json();
         setInsights(data.insights ?? []);
       }
-      if (actRes.ok) {
-        const data = await actRes.json();
-        setActivityCounters(data.counters ?? []);
-      }
     } finally {
       setLoading(false);
     }
-  }, [q, environment, showMuted, activityWindow]);
+  }, [q, showMuted, metricFilter]);
 
   useEffect(() => {
     loadData();
@@ -111,14 +113,14 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
   }, [loadData]);
 
   const handleMute = async (id: number) => {
-    await fetch(`/api/elastic/insights/${id}/mute?${q}`, { method: "PATCH" });
+    await fetch(`/api/newrelic/insights/${id}/mute?${q}`, { method: "PATCH" });
     loadData();
   };
 
-  const handleSuggestFix = async (id: number) => {
+  const handleAnalyze = async (id: number) => {
     setAnalyzingId(id);
     try {
-      const res = await fetch(`/api/elastic/insights/${id}/analyze?${q}`, { method: "POST" });
+      const res = await fetch(`/api/newrelic/insights/${id}/analyze?${q}`, { method: "POST" });
       if (res.ok) loadData();
     } finally {
       setAnalyzingId(null);
@@ -128,7 +130,7 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
   const handleAcceptFix = async (id: number) => {
     setAcceptingId(id);
     try {
-      const res = await fetch(`/api/elastic/insights/${id}/accept?${q}`, { method: "POST" });
+      const res = await fetch(`/api/newrelic/insights/${id}/accept?${q}`, { method: "POST" });
       if (res.ok) loadData();
     } finally {
       setAcceptingId(null);
@@ -143,33 +145,38 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
     );
   }
 
-  const envConnection = connections.find((c) => c.environment === environment);
-  const configuredEnvs = new Set(connections.map((c) => c.environment));
-
   if (connections.length === 0) {
     return <NoConnectionState wsId={wsId} onConnected={loadData} />;
   }
+
+  const criticalCount = insights.filter((i) => i.severity === "critical").length;
+  const warningCount = insights.filter((i) => i.severity === "warning").length;
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 h-14 flex items-center px-5 border-b border-border gap-3">
-        <Activity className="w-5 h-5 text-cyan" />
-        <h2 className="text-lg font-semibold">Log Insights</h2>
-        <span className="text-sm text-muted-foreground px-2 py-0.5 rounded bg-secondary">
-          {insights.length} patterns
-        </span>
+        <TrendingUp className="w-5 h-5 text-violet" />
+        <h2 className="text-lg font-semibold">APM Insights</h2>
 
-        {/* Environment selector */}
+        {criticalCount > 0 && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded border bg-rose/20 text-rose border-rose/30">
+            {criticalCount} critical
+          </span>
+        )}
+        {warningCount > 0 && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded border bg-amber/20 text-amber border-amber/30">
+            {warningCount} warning
+          </span>
+        )}
+
         <select
-          value={environment}
-          onChange={(e) => setEnvironment(e.target.value)}
+          value={metricFilter}
+          onChange={(e) => setMetricFilter(e.target.value)}
           className="ml-auto h-8 px-2 text-sm bg-secondary border border-border/50 rounded-md outline-none"
         >
-          {ENVIRONMENTS.map((env) => (
-            <option key={env} value={env}>
-              {env}{configuredEnvs.has(env) ? "" : " (not configured)"}
-            </option>
+          {METRIC_TYPES.map((mt) => (
+            <option key={mt.key} value={mt.key}>{mt.label}</option>
           ))}
         </select>
 
@@ -186,13 +193,13 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
           className={`flex items-center gap-1.5 text-sm transition-colors ${
             showMuted ? "text-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
-          title={showMuted ? "Hide muted patterns" : "Show muted patterns"}
+          title={showMuted ? "Hide muted" : "Show muted"}
         >
           {showMuted ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
         </button>
       </div>
 
-      <ConnectionSettingsModal
+      <NrConnectionSettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         connections={connections}
@@ -200,59 +207,31 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
         onSaved={loadData}
       />
 
-      {/* Activity summary bar */}
-      {activityCounters.length > 0 && (
-        <div className="shrink-0 flex items-center gap-1.5 px-5 py-3 border-b border-border/50 bg-secondary/30">
-          {activityCounters.map((c, i) => (
-            <div key={c.key} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-border mx-1.5">|</span>}
-              <span className="text-sm text-muted-foreground">{c.label}:</span>
-              <AnimatedCounter value={c.count} isError={c.key === "errors"} />
-            </div>
-          ))}
-          <select
-            value={activityWindow}
-            onChange={(e) => setActivityWindow(e.target.value)}
-            className="ml-auto h-7 px-2 text-sm bg-secondary border border-border/50 rounded outline-none"
-          >
-            <option value="5m">5m</option>
-            <option value="1h">1h</option>
-            <option value="24h">24h</option>
-          </select>
-        </div>
-      )}
+      {/* Summary bar */}
+      <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-border/50 bg-secondary/30">
+        <span className="text-sm text-muted-foreground">
+          Monitoring {connections.reduce((sum, c) => sum + c.appNames.length, 0)} apps
+        </span>
+        <span className="text-border">|</span>
+        <span className="text-sm text-muted-foreground">{insights.length} anomalies</span>
+      </div>
 
-      {/* Insights table */}
+      {/* Insights list */}
       <div className="flex-1 overflow-auto">
-        {!envConnection ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <p className="text-sm text-muted-foreground">
-              No connection configured for <span className="font-medium text-foreground">{environment}</span>
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs gap-1.5"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings className="w-3.5 h-3.5" />
-              Configure now
-            </Button>
-          </div>
-        ) : insights.length === 0 ? (
+        {insights.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            No error patterns detected yet. Waiting for next poll cycle...
+            No APM anomalies detected yet. Waiting for next poll cycle...
           </div>
         ) : (
           <div className="divide-y divide-border/50">
             {insights.map((insight) => (
-              <InsightRow
+              <NrInsightRow
                 key={insight.id}
                 insight={insight}
                 expanded={expandedId === insight.id}
                 onToggle={() => setExpandedId(expandedId === insight.id ? null : insight.id)}
                 onMute={() => handleMute(insight.id)}
-                onSuggestFix={() => handleSuggestFix(insight.id)}
+                onAnalyze={() => handleAnalyze(insight.id)}
                 onAcceptFix={() => handleAcceptFix(insight.id)}
                 analyzing={analyzingId === insight.id}
                 accepting={acceptingId === insight.id}
@@ -265,21 +244,21 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
   );
 }
 
-function InsightRow({
+function NrInsightRow({
   insight,
   expanded,
   onToggle,
   onMute,
-  onSuggestFix,
+  onAnalyze,
   onAcceptFix,
   analyzing,
   accepting,
 }: {
-  insight: LogInsight;
+  insight: NrInsight;
   expanded: boolean;
   onToggle: () => void;
   onMute: () => void;
-  onSuggestFix: () => void;
+  onAnalyze: () => void;
   onAcceptFix: () => void;
   analyzing: boolean;
   accepting: boolean;
@@ -290,13 +269,27 @@ function InsightRow({
     info: "bg-secondary text-muted-foreground border-border/50",
   }[insight.severity] ?? "bg-secondary text-muted-foreground border-border/50";
 
-  const typeIcon = {
-    exception: <Bug className="w-4 h-4" />,
-    new_error: <Zap className="w-4 h-4 text-violet" />,
-    pattern: <BarChart3 className="w-4 h-4" />,
-  }[insight.type] ?? <BarChart3 className="w-4 h-4" />;
+  const metricIcon = {
+    error_rate: <Zap className="w-4 h-4 text-rose" />,
+    latency_p95: <Clock className="w-4 h-4 text-amber" />,
+    slow_db: <Database className="w-4 h-4 text-violet" />,
+  }[insight.metricType] ?? <BarChart3 className="w-4 h-4" />;
 
-  const label = insight.exceptionClassName ?? insight.messageTemplate ?? "Unknown";
+  const metricLabel = {
+    error_rate: "Errors",
+    latency_p95: "P95 Latency",
+    slow_db: "Slow DB",
+  }[insight.metricType] ?? insight.metricType;
+
+  const ratio = insight.baselineValue > 0
+    ? (insight.currentValue / insight.baselineValue).toFixed(1)
+    : "N/A";
+
+  const formatValue = (v: number, type: string) => {
+    if (type === "error_rate") return `${v} errors`;
+    return `${v}ms`;
+  };
+
   const timeAgo = formatTimeAgo(insight.detectedAt);
 
   return (
@@ -311,34 +304,32 @@ function InsightRow({
 
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-2">
-            {typeIcon}
-            <span className="text-sm font-medium truncate">{label}</span>
+            {metricIcon}
+            <span className="text-sm font-medium">{insight.appName}</span>
+            <span className="text-xs text-muted-foreground">· {metricLabel}</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{insight.count.toLocaleString()} hits</span>
+            {insight.metricLabel && (
+              <span className="truncate max-w-[200px] font-mono">{insight.metricLabel}</span>
+            )}
+            <span>{formatValue(insight.currentValue, insight.metricType)}</span>
+            <span>·</span>
+            <span>{ratio}x baseline</span>
             <span>·</span>
             <span>{timeAgo}</span>
             {insight.diagnosis && (
               <>
                 <span>·</span>
-                <span className="text-cyan truncate max-w-[300px]">{insight.diagnosis}</span>
+                <span className="text-cyan truncate max-w-[250px]">{insight.diagnosis}</span>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {insight.type === "new_error" && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded border bg-violet/20 text-violet border-violet/30">
-              New
-            </span>
-          )}
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${severityColor}`}>
-            {insight.severity}
-          </span>
-        </div>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded border shrink-0 ${severityColor}`}>
+          {insight.severity}
+        </span>
 
-        {/* Sparkline — 30-min error rate trend */}
         {insight.histogramData && insight.histogramData.length > 0 && (
           <div className="w-20 h-8 shrink-0">
             <Sparkline data={insight.histogramData.map((b) => b.count)} />
@@ -348,12 +339,42 @@ function InsightRow({
 
       {expanded && (
         <div className="px-4 pb-3 pl-10 space-y-3">
-          {/* Sample data / stack trace */}
-          {insight.sampleData && (Array.isArray(insight.sampleData) ? insight.sampleData.length > 0 : true) && (
-            <div className="text-xs font-mono bg-secondary/50 rounded p-3 max-h-48 overflow-auto whitespace-pre-wrap">
-              {typeof insight.sampleData === "string"
-                ? insight.sampleData
-                : JSON.stringify(insight.sampleData, null, 2)}
+          {/* Metric detail */}
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="bg-secondary/50 rounded p-2">
+              <div className="text-muted-foreground">Current</div>
+              <div className="font-semibold">{formatValue(insight.currentValue, insight.metricType)}</div>
+            </div>
+            <div className="bg-secondary/50 rounded p-2">
+              <div className="text-muted-foreground">Baseline</div>
+              <div className="font-semibold">{formatValue(insight.baselineValue, insight.metricType)}</div>
+            </div>
+            <div className="bg-secondary/50 rounded p-2">
+              <div className="text-muted-foreground">Ratio</div>
+              <div className="font-semibold">{ratio}x</div>
+            </div>
+          </div>
+
+          {/* NRQL query */}
+          {insight.nrqlQuery && (
+            <div className="text-xs font-mono bg-secondary/50 rounded p-3 whitespace-pre-wrap text-muted-foreground">
+              {insight.nrqlQuery}
+            </div>
+          )}
+
+          {/* Cross-referenced Elastic errors */}
+          {insight.crossRefData?.elasticErrors && insight.crossRefData.elasticErrors.length > 0 && (
+            <div className="text-sm bg-orange-500/5 border border-orange-500/20 rounded p-3 space-y-1">
+              <span className="font-medium text-orange-400">Related Elastic Errors:</span>
+              {insight.crossRefData.elasticErrors.slice(0, 5).map((e, i) => (
+                <div key={i} className="text-xs text-muted-foreground flex items-center gap-2">
+                  <span className={`px-1 rounded ${e.severity === "critical" ? "bg-rose/20 text-rose" : "bg-amber/20 text-amber"}`}>
+                    {e.severity}
+                  </span>
+                  <span className="truncate">{e.template}</span>
+                  <span>({e.count} hits)</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -387,13 +408,13 @@ function InsightRow({
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs gap-1.5"
-                onClick={(e) => { e.stopPropagation(); onSuggestFix(); }}
+                onClick={(e) => { e.stopPropagation(); onAnalyze(); }}
                 disabled={analyzing}
               >
                 {analyzing ? (
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analyzing...</>
                 ) : (
-                  <><Sparkles className="w-3.5 h-3.5" />Suggest Fix</>
+                  <><Sparkles className="w-3.5 h-3.5" />Analyze</>
                 )}
               </Button>
             )}
@@ -423,36 +444,6 @@ function InsightRow({
   );
 }
 
-function AnimatedCounter({ value, isError }: { value: number; isError?: boolean }) {
-  const prevRef = useRef(value);
-  const [flash, setFlash] = useState(false);
-
-  useEffect(() => {
-    if (prevRef.current !== value) {
-      prevRef.current = value;
-      setFlash(true);
-      const t = setTimeout(() => setFlash(false), 600);
-      return () => clearTimeout(t);
-    }
-  }, [value]);
-
-  const formatted = value >= 1_000_000
-    ? `${(value / 1_000_000).toFixed(1)}M`
-    : value >= 1_000
-      ? `${(value / 1_000).toFixed(1)}K`
-      : String(value);
-
-  return (
-    <span
-      className={`text-base font-semibold tabular-nums transition-all duration-500 ${
-        flash ? "text-cyan scale-110" : isError ? "text-foreground" : "text-foreground"
-      }`}
-    >
-      {formatted}
-    </span>
-  );
-}
-
 function Sparkline({ data }: { data: number[] }) {
   if (data.length === 0) return null;
   const max = Math.max(...data, 1);
@@ -465,7 +456,7 @@ function Sparkline({ data }: { data: number[] }) {
     .join(" ");
 
   return (
-    <svg width={w} height={h} className="text-cyan">
+    <svg width={w} height={h} className="text-violet">
       <polyline
         points={points}
         fill="none"
@@ -479,10 +470,9 @@ function Sparkline({ data }: { data: number[] }) {
 }
 
 function NoConnectionState({ wsId, onConnected }: { wsId: number | null; onConnected: () => void }) {
-  const [env, setEnv] = useState<string>("dev");
-  const [url, setUrl] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [indexPattern, setIndexPattern] = useState("logs-*");
+  const [appNamesInput, setAppNamesInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -490,10 +480,15 @@ function NoConnectionState({ wsId, onConnected }: { wsId: number | null; onConne
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/elastic/connect${wsId ? `?wsId=${wsId}` : ""}`, {
+      const appNames = appNamesInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const res = await fetch(`/api/newrelic/connect${wsId ? `?wsId=${wsId}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: env, url, apiKey, indexPattern, environment: env }),
+        body: JSON.stringify({ name: "Default", accountId, apiKey, appNames }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? data.error ?? "Failed");
@@ -509,46 +504,42 @@ function NoConnectionState({ wsId, onConnected }: { wsId: number | null; onConne
     <div className="h-full flex flex-col items-center justify-center px-8">
       <div className="w-full max-w-sm space-y-5">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-12 h-12 rounded-xl bg-cyan/10 border border-cyan/20 flex items-center justify-center">
-            <Activity className="w-6 h-6 text-cyan" />
+          <div className="w-12 h-12 rounded-xl bg-violet/10 border border-violet/20 flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-violet" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-semibold text-sm">Connect Elasticsearch</h3>
+            <h3 className="font-semibold text-sm">Connect NewRelic</h3>
             <p className="text-xs text-muted-foreground">
-              Monitor error patterns in your logs
+              Monitor APM anomalies across your services
             </p>
           </div>
         </div>
 
         <div className="space-y-3">
-          <select
-            value={env}
-            onChange={(e) => setEnv(e.target.value)}
-            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs outline-none focus:border-cyan/40"
-          >
-            {ENVIRONMENTS.map((e) => (
-              <option key={e} value={e}>{e}</option>
-            ))}
-          </select>
           <input
-            placeholder="https://your-cluster.es.us-east-1.aws.elastic.cloud:9243"
-            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-cyan/40"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Account ID"
+            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-violet/40"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
           />
           <input
             type="password"
-            placeholder="API key"
-            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-cyan/40"
+            placeholder="API Key (Insights Query Key)"
+            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-violet/40"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <input
-            placeholder="Index pattern (e.g. logs-*)"
-            className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-cyan/40"
-            value={indexPattern}
-            onChange={(e) => setIndexPattern(e.target.value)}
-          />
+          <div className="space-y-1">
+            <input
+              placeholder="App names (comma-separated, e.g. Selling, Selling-Ingestion)"
+              className="w-full h-9 px-3 bg-secondary border border-border/50 rounded-md text-xs font-mono outline-none focus:border-violet/40"
+              value={appNamesInput}
+              onChange={(e) => setAppNamesInput(e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground px-1">
+              Leave empty to monitor all apps in the account
+            </p>
+          </div>
 
           {error && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-rose/10 border border-rose/20">
@@ -558,9 +549,9 @@ function NoConnectionState({ wsId, onConnected }: { wsId: number | null; onConne
           )}
 
           <Button
-            className="w-full h-9 bg-cyan text-background text-xs font-medium hover:bg-cyan/90"
+            className="w-full h-9 bg-violet text-white text-xs font-medium hover:bg-violet/90"
             onClick={handleConnect}
-            disabled={loading || !url || !apiKey}
+            disabled={loading || !accountId || !apiKey}
           >
             {loading ? (
               <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Testing connection...</>
@@ -574,7 +565,7 @@ function NoConnectionState({ wsId, onConnected }: { wsId: number | null; onConne
   );
 }
 
-function ConnectionSettingsModal({
+function NrConnectionSettingsModal({
   open,
   onOpenChange,
   connections,
@@ -583,68 +574,57 @@ function ConnectionSettingsModal({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  connections: Connection[];
+  connections: NrConnection[];
   wsId: number | null;
   onSaved: () => void;
 }) {
-  const [editingEnv, setEditingEnv] = useState<string | null>(null);
-  const [url, setUrl] = useState("");
+  const [editing, setEditing] = useState<NrConnection | null>(null);
+  const [accountId, setAccountId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [changeApiKey, setChangeApiKey] = useState(false);
-  const [indexPattern, setIndexPattern] = useState("");
+  const [appNamesInput, setAppNamesInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const connByEnv = new Map(connections.map((c) => [c.environment, c]));
   const q = wsId ? `?wsId=${wsId}` : "";
 
-  const startEdit = (env: string) => {
-    const existing = connByEnv.get(env);
-    setEditingEnv(env);
-    setUrl(existing?.url ?? "");
+  const startEdit = (conn: NrConnection) => {
+    setEditing(conn);
+    setAccountId(conn.accountId);
     setApiKey("");
-    setChangeApiKey(!existing);
-    setIndexPattern(existing?.indexPattern ?? "logs-*");
+    setChangeApiKey(false);
+    setAppNamesInput(conn.appNames.join(", "));
     setError(null);
   };
 
   const cancelEdit = () => {
-    setEditingEnv(null);
+    setEditing(null);
     setError(null);
   };
 
   const handleSave = async () => {
-    if (!editingEnv) return;
+    if (!editing) return;
     setError(null);
     setSaving(true);
 
-    const existing = connByEnv.get(editingEnv);
-
     try {
-      const isUpdate = !!existing;
+      const appNames = appNamesInput.split(",").map((s) => s.trim()).filter(Boolean);
       const payload: Record<string, unknown> = {
-        url,
-        indexPattern,
-        environment: editingEnv,
+        id: editing.id,
+        accountId,
+        appNames,
       };
+      if (changeApiKey && apiKey) payload.apiKey = apiKey;
 
-      if (isUpdate) {
-        payload.id = existing.id;
-        if (changeApiKey && apiKey) payload.apiKey = apiKey;
-      } else {
-        payload.name = editingEnv;
-        payload.apiKey = apiKey;
-      }
-
-      const res = await fetch(`/api/elastic/connect${q}`, {
-        method: isUpdate ? "PUT" : "POST",
+      const res = await fetch(`/api/newrelic/connect${q}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? data.error ?? "Failed");
 
-      setEditingEnv(null);
+      setEditing(null);
       onSaved();
     } catch (err) {
       setError((err as Error).message);
@@ -657,67 +637,56 @@ function ConnectionSettingsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Elasticsearch Connections</DialogTitle>
+          <DialogTitle>NewRelic Connections</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-2">
-          {ENVIRONMENTS.map((env) => {
-            const conn = connByEnv.get(env);
-            const isEditing = editingEnv === env;
+          {connections.map((conn) => {
+            const isEditing = editing?.id === conn.id;
 
             if (isEditing) {
               return (
-                <div key={env} className="rounded-lg border border-cyan/30 bg-cyan/5 p-3 space-y-3">
+                <div key={conn.id} className="rounded-lg border border-violet/30 bg-violet/5 p-3 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{env}</span>
+                    <span className="text-sm font-medium">{conn.name}</span>
                     <button onClick={cancelEdit} className="text-muted-foreground hover:text-foreground">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
                   <input
-                    placeholder="Elasticsearch URL"
-                    className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-cyan/40"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="Account ID"
+                    className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-violet/40"
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
                   />
 
-                  {conn ? (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={changeApiKey}
-                          onChange={(e) => setChangeApiKey(e.target.checked)}
-                          className="rounded"
-                        />
-                        Change API key
-                      </label>
-                      {changeApiKey && (
-                        <input
-                          type="password"
-                          placeholder="New API key"
-                          className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-cyan/40"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                        />
-                      )}
-                    </div>
-                  ) : (
-                    <input
-                      type="password"
-                      placeholder="API key"
-                      className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-cyan/40"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                    />
-                  )}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={changeApiKey}
+                        onChange={(e) => setChangeApiKey(e.target.checked)}
+                        className="rounded"
+                      />
+                      Change API key
+                    </label>
+                    {changeApiKey && (
+                      <input
+                        type="password"
+                        placeholder="New API key"
+                        className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-violet/40"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                    )}
+                  </div>
 
                   <input
-                    placeholder="Index pattern (e.g. logs-*)"
-                    className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-cyan/40"
-                    value={indexPattern}
-                    onChange={(e) => setIndexPattern(e.target.value)}
+                    placeholder="App names (comma-separated)"
+                    className="w-full h-8 px-2.5 bg-secondary border border-border/50 rounded text-xs font-mono outline-none focus:border-violet/40"
+                    value={appNamesInput}
+                    onChange={(e) => setAppNamesInput(e.target.value)}
                   />
 
                   {error && (
@@ -729,16 +698,14 @@ function ConnectionSettingsModal({
 
                   <Button
                     size="sm"
-                    className="w-full h-8 bg-cyan text-background text-xs hover:bg-cyan/90"
+                    className="w-full h-8 bg-violet text-white text-xs hover:bg-violet/90"
                     onClick={handleSave}
-                    disabled={saving || !url || (!conn && !apiKey)}
+                    disabled={saving || !accountId}
                   >
                     {saving ? (
                       <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Testing...</>
-                    ) : conn ? (
-                      "Update"
                     ) : (
-                      "Connect"
+                      "Update"
                     )}
                   </Button>
                 </div>
@@ -747,25 +714,19 @@ function ConnectionSettingsModal({
 
             return (
               <button
-                key={env}
-                onClick={() => startEdit(env)}
+                key={conn.id}
+                onClick={() => startEdit(conn)}
                 className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/50 hover:border-border hover:bg-accent/30 transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  {conn ? (
-                    <div className="w-5 h-5 rounded-full bg-emerald/20 flex items-center justify-center">
-                      <Check className="w-3 h-3 text-emerald" />
-                    </div>
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-secondary border border-border/50" />
-                  )}
-                  <span className="text-sm font-medium">{env}</span>
+                  <div className="w-5 h-5 rounded-full bg-emerald/20 flex items-center justify-center">
+                    <Check className="w-3 h-3 text-emerald" />
+                  </div>
+                  <span className="text-sm font-medium">{conn.name}</span>
                 </div>
-                {conn && (
-                  <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">
-                    {conn.url}
-                  </span>
-                )}
+                <span className="text-xs text-muted-foreground">
+                  {conn.appNames.length} apps
+                </span>
               </button>
             );
           })}

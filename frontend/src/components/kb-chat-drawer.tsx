@@ -190,11 +190,14 @@ export function KBChatDrawer({ wsId }: KBChatDrawerProps) {
         { id: tempId, role: "user", content: text },
       ]);
 
+      const key = crypto.randomUUID();
+      setStreamKey(key);
+
       try {
         const res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text, wsId, sessionId: currentSessionId }),
+          body: JSON.stringify({ message: text, wsId, sessionId: currentSessionId, streamKey: key }),
         });
         const data = await res.json();
 
@@ -208,9 +211,6 @@ export function KBChatDrawer({ wsId }: KBChatDrawerProps) {
 
         if (data.sessionId && !currentSessionId) {
           setActiveSessionId(data.sessionId);
-        }
-        if (data.streamKey) {
-          setStreamKey(data.streamKey);
         }
 
         setMessages((prev) => [

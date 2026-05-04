@@ -168,6 +168,106 @@ CREATE TABLE IF NOT EXISTS log_insights (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS nr_connections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  api_key_encrypted TEXT NOT NULL,
+  api_key_iv TEXT NOT NULL,
+  app_names TEXT NOT NULL,
+  polling_enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nr_baseline (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id INTEGER NOT NULL,
+  app_name TEXT NOT NULL,
+  metric_type TEXT NOT NULL,
+  avg_value INTEGER NOT NULL DEFAULT 0,
+  last_seen INTEGER,
+  first_seen INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS nr_insights (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id INTEGER NOT NULL,
+  app_name TEXT NOT NULL,
+  metric_type TEXT NOT NULL,
+  metric_label TEXT,
+  current_value INTEGER NOT NULL DEFAULT 0,
+  baseline_value INTEGER NOT NULL DEFAULT 0,
+  severity TEXT NOT NULL DEFAULT 'info',
+  nrql_query TEXT,
+  diagnosis TEXT,
+  fix_suggestion TEXT,
+  fix_prd TEXT,
+  cross_ref_data TEXT,
+  histogram_data TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  jira_ticket_id INTEGER,
+  detected_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sdlc_epics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL,
+  jira_key TEXT NOT NULL,
+  jira_id TEXT,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL,
+  assignee TEXT,
+  sdlc_phase TEXT NOT NULL DEFAULT 'design',
+  last_synced_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sdlc_artifacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  epic_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  generated_at INTEGER,
+  edited_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sdlc_artifact_sections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  artifact_id INTEGER NOT NULL,
+  section_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content_markdown TEXT NOT NULL DEFAULT '',
+  last_generated_at INTEGER,
+  last_edited_by_user INTEGER NOT NULL DEFAULT 0,
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sdlc_signoffs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  epic_id INTEGER NOT NULL,
+  artifact_id INTEGER,
+  role TEXT NOT NULL,
+  person_name TEXT,
+  jira_username TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  signed_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS sdlc_phase_config (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL,
+  jira_status TEXT NOT NULL,
+  sdlc_phase TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ticket_id INTEGER NOT NULL,
@@ -302,6 +402,37 @@ export function migrateToWorkspaces(sqlite: InstanceType<typeof Database>, kbRoo
     fs.mkdirSync(WORKSPACES_DIR, { recursive: true });
   }
 }
+
+const DEFAULT_PHASE_MAPPINGS: Array<{ jiraStatus: string; sdlcPhase: string }> = [
+  // Design
+  { jiraStatus: "To Do", sdlcPhase: "design" },
+  { jiraStatus: "Open", sdlcPhase: "design" },
+  { jiraStatus: "Backlog", sdlcPhase: "design" },
+  { jiraStatus: "Design", sdlcPhase: "design" },
+  { jiraStatus: "Design Review", sdlcPhase: "design" },
+  { jiraStatus: "In Design", sdlcPhase: "design" },
+  { jiraStatus: "RFC", sdlcPhase: "design" },
+  // Development
+  { jiraStatus: "In Progress", sdlcPhase: "development" },
+  { jiraStatus: "In Development", sdlcPhase: "development" },
+  { jiraStatus: "Development", sdlcPhase: "development" },
+  { jiraStatus: "Code Review", sdlcPhase: "development" },
+  { jiraStatus: "In Review", sdlcPhase: "development" },
+  // Testing
+  { jiraStatus: "In QA", sdlcPhase: "testing" },
+  { jiraStatus: "QA", sdlcPhase: "testing" },
+  { jiraStatus: "Testing", sdlcPhase: "testing" },
+  { jiraStatus: "In Testing", sdlcPhase: "testing" },
+  { jiraStatus: "UAT", sdlcPhase: "testing" },
+  { jiraStatus: "Ready for QA", sdlcPhase: "testing" },
+  // Deployed
+  { jiraStatus: "Done", sdlcPhase: "deployed" },
+  { jiraStatus: "Closed", sdlcPhase: "deployed" },
+  { jiraStatus: "Released", sdlcPhase: "deployed" },
+  { jiraStatus: "Deployed", sdlcPhase: "deployed" },
+];
+
+export { DEFAULT_PHASE_MAPPINGS };
 
 function createDb() {
   const sqlite = new Database(DB_PATH);

@@ -73,7 +73,7 @@ async function pollConnection(
       conn.indexPattern,
       {
         error_templates: {
-          terms: { field: "messageTemplate", size: 50 },
+          terms: { field: "messageTemplate.keyword", size: 50 },
         },
       },
       namespaceFilter
@@ -101,7 +101,7 @@ async function pollConnection(
       conn.indexPattern,
       {
         exception_classes: {
-          terms: { field: "exceptions.ClassName", size: 50 },
+          terms: { field: "exceptions.ClassName.keyword", size: 50 },
         },
       },
       exceptionFilter
@@ -162,7 +162,7 @@ async function processErrorPatterns(
         bool: {
           filter: [
             { term: { "data_stream.namespace": environment } },
-            { term: { messageTemplate: template } },
+            { match_phrase: { messageTemplate: template } },
             { range: { "@timestamp": { gte: "now-5m" } } },
           ],
         },
