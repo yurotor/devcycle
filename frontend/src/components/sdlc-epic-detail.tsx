@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   ChevronLeft,
   FileText,
@@ -15,6 +15,8 @@ import {
   Eye,
   Upload,
   AlertTriangle,
+  List,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -99,6 +101,10 @@ export function SdlcEpicDetail({
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editBuffer, setEditBuffer] = useState("");
+  const [tocOpen, setTocOpen] = useState(() => typeof window !== "undefined" && window.innerWidth > 1280);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const currentArtifactForToc = artifacts.find((a) => a.type === activeArtifact) ?? null;
 
   const fetchDetail = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -122,6 +128,58 @@ export function SdlcEpicDetail({
     fetchDetail();
   }, [fetchDetail]);
 
+  // Build TOC entries from current artifact sections
+  const tocEntries = useMemo(() => {
+    if (!currentArtifactForToc) return [];
+    const entries: { id: string; title: string; level: number }[] = [];
+    for (const section of currentArtifactForToc.sections) {
+      const sectionId = `section-${section.sectionKey}`;
+      entries.push({ id: sectionId, title: section.title, level: 0 });
+      const sectionTitleLower = section.title.toLowerCase().trim();
+      const lines = (section.contentMarkdown ?? "").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith("### ")) {
+          const title = line.slice(4);
+          if (title.toLowerCase().trim() !== sectionTitleLower) {
+            entries.push({ id: `${sectionId}-h3-${i}`, title, level: 2 });
+          }
+        } else if (line.startsWith("## ")) {
+          const title = line.slice(3);
+          if (title.toLowerCase().trim() !== sectionTitleLower) {
+            entries.push({ id: `${sectionId}-h2-${i}`, title, level: 1 });
+          }
+        }
+      }
+    }
+    return entries;
+  }, [currentArtifactForToc]);
+
+  // Scroll tracking for active heading
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || tocEntries.length === 0) return;
+
+    const handleScroll = () => {
+      const containerTop = container.getBoundingClientRect().top;
+      let active: string | null = null;
+      for (const entry of tocEntries) {
+        const el = document.getElementById(entry.id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top - containerTop <= 80) {
+            active = entry.id;
+          }
+        }
+      }
+      setActiveHeadingId(active);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [tocEntries]);
+
   const handleGenerate = async (type: string) => {
     setGenerating(type);
     setGenProgress({ currentSection: null, completedSections: 0, totalSections: 0 });
@@ -131,7 +189,7 @@ export function SdlcEpicDetail({
       const res = await fetch("/api/sdlc/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ epicId, type, wsId }),
+        body: JSON.stringify({ epicId, type }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -184,7 +242,7 @@ export function SdlcEpicDetail({
       const res = await fetch("/api/sdlc/regenerate-section", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ artifactId, sectionKey, wsId }),
+        body: JSON.stringify({ artifactId, sectionKey }),
       });
       if (res.ok) {
         await fetchDetail();
@@ -228,8 +286,56 @@ export function SdlcEpicDetail({
   const testPlan = artifacts.find((a) => a.type === "test_plan");
   const currentArtifact = artifacts.find((a) => a.type === activeArtifact);
 
+  const handleTocClick = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full flex">
+      {/* TOC Rail */}
+      {currentArtifact && tocOpen && (
+        <div className="w-56 shrink-0 border-r border-border bg-secondary/20 overflow-y-auto sticky top-0 h-full">
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contents</span>
+            <button
+              onClick={() => setTocOpen(false)}
+              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <nav className="p-2 space-y-0.5">
+            {tocEntries.map((entry) => (
+              <button
+                key={entry.id}
+                onClick={() => handleTocClick(entry.id)}
+                className={`w-full text-left px-2 py-1 rounded text-xs transition-colors relative ${
+                  activeHeadingId === entry.id
+                    ? "bg-cyan/10 text-cyan font-medium border-l-2 border-cyan"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-l-2 border-transparent"
+                }`}
+                style={{ paddingLeft: `${entry.level * 12 + 8}px` }}
+              >
+                <span className="line-clamp-2">{entry.title}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
+      {/* TOC closed tab */}
+      {currentArtifact && !tocOpen && (
+        <button
+          onClick={() => setTocOpen(true)}
+          className="shrink-0 w-6 flex flex-col items-center justify-center border-r border-border bg-secondary/20 hover:bg-secondary/40 transition-colors group"
+          title="Show table of contents"
+        >
+          <List className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />
+        </button>
+      )}
+      <div ref={scrollRef} className="h-full overflow-auto flex-1">
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -267,7 +373,7 @@ export function SdlcEpicDetail({
                   }`}
                 />
                 <span
-                  className={`text-[9px] whitespace-nowrap ${
+                  className={`text-xs whitespace-nowrap ${
                     isCurrent ? "text-foreground font-medium" : "text-muted-foreground"
                   }`}
                 >
@@ -402,7 +508,7 @@ export function SdlcEpicDetail({
                 const isEditing = editingSection === `${currentArtifact.id}:${section.sectionKey}`;
                 const isRegen = regenerating === section.sectionKey;
                 return (
-                  <div key={section.id} className="px-4 py-3">
+                  <div key={section.id} id={`section-${section.sectionKey}`} className="px-4 py-3">
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="text-sm font-semibold">{section.title}</h4>
                       {section.lastEditedByUser === 1 && (
@@ -466,7 +572,7 @@ export function SdlcEpicDetail({
                       </div>
                     ) : (
                       <div className="text-sm text-foreground/90 leading-relaxed prose prose-sm prose-invert max-w-none">
-                        <MarkdownContent content={section.contentMarkdown} />
+                        <MarkdownContent content={section.contentMarkdown} sectionKey={section.sectionKey} />
                       </div>
                     )}
                   </div>
@@ -487,6 +593,7 @@ export function SdlcEpicDetail({
             </p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -618,12 +725,11 @@ function ArtifactCard({
   );
 }
 
-function MarkdownContent({ content }: { content: string }) {
+function MarkdownContent({ content, sectionKey }: { content: string; sectionKey?: string }) {
   if (!content) {
     return <span className="text-muted-foreground italic">No content yet</span>;
   }
 
-  // Simple markdown rendering — convert headers, bold, lists, code
   const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
 
@@ -631,14 +737,16 @@ function MarkdownContent({ content }: { content: string }) {
     const line = lines[i];
 
     if (line.startsWith("### ")) {
+      const headingId = sectionKey ? `section-${sectionKey}-h3-${i}` : undefined;
       elements.push(
-        <h5 key={i} className="font-semibold mt-3 mb-1">
+        <h5 key={i} id={headingId} className="font-semibold mt-3 mb-1">
           {line.slice(4)}
         </h5>
       );
     } else if (line.startsWith("## ")) {
+      const headingId = sectionKey ? `section-${sectionKey}-h2-${i}` : undefined;
       elements.push(
-        <h4 key={i} className="font-semibold mt-3 mb-1">
+        <h4 key={i} id={headingId} className="font-semibold mt-3 mb-1">
           {line.slice(3)}
         </h4>
       );

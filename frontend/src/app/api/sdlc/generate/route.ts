@@ -25,21 +25,21 @@ type ArtifactType = "design_doc" | "test_plan";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { epicId, type, wsId } = body as {
+  const { epicId, type } = body as {
     epicId: number;
     type: ArtifactType;
-    wsId: number;
   };
 
-  if (!epicId || !type || !wsId) {
-    return Response.json({ error: "epicId, type, and wsId required" }, { status: 400 });
+  if (!epicId || !type) {
+    return Response.json({ error: "epicId and type required" }, { status: 400 });
   }
-
-  const ws = await getWorkspace(wsId);
-  if (!ws) return Response.json({ error: "Workspace not found" }, { status: 404 });
 
   const [epic] = await db.select().from(sdlcEpics).where(eq(sdlcEpics.id, epicId));
   if (!epic) return Response.json({ error: "Epic not found" }, { status: 404 });
+
+  const wsId = epic.workspaceId;
+  const ws = await getWorkspace(wsId);
+  if (!ws) return Response.json({ error: "Workspace not found" }, { status: 404 });
 
   const sectionDefs = getSectionDefs(type);
   const now = Date.now();
