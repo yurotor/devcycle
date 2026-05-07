@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -170,15 +171,12 @@ export function NrInsightsPanel({ wsId }: { wsId: number | null }) {
           </span>
         )}
 
-        <select
+        <Select
           value={metricFilter}
-          onChange={(e) => setMetricFilter(e.target.value)}
-          className="ml-auto h-8 px-2 text-sm bg-secondary border border-border/50 rounded-md outline-none"
-        >
-          {METRIC_TYPES.map((mt) => (
-            <option key={mt.key} value={mt.key}>{mt.label}</option>
-          ))}
-        </select>
+          onChange={setMetricFilter}
+          options={METRIC_TYPES.map((mt) => ({ value: mt.key, label: mt.label }))}
+          className="ml-auto"
+        />
 
         <button
           onClick={() => setSettingsOpen(true)}

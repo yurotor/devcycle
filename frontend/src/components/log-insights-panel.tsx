@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -161,17 +162,12 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
         </span>
 
         {/* Environment selector */}
-        <select
+        <Select
           value={environment}
-          onChange={(e) => setEnvironment(e.target.value)}
-          className="ml-auto h-8 px-2 text-sm bg-secondary border border-border/50 rounded-md outline-none"
-        >
-          {ENVIRONMENTS.map((env) => (
-            <option key={env} value={env}>
-              {env}{configuredEnvs.has(env) ? "" : " (not configured)"}
-            </option>
-          ))}
-        </select>
+          onChange={setEnvironment}
+          options={ENVIRONMENTS.map((env) => ({ value: env, label: `${env}${configuredEnvs.has(env) ? "" : " (not configured)"}` }))}
+          className="ml-auto"
+        />
 
         <button
           onClick={() => setSettingsOpen(true)}
@@ -210,15 +206,12 @@ export function LogInsightsPanel({ wsId }: { wsId: number | null }) {
               <AnimatedCounter value={c.count} isError={c.key === "errors"} />
             </div>
           ))}
-          <select
+          <Select
             value={activityWindow}
-            onChange={(e) => setActivityWindow(e.target.value)}
-            className="ml-auto h-7 px-2 text-sm bg-secondary border border-border/50 rounded outline-none"
-          >
-            <option value="5m">5m</option>
-            <option value="1h">1h</option>
-            <option value="24h">24h</option>
-          </select>
+            onChange={setActivityWindow}
+            options={[{ value: "5m", label: "5m" }, { value: "1h", label: "1h" }, { value: "24h", label: "24h" }]}
+            className="ml-auto"
+          />
         </div>
       )}
 

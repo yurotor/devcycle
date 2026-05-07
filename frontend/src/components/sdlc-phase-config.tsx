@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 interface PhaseMapping {
   jiraStatus: string;
@@ -189,17 +190,12 @@ export function SdlcPhaseConfig({
                   />
                 </td>
                 <td className="px-3 py-1.5">
-                  <select
+                  <Select
                     value={m.sdlcPhase}
-                    onChange={(e) => handleChange(i, "sdlcPhase", e.target.value)}
-                    className="h-7 w-full px-2 text-xs bg-secondary border border-border/50 rounded-md outline-none"
-                  >
-                    {SDLC_PHASES.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => handleChange(i, "sdlcPhase", v)}
+                    options={SDLC_PHASES}
+                    className="h-7 w-full text-xs"
+                  />
                 </td>
                 <td className="px-3 py-1.5">
                   <button

@@ -92,7 +92,7 @@ describe("NewRelicClient", () => {
     it("sends correct NRQL", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ results: [], facets: [] }));
 
-      await client.getErrorRates(10);
+      await client.getErrorRates([], 10);
 
       const url = mockFetch.mock.calls[0][0] as string;
       const nrql = decodeURIComponent(url.split("nrql=")[1]);

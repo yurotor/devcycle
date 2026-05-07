@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   GitBranch,
   Key,
@@ -466,16 +467,12 @@ export function SetupFlow({ onComplete, mode = "fresh" }: SetupFlowProps) {
                 const projects = [...new Set(availableRepos.map((r) => r.project))].sort();
                 if (projects.length <= 1) return null;
                 return (
-                  <select
+                  <Select
                     value={selectedProject}
-                    onChange={(e) => setSelectedProject(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-secondary border border-border/50 rounded-md outline-none focus:border-cyan/40 focus:ring-1 focus:ring-cyan/20 text-foreground"
-                  >
-                    <option value="">All projects</option>
-                    {projects.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedProject}
+                    options={[{ value: "", label: "All projects" }, ...projects.map((p) => ({ value: p, label: p }))]}
+                    className="w-full h-9 text-xs"
+                  />
                 );
               })()}
 

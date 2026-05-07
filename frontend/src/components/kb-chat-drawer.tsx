@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Send, Loader2, Bot, User, X, MessageCircle,
-  Maximize2, Minimize2, ArrowLeft, Plus, Clock,
+  Maximize2, Minimize2, ArrowLeft, Plus, Clock, Mic,
 } from "lucide-react";
 import { ToolEventsAccordion, type ToolEvent } from "@/components/tool-events-accordion";
 import ReactMarkdown from "react-markdown";
@@ -92,6 +92,46 @@ export function KBChatDrawer({ wsId }: KBChatDrawerProps) {
   const sendingRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Voice input (Web Speech API) ──────────────────────────────
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const speechSupported = typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const toggleListening = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    let finalTranscript = input;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      setInput(finalTranscript + interim);
+    };
+
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }, [listening, input]);
 
   // Keep ref in sync
   useEffect(() => { activeSessionRef.current = activeSessionId; }, [activeSessionId]);
@@ -479,6 +519,21 @@ export function KBChatDrawer({ wsId }: KBChatDrawerProps) {
                       rows={1}
                       disabled={!wsId || sending}
                     />
+                    {speechSupported && (
+                      <Button
+                        size="sm"
+                        className={`h-8 w-8 p-0 shrink-0 transition-colors ${
+                          listening
+                            ? "bg-red-600 text-white hover:bg-red-500 animate-pulse"
+                            : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent"
+                        }`}
+                        onClick={toggleListening}
+                        disabled={sending || !wsId}
+                        title={listening ? "Stop recording" : "Voice input"}
+                      >
+                        <Mic className="w-3 h-3" />
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       className="h-8 w-8 p-0 shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"

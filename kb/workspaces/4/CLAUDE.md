@@ -1,6 +1,6 @@
 # DevCycle Knowledge Base
 
-The COS (Customer Operations System) is a distributed banking platform built for Cross River Bank (CRB) that provides core banking operations including customer management, accounting, transaction processing, and payment operations. The system is built on a microservices architecture with 4 core service repositories (core, core-ht, core-explorer, core-payments) supported by 25 shared library repositories that provide common infrastructure for messaging, data access, security, API development, and deployment. The platform uses a multi-database approach (SQL Server and PostgreSQL) with NHibernate ORM, implements asynchronous messaging via RabbitMQ (using both NServiceBus and MassTransit), and deploys to AWS ECS with automated infrastructure provisioning via Terraform. The system supports multi-tenancy, role-based access control, distributed tracing, and integrates with external systems including New Relic for monitoring, AWS services for infrastructure, and various banking-specific integrations.
+The COS (Customer Operations System) is Cross River Bank's core banking platform built on a distributed microservices architecture using .NET and Node.js technologies. The system provides comprehensive banking operations including account management, payment processing, transaction handling, accounting operations, tax document management, treasury operations, and customer onboarding. The architecture is organized into three layers: 1) Shared infrastructure libraries (Crb.Cos.Commons.*) providing common functionality like database access (NHibernate/PostgreSQL), messaging (NServiceBus/MassTransit over RabbitMQ), API standardization, security, logging, and domain patterns; 2) Core business services including 'core' (main banking API with customer/accounting controllers), 'core-ht', transaction activity processors, and accounting endpoints that handle prologue entries, sweeps, tax documents, and treasury operations; 3) Supporting services including data export tools, database migration utilities, ECS autoscaling, and frontend applications (Explorer UI built with Node.js). The system runs on AWS infrastructure using ECS containers with RDS databases, communicates via asynchronous messaging through RabbitMQ, and integrates with New Relic for monitoring. The platform supports multi-tenancy with partner-based access control and enforces permission-based authorization.
 
 ## Wiki Sections
 
@@ -44,6 +44,6 @@ The COS (Customer Operations System) is a distributed banking platform built for
 - [cos-explorer-2](wiki/repos/cos-explorer-2.md)
 - [cos-explorer-common-lib](wiki/repos/cos-explorer-common-lib.md)
 
-Total wiki pages: 46
+Total wiki pages: 47
 
-*Generated: 2026-04-17T10:28:06.894Z*
+*Generated: 2026-04-17T10:48:40.329Z*

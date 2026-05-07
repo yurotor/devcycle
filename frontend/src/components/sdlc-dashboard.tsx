@@ -14,6 +14,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { SdlcPhaseConfig } from "@/components/sdlc-phase-config";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -171,17 +172,11 @@ export function SdlcDashboard({
 
           {/* Workspace dropdown */}
           {workspaces.length > 1 && (
-            <select
-              value={activeWsId ?? ""}
-              onChange={(e) => setSdlcWsId(parseInt(e.target.value, 10))}
-              className="h-8 px-2 text-sm bg-secondary border border-border/50 rounded-md outline-none"
-            >
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={String(activeWsId ?? "")}
+              onChange={(v) => setSdlcWsId(parseInt(v, 10))}
+              options={workspaces.map((ws) => ({ value: String(ws.id), label: ws.name }))}
+            />
           )}
 
           <Button
